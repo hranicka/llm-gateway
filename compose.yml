@@ -1,0 +1,13 @@
+services:
+  llm-gateway:
+    image: golang:1.26-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    command: >
+      sh -c "
+        go build -o llm-gateway . &&
+        ./llm-gateway
+      "

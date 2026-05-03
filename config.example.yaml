@@ -1,0 +1,110 @@
+host: 0.0.0.0:1234
+debug: true
+
+models:
+  gemma-4-26b-architect:
+    command: |
+      llama-server
+      -hf unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias gemma-4-26b-architect
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  gemma-4-26b-agent:
+    command: |
+      llama-server
+      -hf unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 0.3 --top-p 0.90 --top-k 40
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias gemma-4-26b-agent
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  qwen-3.6-35b-architect:
+    command: |
+      llama-server
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 0.8 --top-p 0.95 --top-k 20
+      --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias qwen-3.6-35b-architect
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  qwen-3.6-35b-agent:
+    command: |
+      llama-server
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 0.3 --top-p 0.90 --top-k 20
+      --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias qwen-3.6-35b-agent
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  qwopus-3.6-35b-architect:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 0.75 --top-p 0.95 --top-k 40
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias qwopus-3.6-35b-architect
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  qwopus-3.6-35b-agent:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 0.3 --top-p 0.90 --top-k 40
+      --presence-penalty 0.0 --repeat-penalty 1.0
+      --host 127.0.0.1 --port 1234 --alias qwopus-3.6-35b-agent
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  gemopus-4-26b:
+    command: |
+      llama-server
+      -hf Jackrong/Gemopus-4-26B-A4B-it-GGUF:Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -b 512 -ub 512
+      --cache-type-k q8_0 --cache-type-v q8_0
+      -cb --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --host 127.0.0.1 --port 1234 --alias gemopus-4-26b
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  qwopus-3.5-4b:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 49152
+      -b 512 -ub 512
+      --cache-type-k q8_0 --cache-type-v q8_0
+      -cb --jinja
+      --host 127.0.0.1 --port 1234 --alias qwopus-3.5-4b
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
+
+  gemma-4-2b:
+    command: |
+      llama-server
+      -hf unsloth/gemma-4-2b-A4B-it-GGUF:UD-Q4_K_M
+      -ngl 99 -fa on -np 1 -t 8 -c 49152
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --host 127.0.0.1 --port 1234 --alias gemma-4-2b
+    host: 127.0.0.1:1234
+    ready_timeout: 2h
