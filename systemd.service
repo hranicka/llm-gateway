@@ -1,0 +1,17 @@
+[Unit]
+Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/etc/llm-gateway
+ExecStart=/usr/local/bin/llm-gateway
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

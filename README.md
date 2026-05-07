@@ -116,3 +116,34 @@ make tools    # Install dev tools (golangci-lint)
 ## Graceful Shutdown
 
 Sending `SIGINT` or `SIGTERM` will trigger a graceful shutdown: the active model process is terminated, and the gateway stops accepting new connections.
+
+## Autostart with systemd
+
+The gateway includes built-in `--install` and `--uninstall` commands that set up a systemd service, install the binary to `/usr/local/bin`, and place a config template at `/etc/llm-gateway/config.yaml`.
+
+### Install
+
+```bash
+sudo ./llm-gateway --install
+```
+
+### Remove
+
+```bash
+sudo ./llm-gateway --uninstall
+```
+
+### Manage the service
+
+```bash
+# Start / stop / restart
+sudo systemctl start/stop/restart llm-gateway
+
+# Check status
+sudo systemctl status llm-gateway
+
+# View logs
+sudo journalctl -u llm-gateway -f
+```
+
+The service has `Restart=on-failure` with a 10-second delay, so it will automatically recover from crashes.

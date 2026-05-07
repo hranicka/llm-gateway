@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-var version = "dev"
-
 var (
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
@@ -28,6 +26,17 @@ func setupLogger(level slog.Level) {
 func main() {
 	setupLogger(slog.LevelInfo)
 	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--install":
+			doInstall()
+			return
+		case "--uninstall":
+			doUninstall()
+			return
+		}
+	}
 
 	if err := loadConfig("config.yaml"); err != nil {
 		slog.Error("config error", "error", err)
