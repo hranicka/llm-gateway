@@ -112,10 +112,8 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1 // flush immediately; required for SSE streaming
 	proxy.ErrorLog = slog.NewLogLogger(slog.Default().Handler(), slog.LevelError)
-	origDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		origDirector(req)
-		req.Header.Set(loopDetectHeader, "1")
+	proxy.Rewrite = func(req *httputil.ProxyRequest) {
+		req.Out.Header.Set(loopDetectHeader, "1")
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		slog.Error("proxy error", "error", err, "backend", backend)
