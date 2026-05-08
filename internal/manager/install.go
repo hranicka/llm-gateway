@@ -1,27 +1,22 @@
-package main
+package manager
 
 import (
-	_ "embed"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"llm-gateway"
 )
 
-var version = "dev"
-
-//go:embed config.example.yaml
-var exampleConfig []byte
-
-//go:embed systemd.service
-var systemdService []byte
+var Version = "dev"
 
 func runAsRoot() bool {
 	return os.Geteuid() == 0
 }
 
-func requireRoot() {
+func RequireRoot() {
 	if !runAsRoot() {
 		fmt.Fprintln(os.Stderr, "Error: this command requires root privileges. Use sudo.")
 		os.Exit(1)
@@ -35,8 +30,8 @@ func runCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func doInstall() {
-	requireRoot()
+func DoInstall() {
+	RequireRoot()
 
 	binPath := "/usr/local/bin/llm-gateway"
 	configDir := "/etc/llm-gateway"
@@ -71,18 +66,24 @@ func doInstall() {
 		fmt.Println("Binary already at", binPath)
 	}
 
-	fmt.Println("Installing config to", configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		slog.Error("failed to create config directory", "error", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(configPath, exampleConfig, 0644); err != nil {
-		slog.Error("failed to write config", "error", err)
-		os.Exit(1)
+	configSkipped := false
+	if _, err := os.Stat(configPath); err == nil {
+		fmt.Println("Config already exists at", configPath, "— skipping copy")
+		configSkipped = true
+	} else {
+		fmt.Println("Installing config to", configPath)
+		if err := os.WriteFile(configPath, llmgateway.ExampleYAML, 0644); err != nil {
+			slog.Error("failed to write config", "error", err)
+			os.Exit(1)
+		}
 	}
 
-	fmt.Println("Installing systemd service")
-	if err := os.WriteFile(serviceFile, systemdService, 0644); err != nil {
+	fmt.Println("Installing systemd service to", serviceFile)
+	if err := os.WriteFile(serviceFile, llmgateway.SystemdService, 0644); err != nil {
 		slog.Error("failed to write service file", "error", err)
 		os.Exit(1)
 	}
@@ -97,14 +98,29 @@ func doInstall() {
 		os.Exit(1)
 	}
 
-	fmt.Println("\nInstallation complete. Service 'llm-gateway' is running.")
-	fmt.Println("  Logs:  journalctl -u llm-gateway -f")
+	fmt.Println("\nInstallation complete.")
+	fmt.Println()
+	fmt.Println("Files installed:")
+	fmt.Println("  Binary:  ", binPath)
+	fmt.Println("  Config:  ", configPath)
+	fmt.Println("  Service: ", serviceFile)
+	fmt.Println()
+	if configSkipped {
+		fmt.Println("Note: existing config was kept. Review it to ensure it contains the required models and their configuration.")
+	} else {
+		fmt.Println("Next step: edit the config file to add your models and their configuration:")
+		fmt.Println("  $EDITOR", configPath)
+	}
+	fmt.Println()
+	fmt.Println("  Logs:   journalctl -u llm-gateway -f")
 	fmt.Println("  Remove: llm-gateway --uninstall")
 }
 
-func doUninstall() {
-	requireRoot()
+func DoUninstall() {
+	RequireRoot()
 
+	binPath := "/usr/local/bin/llm-gateway"
+	configDir := "/etc/llm-gateway"
 	serviceFile := "/etc/systemd/system/llm-gateway.service"
 
 	fmt.Println("Stopping service")
@@ -113,7 +129,7 @@ func doUninstall() {
 	fmt.Println("Disabling service")
 	_ = runCommand("systemctl", "disable", "llm-gateway.service")
 
-	fmt.Println("Removing service file")
+	fmt.Println("Removing service file:", serviceFile)
 	if err := os.Remove(serviceFile); err != nil && !os.IsNotExist(err) {
 		slog.Error("failed to remove service file", "error", err)
 		os.Exit(1)
@@ -125,6 +141,17 @@ func doUninstall() {
 		os.Exit(1)
 	}
 
+	fmt.Println("Removing binary:", binPath)
+	if err := os.Remove(binPath); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove binary", "error", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Removing config directory:", configDir)
+	if err := os.RemoveAll(configDir); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove config directory", "error", err)
+		os.Exit(1)
+	}
+
 	fmt.Println("\nUninstall complete.")
-	fmt.Println("  Binary and config remain at their locations. Remove manually if needed.")
 }

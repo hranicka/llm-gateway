@@ -9,11 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-)
 
-var (
-	shutdownCtx    context.Context
-	shutdownCancel context.CancelFunc
+	"llm-gateway/internal/api"
+	"llm-gateway/internal/config"
+	"llm-gateway/internal/manager"
 )
 
 func setupLogger(level slog.Level) {
@@ -25,40 +24,42 @@ func setupLogger(level slog.Level) {
 
 func main() {
 	setupLogger(slog.LevelInfo)
-	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
+	manager.Shutdown(context.Background())
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--install":
-			doInstall()
+			manager.DoInstall()
 			return
 		case "--uninstall":
-			doUninstall()
+			manager.DoUninstall()
 			return
 		}
 	}
 
-	if err := loadConfig("config.yaml"); err != nil {
+	if err := config.Load("config.yaml"); err != nil {
 		slog.Error("config error", "error", err)
 		os.Exit(1)
 	}
 
-	if config.Debug {
+	if config.ConfigApp.Debug {
 		setupLogger(slog.LevelDebug)
 	}
 
-	slog.Info("config loaded", "version", version, "models", len(config.Models), "debug", config.Debug)
+	slog.Info("config loaded", "version", manager.Version, "models", len(config.ConfigApp.Models), "debug", config.ConfigApp.Debug)
+
+	manager.StartAutoUnload(config.AutoUnloadDuration())
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/v1/models", modelsHandler)
-	mux.HandleFunc("/v1/chat/completions", proxyHandler)
-	mux.HandleFunc("/v1/completions", proxyHandler)
-	mux.HandleFunc("/", notFoundHandler)
+	mux.HandleFunc("/health", api.HealthHandler)
+	mux.HandleFunc("/v1/models", api.ModelsHandler)
+	mux.HandleFunc("/v1/chat/completions", api.ProxyHandler)
+	mux.HandleFunc("/v1/completions", api.ProxyHandler)
+	mux.HandleFunc("/", api.NotFoundHandler)
 
 	server := &http.Server{
-		Addr:    config.Host,
-		Handler: loggingMiddleware(mux),
+		Addr:    config.ConfigApp.Host,
+		Handler: api.LoggingMiddleware(mux),
 	}
 
 	done := make(chan struct{})
@@ -70,14 +71,17 @@ func main() {
 
 		// Cancel first so waitForServerOrExit unblocks immediately,
 		// releasing the model lock before we try to acquire it below.
-		shutdownCancel()
+		manager.ShutdownCancel()
+
+		// Stop the auto-unload timer so it doesn't fire during shutdown.
+		manager.StopAutoUnload()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		// Kill the model process first so active proxy connections fail immediately,
 		// allowing the HTTP server to drain without waiting the full timeout.
-		shutdownCurrentModel()
+		manager.ShutdownCurrentModel()
 
 		// Then drain remaining HTTP connections.
 		if err := server.Shutdown(ctx); err != nil {
@@ -87,7 +91,7 @@ func main() {
 		close(done)
 	}()
 
-	slog.Info("gateway running", "addr", config.Host)
+	slog.Info("gateway running", "addr", config.ConfigApp.Host)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("listen error", "error", err)
 		os.Exit(1)

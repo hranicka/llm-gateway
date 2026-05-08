@@ -5,7 +5,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - "${GATEWAY_PORT:-8080}:8080"
+      - "${GATEWAY_PORT:-1234}:1234"
     command: >
       sh -c "
         go build -o llm-gateway . &&

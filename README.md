@@ -19,24 +19,26 @@ Running on consumer hardware typically means only one single quantized model can
 
 1. **Request**: A client sends a request to `/v1/chat/completions` (or `/v1/completions`) specifying a `model`.
 2. **Model Switch**:
-   - If the model is already running, the request is proxied immediately.
-   - If not, the gateway shuts down the current backend process (using `SIGTERM`, falling back to `SIGKILL`), waits for it to exit, and then starts the new one.
+    - If the model is already running, the request is proxied immediately.
+    - If not, the gateway shuts down the current backend process (using `SIGTERM`, falling back to `SIGKILL`), waits for it to exit, and then starts the new one.
 3. **Readiness**: The gateway polls the model's `/health` endpoint before proxying the request.
 4. **Monitoring**: If a model process exits unexpectedly, the gateway resets its state and will reload it on the next request.
 
 ## Configuration
 
-The gateway is configured via `config.yaml`. Copy `config.example.yaml` to `config.yaml` and modify it to your needs.
+The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `config.yaml` and modify it to your needs.
 
 ### Config Details
 
 - **`host`**: The address the gateway listens on.
 - **`debug`**: Enables detailed request logging.
-- **`model_ready_timeout`**: Max time to wait for a model to become ready (e.g., `10m`).
+- **`auto_unload`**: Idle duration after which the active model is shut down to free VRAM (e.g. `2h`). The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
 - **`models`**: Model configurations.
     - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`).
     - **`host`**: The `host:port` address the model will listen on.
+
+> **Important**: The model backend port must differ from the gateway port. If they match, the gateway's health-check would hit itself (passing instantly) and the reverse-proxy would loop. The example config uses `:1234` for the gateway and `:1235` for all backends. Ensure the ports are different to avoid this.
 
 ## Endpoints
 
@@ -63,14 +65,14 @@ chmod +x llm-gateway
 
 The gateway itself is self-contained. You only need a compatible backend (e.g., [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server)) configured in `config.yaml` to proxy requests to.
 
-> **Note**: [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server) is the recommended backend. See [`config.example.yaml`](config.example.yaml) for a ready-to-use configuration that includes `llama-server` settings. You can use any compatible backend by adjusting the `command` field.
+> **Note**: [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server) is the recommended backend. See [`config/example.yaml`](config/example.yaml) for a ready-to-use configuration that includes `llama-server` settings. You can use any compatible backend by adjusting the `command` field.
 
 #### Using Makefile (recommended)
 
 ```bash
 git clone <repo-url>
 cd llm-gateway
-cp config.example.yaml config.yaml
+cp config/example.yaml config.yaml
 make build
 ./llm-gateway
 ```
@@ -80,8 +82,8 @@ make build
 ```bash
 git clone <repo-url>
 cd llm-gateway
-cp config.example.yaml config.yaml
-go build -o llm-gateway
+cp config/example.yaml config.yaml
+go build -o llm-gateway ./cmd/gateway
 ./llm-gateway
 ```
 
@@ -92,11 +94,11 @@ The gateway runs in a Go Alpine container. Your `config.yaml` is mounted into th
 ```bash
 git clone <repo-url>
 cd llm-gateway
-cp config.example.yaml config.yaml
+cp config/example.yaml config.yaml
 make docker
 ```
 
-The gateway will be available at `http://localhost:8080`.
+The gateway will be available at `http://localhost:1234`.
 
 ## Build & Run
 

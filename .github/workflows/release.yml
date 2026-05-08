@@ -36,7 +36,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          go build -ldflags "-X main.version=${VERSION}" -o llm-gateway .
+          go build -ldflags "-X llm-gateway/internal/manager.Version=${VERSION}" -o llm-gateway ./cmd/gateway
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

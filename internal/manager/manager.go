@@ -1,4 +1,4 @@
-package main
+package manager
 
 import (
 	"bufio"
@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
+
+	"llm-gateway/internal/config"
 )
 
 var (
@@ -21,7 +24,83 @@ var (
 	activeCmd      *exec.Cmd
 	currentModel   string
 	currentBackend string
+
+	// lastAccess is the Unix nanosecond timestamp of the last successful
+	// SwitchModel call; 0 means no model is loaded.
+	lastAccess atomic.Int64
+
+	// autoUnload timer state.
+	autoUnloadD time.Duration
+	timerMu     sync.Mutex
+	unloadTimer *time.Timer
+
+	// shutdownCtx and shutdownCancel are set by the main package before starting the server.
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
 )
+
+// Shutdown initializes the shutdown context. Must be called before any
+// other manager functions that use ShutdownCtx or ShutdownCancel.
+func Shutdown(ctx context.Context) {
+	shutdownCtx, shutdownCancel = context.WithCancel(ctx)
+}
+
+// ShutdownCtx returns the shutdown context.
+func ShutdownCtx() context.Context {
+	return shutdownCtx
+}
+
+// ShutdownCancel returns the cancel function for shutdown.
+func ShutdownCancel() {
+	shutdownCancel()
+}
+
+// StartAutoUnload enables idle-unloading with the given duration.
+// Must be called before the server starts accepting requests.
+func StartAutoUnload(d time.Duration) {
+	autoUnloadD = d
+}
+
+// StopAutoUnload stops the auto-unload timer and must be called during
+// shutdown to avoid a lingering goroutine.
+func StopAutoUnload() {
+	timerMu.Lock()
+	if unloadTimer != nil {
+		unloadTimer.Stop()
+		unloadTimer = nil
+	}
+	timerMu.Unlock()
+}
+
+// resetAutoUnload records activity and reschedules the auto-unload timer so
+// it fires exactly autoUnloadD after the last request.
+func resetAutoUnload() {
+	if autoUnloadD <= 0 {
+		return
+	}
+	lastAccess.Store(time.Now().UnixNano())
+	timerMu.Lock()
+	if unloadTimer != nil {
+		unloadTimer.Stop()
+	}
+	unloadTimer = time.AfterFunc(autoUnloadD, doAutoUnload)
+	timerMu.Unlock()
+}
+
+// doAutoUnload is called by the timer. It guards against spurious fires
+// (e.g. timer stopped after Stop returned false) by re-checking idle time.
+func doAutoUnload() {
+	mu.Lock()
+	defer mu.Unlock()
+	if activeCmd == nil {
+		return
+	}
+	if time.Since(time.Unix(0, lastAccess.Load())) < autoUnloadD {
+		return
+	}
+	slog.Info("auto-unloading idle model", "model", currentModel)
+	shutdownCurrentModelLocked()
+}
 
 // processAlive returns true if cmd's process is still running.
 // Signal(0) doesn't actually send a signal; it just probes existence.
@@ -41,18 +120,19 @@ func logPipe(r io.ReadCloser, level slog.Level, attrs ...any) {
 	}
 }
 
-// switchModel ensures modelName is loaded and returns its backend URL.
+// SwitchModel ensures modelName is loaded and returns its backend URL.
 //
 // Fast path: if the requested model is already loaded and alive, return its
 // URL immediately under a read lock. Otherwise acquire the write lock, shut
 // down any running model, and start the new one. Concurrent requests for the
 // same model naturally coalesce because they all observe the loaded state on
 // the fast path once the first switch completes.
-func switchModel(modelName string) (string, error) {
+func SwitchModel(modelName string) (string, error) {
 	mu.RLock()
 	if currentModel == modelName && processAlive(activeCmd) {
 		backend := currentBackend
 		mu.RUnlock()
+		resetAutoUnload()
 		return backend, nil
 	}
 	mu.RUnlock()
@@ -62,18 +142,20 @@ func switchModel(modelName string) (string, error) {
 
 	// Re-check after upgrading to the write lock.
 	if currentModel == modelName && processAlive(activeCmd) {
+		resetAutoUnload()
 		return currentBackend, nil
 	}
 	if err := startModelLocked(modelName); err != nil {
 		return "", err
 	}
+	resetAutoUnload()
 	return currentBackend, nil
 }
 
 // startModelLocked shuts down any current model and starts modelName.
 // Caller must hold mu (write lock).
 func startModelLocked(modelName string) error {
-	cmdStr, backendURL, err := buildCommand(modelName)
+	cmdStr, backendURL, err := config.BuildCommand(modelName)
 	if err != nil {
 		return err
 	}
@@ -107,7 +189,7 @@ func startModelLocked(modelName string) error {
 
 	go monitorProcess(cmd, modelName)
 
-	if err := waitForServerOrExit(shutdownCtx, cmd, backendURL+"/health", modelReadyTimeout(modelName)); err != nil {
+	if err := waitForServerOrExit(ShutdownCtx(), cmd, backendURL+"/health", config.ModelReadyTimeout(modelName)); err != nil {
 		if activeCmd == cmd {
 			killProcessGroup(cmd)
 			clearStateLocked()
@@ -136,10 +218,11 @@ func clearStateLocked() {
 	activeCmd = nil
 	currentModel = ""
 	currentBackend = ""
+	lastAccess.Store(0)
 }
 
-// shutdownCurrentModel kills the active model process and cleans up.
-func shutdownCurrentModel() {
+// ShutdownCurrentModel kills the active model process and cleans up.
+func ShutdownCurrentModel() {
 	mu.Lock()
 	defer mu.Unlock()
 	shutdownCurrentModelLocked()

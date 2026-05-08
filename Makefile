@@ -1,7 +1,7 @@
-.PHONY: build test lint vet docker docker-down all tools
+.PHONY: build test lint docker docker-down all tools
 
 build:
-	go build -o llm-gateway .
+	go build -o llm-gateway ./cmd/gateway
 
 test: vet lint
 	go test ./...
@@ -13,10 +13,10 @@ vet:
 	go vet ./...
 
 docker:
-	docker-compose up --build
+	docker-compose -f compose.yml up --build
 
 docker-down:
-	docker-compose down
+	docker-compose -f compose.yml down
 
 all: vet lint test build
 

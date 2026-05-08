@@ -7,13 +7,16 @@ LLM Gateway — a Go single-port proxy that manages model-serving backends on de
 ## File structure
 
 ```
-main.go          — entry point, HTTP server setup, signal/shutdown handling
-config.go        — YAML loading, validation, model config
-manager.go       — process lifecycle: start, monitor (Wait goroutine), shutdown
-api.go           — HTTP handlers: proxy, models list, health check
-config.example.yaml — example configuration file
-Makefile         — build, test, lint, docker targets
-docker-compose.yml — local development with Docker
+cmd/gateway/main.go    — entry point, HTTP server setup, signal/shutdown handling
+tools.go               — external tool dependencies (golangci-lint)
+internal/config/config.go — YAML loading, validation, model config
+internal/manager/manager.go — process lifecycle: start, monitor (Wait goroutine), shutdown
+internal/manager/install.go — install/uninstall commands
+internal/api/api.go   — HTTP handlers: proxy, models list, health check
+config/example.yaml   — example configuration file
+config/systemd.service — systemd service unit file
+compose.yml           — local development with Docker
+Makefile              — build, test, lint targets
 .github/workflows/ci.yml — CI: lint, vet, test, build
 .github/workflows/release.yml — release: lint, test, build, create GitHub release
 ```

@@ -30,7 +30,7 @@ jobs:
         run: go test ./...
 
       - name: Build binary
-        run: GOOS=linux GOARCH=amd64 go build -o llm-gateway .
+        run: GOOS=linux GOARCH=amd64 go build -o llm-gateway ./cmd/gateway
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
