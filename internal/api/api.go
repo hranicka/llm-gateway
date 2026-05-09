@@ -109,11 +109,13 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, fmt.Sprintf("Invalid backend URL: %v", err), "internal_error", http.StatusInternalServerError)
 		return
 	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.FlushInterval = -1 // flush immediately; required for SSE streaming
-	proxy.ErrorLog = slog.NewLogLogger(slog.Default().Handler(), slog.LevelError)
-	proxy.Rewrite = func(req *httputil.ProxyRequest) {
-		req.Out.Header.Set(loopDetectHeader, "1")
+	proxy := &httputil.ReverseProxy{
+		FlushInterval: -1, // flush immediately; required for SSE streaming
+		ErrorLog:      slog.NewLogLogger(slog.Default().Handler(), slog.LevelError),
+		Rewrite: func(req *httputil.ProxyRequest) {
+			req.SetURL(target)
+			req.Out.Header.Set(loopDetectHeader, "1")
+		},
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		slog.Error("proxy error", "error", err, "backend", backend)
