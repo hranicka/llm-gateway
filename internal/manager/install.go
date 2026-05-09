@@ -5,7 +5,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strings"
 
 	"llm-gateway"
 )
@@ -28,6 +30,32 @@ func runCommand(name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// detectInstallUser returns the username and home directory of the user who
+// invoked sudo. Falls back to the current user when SUDO_USER is not set.
+func detectInstallUser() (username, homeDir string) {
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		if u, err := user.Lookup(sudoUser); err == nil {
+			return u.Username, u.HomeDir
+		}
+	}
+	if u, err := user.Current(); err == nil {
+		return u.Username, u.HomeDir
+	}
+	return "root", "/root"
+}
+
+// buildServiceFile replaces placeholders in the embedded service template with
+// values appropriate for the target user so the daemon runs with the correct
+// identity, home directory, and PATH (including ~/.local/bin).
+func buildServiceFile(username, homeDir string) []byte {
+	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:" + homeDir + "/.local/bin"
+	content := string(llmgateway.SystemdService)
+	content = strings.ReplaceAll(content, "%LLM_USER%", username)
+	content = strings.ReplaceAll(content, "%LLM_HOME%", homeDir)
+	content = strings.ReplaceAll(content, "%LLM_PATH%", path)
+	return []byte(content)
 }
 
 func DoInstall() {
@@ -82,8 +110,10 @@ func DoInstall() {
 		}
 	}
 
+	username, homeDir := detectInstallUser()
+	fmt.Printf("Configuring service to run as user %q (home: %s)\n", username, homeDir)
 	fmt.Println("Installing systemd service to", serviceFile)
-	if err := os.WriteFile(serviceFile, llmgateway.SystemdService, 0644); err != nil {
+	if err := os.WriteFile(serviceFile, buildServiceFile(username, homeDir), 0644); err != nil {
 		slog.Error("failed to write service file", "error", err)
 		os.Exit(1)
 	}

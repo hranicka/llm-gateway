@@ -5,7 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=%LLM_USER%
+Environment=HOME=%LLM_HOME%
+Environment=PATH=%LLM_PATH%
 WorkingDirectory=/etc/llm-gateway
 ExecStart=/usr/local/bin/llm-gateway
 Restart=on-failure
