@@ -24,13 +24,35 @@ type ModelConf struct {
 	ReadyTimeout string `yaml:"ready_timeout"`
 }
 
+// Default config search paths.
+const (
+	DefaultConfigPath = "config.yaml"
+	SystemConfigPath  = "/etc/llm-gateway/config.yaml"
+)
+
 var ConfigApp *Config
 
 // sortedModelNames is the config.Models keys, sorted once after loadConfig.
 var SortedModelNames []string
 
+// FindConfigPath returns the first existing config path from the search order.
+func FindConfigPath() string {
+	if _, err := os.Stat(DefaultConfigPath); err == nil {
+		return DefaultConfigPath
+	}
+	if _, err := os.Stat(SystemConfigPath); err == nil {
+		return SystemConfigPath
+	}
+	return ""
+}
+
 // Load reads the YAML file and validates models.
 func Load(filename string) error {
+	if filename == "" {
+		if filename = FindConfigPath(); filename == "" {
+			return fmt.Errorf("config not found — expected %s in current directory or %s", DefaultConfigPath, SystemConfigPath)
+		}
+	}
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("failed to read config: %w", err)

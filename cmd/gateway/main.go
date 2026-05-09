@@ -37,7 +37,7 @@ func main() {
 		}
 	}
 
-	if err := config.Load("config.yaml"); err != nil {
+	if err := config.Load(""); err != nil {
 		slog.Error("config error", "error", err)
 		os.Exit(1)
 	}

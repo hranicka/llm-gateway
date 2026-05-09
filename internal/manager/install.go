@@ -142,8 +142,10 @@ func DoInstall() {
 		fmt.Println("  $EDITOR", configPath)
 	}
 	fmt.Println()
-	fmt.Println("  Logs:   journalctl -u llm-gateway -f")
-	fmt.Println("  Remove: llm-gateway --uninstall")
+	fmt.Println("  Status:  systemctl status llm-gateway.service")
+	fmt.Println("  Logs:    journalctl -u llm-gateway.service -f")
+	fmt.Println("  Restart: sudo systemctl restart llm-gateway.service")
+	fmt.Println("  Remove:  llm-gateway --uninstall")
 }
 
 func DoUninstall() {
