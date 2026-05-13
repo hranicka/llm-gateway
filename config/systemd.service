@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=%LLM_USER%
+Group=%LLM_USER%
 Environment=HOME=%LLM_HOME%
 Environment=PATH=%LLM_PATH%
 WorkingDirectory=/etc/llm-gateway
@@ -14,6 +15,10 @@ Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+
+# Grant access to the Direct Rendering Infrastructure (GPU)
+DeviceAllow=/dev/dri/renderD128 rw
+DeviceAllow=/dev/dri/card0 rw
 
 [Install]
 WantedBy=multi-user.target
