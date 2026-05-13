@@ -3,12 +3,13 @@ debug: true
 auto_unload: 2h
 
 models:
-  # ── Gemma-4-26B (Large) ──────────────────────────────────────────────────────────
+  # ── Gemma-4-26B (Large - APU Optimized) ──────────────────────────────────────────
   gemma-4-26b-architect:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 1.0 --top-p 0.95 --top-k 64
       --presence-penalty 0.0 --repeat-penalty 1.0
@@ -20,7 +21,8 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 0.3 --top-p 0.90 --top-k 40
       --presence-penalty 0.0 --repeat-penalty 1.0
@@ -28,25 +30,26 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Gemopus-4-26B (Large) ────────────────────────────────────────────────────────
+  # ── Gemopus-4-26B (Large - APU Optimized) ────────────────────────────────────────
   gemopus-4-26b:
     command: |
       llama-server
       -hf Jackrong/Gemopus-4-26B-A4B-it-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
-      -b 512 -ub 512
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       -cb --jinja --temp 1.0 --top-p 0.95 --top-k 64
       --host 127.0.0.1 --port 1235 --alias gemopus-4-26b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Qwen3.6-35B-A3B (Large) ──────────────────────────────────────────────────────
+  # ── Qwen3.6-35B-A3B (Large - APU Optimized) ──────────────────────────────────────
   qwen-3.6-35b-architect:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 0.8 --top-p 0.95 --top-k 20
       --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -58,7 +61,8 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 0.3 --top-p 0.90 --top-k 20
       --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -66,12 +70,13 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Qwopus-3.6-35B-A3B (Large) ───────────────────────────────────────────────────
+  # ── Qwopus-3.6-35B-A3B (Large - APU Optimized) ───────────────────────────────────
   qwopus-3.6-35b-architect:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 0.75 --top-p 0.95 --top-k 40
       --presence-penalty 0.0 --repeat-penalty 1.0
@@ -83,7 +88,8 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 0.3 --top-p 0.90 --top-k 40
       --presence-penalty 0.0 --repeat-penalty 1.0
@@ -91,12 +97,13 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Qwen3.6-35B-A3B Uncensored (Large) ───────────────────────────────────────────
+  # ── Qwen3.6-35B-A3B Uncensored (Large - APU Optimized) ───────────────────────────
   qwen3.6-35b-uncensored:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 131072
+      -ngl 99 -fa on -np 1 -t 6 -c 131072
+      -b 2048 -ub 1024 --no-context-shift
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja --temp 1.0 --top-p 0.95 --top-k 64
       --presence-penalty 0.0 --repeat-penalty 1.0
@@ -104,12 +111,12 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Qwopus-3.5-4B (Small) ────────────────────────────────────────────────────────
+  # ── Qwopus-3.5-4B (Small - 6GB VRAM Nvidia Optimized) ────────────────────────────
   qwopus-3.5-4b:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 32768
+      -ngl 99 -fa on -np 1 -t 4 -c 32768
       -b 512 -ub 512
       --cache-type-k q8_0 --cache-type-v q8_0
       -cb --jinja --temp 0.8 --top-p 0.95 --top-k 40
@@ -117,12 +124,12 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Qwen3.5-4B Uncensored (Small) ────────────────────────────────────────────────
+  # ── Qwen3.5-4B Uncensored (Small - 6GB VRAM Nvidia Optimized) ────────────────────
   qwen3.5-4b-uncensored:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 32768
+      -ngl 99 -fa on -np 1 -t 4 -c 32768
       -b 512 -ub 512
       --cache-type-k q8_0 --cache-type-v q8_0
       -cb --jinja --temp 0.8 --top-p 0.95 --top-k 40
@@ -130,12 +137,12 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Gemma-4-2B (Small) ───────────────────────────────────────────────────────────
+  # ── Gemma-4-2B (Small - 6GB VRAM Nvidia Optimized) ───────────────────────────────
   gemma-4-2b:
     command: |
       llama-server
       -hf unsloth/gemma-4-E2B-it-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 32768
+      -ngl 99 -fa on -np 1 -t 4 -c 32768
       -b 512 -ub 512
       --cache-type-k q8_0 --cache-type-v q8_0
       -cb --jinja --temp 0.3 --top-p 0.90 --top-k 20
@@ -147,7 +154,7 @@ models:
     command: |
       llama-server
       -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:Q4_K_M
-      -ngl 99 -fa on -np 1 -t 8 -c 32768
+      -ngl 99 -fa on -np 1 -t 4 -c 32768
       -b 512 -ub 512
       --cache-type-k q8_0 --cache-type-v q8_0
       -cb --jinja --temp 0.3 --top-p 0.90 --top-k 20
