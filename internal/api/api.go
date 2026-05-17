@@ -45,19 +45,24 @@ type openaiErrorResponse struct {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("failed to encode json response", "error", err)
+	}
 }
 
 func writeOpenAIError(w http.ResponseWriter, message, code string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(openaiErrorResponse{
+	err := json.NewEncoder(w).Encode(openaiErrorResponse{
 		Error: openaiError{
 			Message: message,
 			Type:    "invalid_request_error",
 			Code:    code,
 		},
 	})
+	if err != nil {
+		slog.Error("failed to encode openai error response", "error", err)
+	}
 }
 
 // loopDetectHeader is stamped on every proxied request. If the gateway
@@ -96,12 +101,13 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Debug("request received", "model", payload.Model, "method", r.Method, "path", r.URL.Path)
-	backend, err := manager.SwitchModel(payload.Model)
+	backend, release, err := manager.SwitchModel(payload.Model)
 	if err != nil {
 		slog.Error("switch model failed", "model", payload.Model, "error", err)
 		writeOpenAIError(w, fmt.Sprintf("Failed to load model %s: %v", payload.Model, err), "model_load_failed", http.StatusInternalServerError)
 		return
 	}
+	defer release()
 
 	target, err := url.Parse(backend)
 	if err != nil {
@@ -137,7 +143,9 @@ func ModelsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(modelList{Object: "list", Data: models})
+	if err := json.NewEncoder(w).Encode(modelList{Object: "list", Data: models}); err != nil {
+		slog.Error("failed to encode models list", "error", err)
+	}
 }
 
 // HealthHandler confirms the gateway is alive.

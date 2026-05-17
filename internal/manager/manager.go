@@ -34,6 +34,10 @@ var (
 	timerMu     sync.Mutex
 	unloadTimer *time.Timer
 
+	// activeRequests tracks the number of concurrent proxy requests for the
+	// currently loaded model.
+	activeRequests atomic.Int32
+
 	// shutdownCtx and shutdownCancel are set by the main package before starting the server.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
@@ -70,6 +74,11 @@ func StopAutoUnload() {
 		unloadTimer = nil
 	}
 	timerMu.Unlock()
+}
+
+// ReleaseModel decrements the active request counter.
+func ReleaseModel() {
+	activeRequests.Add(-1)
 }
 
 // resetAutoUnload records activity and reschedules the auto-unload timer so
@@ -116,24 +125,35 @@ func logPipe(r io.ReadCloser, level slog.Level, attrs ...any) {
 	defer r.Close()
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		slog.Log(context.Background(), level, "backend", append(append([]any{}, attrs...), "line", scanner.Text())...)
+		fields := make([]any, 0, len(attrs)+2)
+		fields = append(fields, attrs...)
+		fields = append(fields, "line", scanner.Text())
+		slog.Log(context.Background(), level, "backend", fields...)
 	}
 }
 
-// SwitchModel ensures modelName is loaded and returns its backend URL.
+// SwitchModel ensures modelName is loaded and returns its backend URL and a release function.
 //
 // Fast path: if the requested model is already loaded and alive, return its
 // URL immediately under a read lock. Otherwise acquire the write lock, shut
 // down any running model, and start the new one. Concurrent requests for the
 // same model naturally coalesce because they all observe the loaded state on
 // the fast path once the first switch completes.
-func SwitchModel(modelName string) (string, error) {
+//
+// The returned release function must be called when the request finishes to
+// allow the model to be switched or unloaded.
+func SwitchModel(modelName string) (string, func(), error) {
+	if shutdownCtx != nil && shutdownCtx.Err() != nil {
+		return "", nil, fmt.Errorf("server shutting down")
+	}
+
 	mu.RLock()
 	if currentModel == modelName && processAlive(activeCmd) {
 		backend := currentBackend
+		activeRequests.Add(1)
 		mu.RUnlock()
 		resetAutoUnload()
-		return backend, nil
+		return backend, ReleaseModel, nil
 	}
 	mu.RUnlock()
 
@@ -143,13 +163,15 @@ func SwitchModel(modelName string) (string, error) {
 	// Re-check after upgrading to the write lock.
 	if currentModel == modelName && processAlive(activeCmd) {
 		resetAutoUnload()
-		return currentBackend, nil
+		activeRequests.Add(1)
+		return currentBackend, ReleaseModel, nil
 	}
 	if err := startModelLocked(modelName); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	resetAutoUnload()
-	return currentBackend, nil
+	activeRequests.Add(1)
+	return currentBackend, ReleaseModel, nil
 }
 
 // startModelLocked shuts down any current model and starts modelName.
@@ -204,7 +226,9 @@ func startModelLocked(modelName string) error {
 // monitorProcess waits for cmd to exit and clears state if it was the active
 // process, so the next request triggers a fresh load.
 func monitorProcess(cmd *exec.Cmd, modelName string) {
-	_ = cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		slog.Debug("model process wait finished", "model", modelName, "error", err)
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	if activeCmd == cmd {
@@ -241,50 +265,86 @@ func shutdownCurrentModelLocked() {
 		return
 	}
 	slog.Info("shutting down model", "model", currentModel)
+
+	// Wait for active requests to finish before killing the model.
+	// We wait up to 5 seconds, unless the global shutdown context is cancelled.
+	drainDeadline := time.Now().Add(5 * time.Second)
+	for activeRequests.Load() > 0 && time.Now().Before(drainDeadline) {
+		if shutdownCtx != nil && shutdownCtx.Err() != nil {
+			break
+		}
+		mu.Unlock()
+		time.Sleep(100 * time.Millisecond)
+		mu.Lock()
+		// Re-check if the command changed while we were unlocked.
+		if activeCmd != cmd {
+			return
+		}
+	}
+
+	if n := activeRequests.Load(); n > 0 {
+		slog.Warn("drain timeout exceeded, killing model with active requests", "model", currentModel, "active_requests", n)
+	}
+
 	pgid := cmd.Process.Pid
 
 	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
 		slog.Warn("process group SIGTERM failed, sending SIGTERM to process", "error", err)
-		_ = cmd.Process.Signal(syscall.SIGTERM)
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			slog.Debug("process SIGTERM failed", "error", err)
+		}
 	}
 
-	if !waitWithTimeout(cmd, 10*time.Second) {
+	if !waitForGroupExit(pgid, 10*time.Second) {
 		slog.Warn("model did not exit on SIGTERM, sending SIGKILL", "model", currentModel)
 		killProcessGroup(cmd)
-		if !waitWithTimeout(cmd, 10*time.Second) {
-			slog.Error("model process group did not exit after SIGKILL, process may leak", "model", currentModel, "pid", pgid)
-		}
 	}
 
 	// Brief grace period for the GPU driver to release the device before
 	// the next model process tries to acquire it (avoids ErrorDeviceLost).
-	time.Sleep(500 * time.Millisecond)
+	// We use 1 second for better reliability with RADV.
+	time.Sleep(1 * time.Second)
 
 	clearStateLocked()
 }
 
-// killProcessGroup sends SIGKILL to the whole process group, falling back to
-// the main process if the group kill fails.
+// killProcessGroup sends SIGKILL to the whole process group and waits for exit.
 func killProcessGroup(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
-		_ = cmd.Process.Kill()
+	pgid := cmd.Process.Pid
+	if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+		if err := cmd.Process.Kill(); err != nil {
+			slog.Debug("process SIGKILL failed", "error", err)
+		}
 	}
+	waitForGroupExit(pgid, 5*time.Second)
 }
 
-// waitWithTimeout polls processAlive until cmd exits or timeout elapses.
-// Returns true if the process exited within the timeout.
-func waitWithTimeout(cmd *exec.Cmd, timeout time.Duration) bool {
+// waitForGroupExit polls until no process in the process group pgid exists,
+// or timeout elapses. Returns true if the group exited within the timeout.
+//
+// Using the process group (rather than cmd.Process alone) ensures that child
+// processes spawned by the shell — e.g. the model binary started via
+// sh -c "export ...; llama-server ..." — are also fully gone before we
+// proceed. The shell may exit on SIGTERM before the model binary finishes
+// its own cleanup; checking only the shell would return too early.
+func waitForGroupExit(pgid int, timeout time.Duration) bool {
+	groupGone := func() bool {
+		return syscall.Kill(-pgid, syscall.Signal(0)) == syscall.ESRCH
+	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if !processAlive(cmd) {
+		if shutdownCtx != nil && shutdownCtx.Err() != nil {
+			return false
+		}
+		if groupGone() {
 			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return !processAlive(cmd)
+	return groupGone()
 }
 
 // waitForServerOrExit polls the model process health endpoint until it returns
