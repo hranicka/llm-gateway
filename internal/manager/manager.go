@@ -153,7 +153,7 @@ func SwitchModel(modelName string) (string, func(), error) {
 		activeRequests.Add(1)
 		mu.RUnlock()
 		resetAutoUnload()
-		return backend, ReleaseModel, nil
+		return backend, sync.OnceFunc(ReleaseModel), nil
 	}
 	mu.RUnlock()
 
@@ -164,14 +164,14 @@ func SwitchModel(modelName string) (string, func(), error) {
 	if currentModel == modelName && processAlive(activeCmd) {
 		resetAutoUnload()
 		activeRequests.Add(1)
-		return currentBackend, ReleaseModel, nil
+		return currentBackend, sync.OnceFunc(ReleaseModel), nil
 	}
 	if err := startModelLocked(modelName); err != nil {
 		return "", nil, err
 	}
 	resetAutoUnload()
 	activeRequests.Add(1)
-	return currentBackend, ReleaseModel, nil
+	return currentBackend, sync.OnceFunc(ReleaseModel), nil
 }
 
 // startModelLocked shuts down any current model and starts modelName.
