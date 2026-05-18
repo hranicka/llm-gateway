@@ -88,6 +88,7 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	r.ContentLength = int64(len(bodyBytes))
 
 	var payload requestPayload
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
