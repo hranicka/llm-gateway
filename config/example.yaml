@@ -3,15 +3,16 @@ debug: true
 auto_unload: 2h
 
 models:
-  # ── Qwen & Qwopus (35B - Gem12 Optimized) ──────────
+  # ── Qwen & Qwopus (35B - 96k Context - Q8 KV Cache - 30GB RAM Optimized) ──
   qwen-3.6-35b-architect:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.8 --top-p 0.95 --top-k 20 --min-p 0.0
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -20,11 +21,12 @@ models:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-MTP-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --spec-type draft-mtp --spec-draft-n-max 3
-      --jinja --temp 0.8 --top-p 0.95 --top-k 20 --min-p 0.0
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-mtp-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -33,10 +35,11 @@ models:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.3 --top-p 0.90 --top-k 20 --min-p 0.0
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-agent
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -45,11 +48,12 @@ models:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-MTP-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --spec-type draft-mtp --spec-draft-n-max 3
-      --jinja --temp 0.3 --top-p 0.90 --top-k 20 --min-p 0.0
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-mtp-agent
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -58,10 +62,11 @@ models:
     command: |
       llama-server
       --hf-repo Jackrong/Qwopus3.6-35B-A3B-v1-GGUF --hf-file Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.75 --top-p 0.95 --top-k 40
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -70,10 +75,11 @@ models:
     command: |
       llama-server
       --hf-repo Jackrong/Qwopus3.6-35B-A3B-v1-GGUF --hf-file Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.3 --top-p 0.90 --top-k 40
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-agent
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -82,23 +88,25 @@ models:
     command: |
       llama-server
       --hf-repo HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive --hf-file Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
+      -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 96000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5
+      --chat-template-kwargs '{"enable_thinking":false}'
       --host 127.0.0.1 --port 1235 --alias qwen3.6-35b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Gemma & Gemopus (26B - 64k Context - Q8 Cache - Gem12 Optimized) ──────────
+  # ── Gemma & Gemopus (26B - 64k Context - Q8 KV Cache - 30GB RAM Optimized) ──
   gemma-4-26b-architect:
     command: |
       llama-server
       --hf-repo unsloth/gemma-4-26B-A4B-it-GGUF --hf-file gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -109,8 +117,9 @@ models:
       --hf-repo unsloth/gemma-4-26B-A4B-it-GGUF --hf-file gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.3 --top-p 0.90 --top-k 40
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-agent
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -121,21 +130,22 @@ models:
       --hf-repo Jackrong/Gemopus-4-26B-A4B-it-GGUF --hf-file Gemopus-4-26B-A4B-it-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 6 -tb 16 -c 64000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 1.0 --top-p 0.95 --top-k 64
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemopus-4-26b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Small Models (4B/2B - 32k Context - Q8 Cache - Blackwell Optimized) ───────
+  # ── Small Models (4B/2B - 32k Context - Q8 KV Cache - 30GB RAM Optimized) ──
   qwopus-3.5-4b:
     command: |
       llama-server
       --hf-repo Jackrong/Qwopus3.5-4B-v3-GGUF --hf-file Qwopus3.5-4B-v3-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 4 -c 32000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.8 --top-p 0.95 --top-k 40
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --host 127.0.0.1 --port 1235 --alias qwopus-3.5-4b
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -146,8 +156,8 @@ models:
       --hf-repo HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive --hf-file Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 4 -c 32000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.8 --top-p 0.95 --top-k 40
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --host 127.0.0.1 --port 1235 --alias qwen3.5-4b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -158,8 +168,9 @@ models:
       --hf-repo unsloth/gemma-4-E2B-it-GGUF --hf-file gemma-4-E2B-it-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 4 -c 32000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.3 --top-p 0.90 --top-k 20
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -170,8 +181,9 @@ models:
       --hf-repo TrevorJS/gemma-4-E2B-it-uncensored-GGUF --hf-file gemma-4-E2B-it-uncensored-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 4 -c 32000
       -b 1024 -ub 1024
-      --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --jinja --temp 0.3 --top-p 0.90 --top-k 20
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --chat-template-kwargs '{"enable_thinking":false}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
