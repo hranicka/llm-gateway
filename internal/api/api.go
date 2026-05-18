@@ -87,7 +87,7 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, "Failed to read request body", "invalid_body", http.StatusBadRequest)
 		return
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
 	var payload requestPayload
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
