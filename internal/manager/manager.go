@@ -38,6 +38,9 @@ var (
 	// currently loaded model.
 	activeRequests atomic.Int32
 
+	// lastExit tracks when the last backend process finished or was killed.
+	lastExit time.Time
+
 	// shutdownCtx and shutdownCancel are set by the main package before starting the server.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
@@ -184,6 +187,13 @@ func startModelLocked(modelName string) error {
 
 	shutdownCurrentModelLocked()
 
+	// Cooldown: ensure several seconds have passed since the previous process
+	// (if any) finished, to allow the GPU driver to fully recover.
+	if wait := 5*time.Second - time.Since(lastExit); wait > 0 {
+		slog.Info("cooldown before starting next model", "duration", wait)
+		time.Sleep(wait)
+	}
+
 	slog.Info("starting model", "model", modelName, "command", cmdStr)
 	cmd := exec.Command("sh", "-c", cmdStr)
 	// Run the model process in its own process group so terminal signals (Ctrl+C)
@@ -212,8 +222,8 @@ func startModelLocked(modelName string) error {
 	go monitorProcess(cmd, modelName)
 
 	if err := waitForServerOrExit(ShutdownCtx(), cmd, backendURL+"/health", config.ModelReadyTimeout(modelName)); err != nil {
+		killProcessGroup(cmd)
 		if activeCmd == cmd {
-			killProcessGroup(cmd)
 			clearStateLocked()
 		}
 		return fmt.Errorf("server failed to become ready: %w", err)
@@ -234,6 +244,7 @@ func monitorProcess(cmd *exec.Cmd, modelName string) {
 	if activeCmd == cmd {
 		slog.Error("model process exited", "model", modelName)
 		clearStateLocked()
+		lastExit = time.Now()
 	}
 }
 
@@ -267,19 +278,10 @@ func shutdownCurrentModelLocked() {
 	slog.Info("shutting down model", "model", currentModel)
 
 	// Wait for active requests to finish before killing the model.
-	// We wait up to 5 seconds, unless the global shutdown context is cancelled.
+	// We wait up to 5 seconds.
 	drainDeadline := time.Now().Add(5 * time.Second)
 	for activeRequests.Load() > 0 && time.Now().Before(drainDeadline) {
-		if shutdownCtx != nil && shutdownCtx.Err() != nil {
-			break
-		}
-		mu.Unlock()
 		time.Sleep(100 * time.Millisecond)
-		mu.Lock()
-		// Re-check if the command changed while we were unlocked.
-		if activeCmd != cmd {
-			return
-		}
 	}
 
 	if n := activeRequests.Load(); n > 0 {
@@ -300,12 +302,8 @@ func shutdownCurrentModelLocked() {
 		killProcessGroup(cmd)
 	}
 
-	// Brief grace period for the GPU driver to release the device before
-	// the next model process tries to acquire it (avoids ErrorDeviceLost).
-	// We use 1 second for better reliability with RADV.
-	time.Sleep(1 * time.Second)
-
 	clearStateLocked()
+	lastExit = time.Now()
 }
 
 // killProcessGroup sends SIGKILL to the whole process group and waits for exit.
@@ -336,9 +334,6 @@ func waitForGroupExit(pgid int, timeout time.Duration) bool {
 	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if shutdownCtx != nil && shutdownCtx.Err() != nil {
-			return false
-		}
 		if groupGone() {
 			return true
 		}
