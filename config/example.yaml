@@ -3,7 +3,7 @@ debug: true
 auto_unload: 2h
 
 models:
-  # ── Qwen & Qwopus (35B - 96k Context - Q8 KV Cache - APU Stable) ──────────
+  # ── Qwen & Qwopus (35B - Architect: General Tasks / Coder: Precise Coding) ──
   qwen-3.6-35b-architect:
     command: |
       llama-server
@@ -11,7 +11,7 @@ models:
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
@@ -25,13 +25,13 @@ models:
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-mtp-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwen-3.6-35b-agent:
+  qwen-3.6-35b-coder:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
@@ -40,11 +40,11 @@ models:
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-agent
+      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwen-3.6-35b-mtp-agent:
+  qwen-3.6-35b-mtp-coder:
     command: |
       llama-server
       --hf-repo unsloth/Qwen3.6-35B-A3B-MTP-GGUF --hf-file Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
@@ -54,7 +54,7 @@ models:
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-mtp-agent
+      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-mtp-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
@@ -65,13 +65,13 @@ models:
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwopus-3.6-35b-agent:
+  qwopus-3.6-35b-coder:
     command: |
       llama-server
       --hf-repo Jackrong/Qwopus3.6-35B-A3B-v1-GGUF --hf-file Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
@@ -80,7 +80,7 @@ models:
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
-      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-agent
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
@@ -91,13 +91,13 @@ models:
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
       --chat-template-kwargs '{"enable_thinking":false}'
       --host 127.0.0.1 --port 1235 --alias qwen3.6-35b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Gemma & Gemopus (26B - 64k Context - Q8 KV Cache - APU Stable) ──────────
+  # ── Gemma 4 & Gemopus (26B - Architect: General / Coder: Precise Coding) ──
   gemma-4-26b-architect:
     command: |
       llama-server
@@ -105,22 +105,22 @@ models:
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  gemma-4-26b-agent:
+  gemma-4-26b-coder:
     command: |
       llama-server
       --hf-repo unsloth/gemma-4-26B-A4B-it-GGUF --hf-file gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64
+      --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
-      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-agent
+      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
@@ -131,13 +131,13 @@ models:
       -ngl 99 -fa on -np 1 -t 8 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemopus-4-26b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # ── Small Models (Blackwell Optimized - 6GB VRAM) ──────────
+  # ── Small Models (4B/2B - Coding Precision Suite & Restored Defaults) ─────
   qwopus-3.5-4b:
     command: |
       llama-server
@@ -145,7 +145,7 @@ models:
       -ngl 99 --flash-attn -np 1 -t 4 -c 32000
       -b 128 -ub 128 --no-warmup
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias qwopus-3.5-4b
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -157,7 +157,7 @@ models:
       -ngl 99 --flash-attn -np 1 -t 4 -c 32000
       -b 128 -ub 128 --no-warmup
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias qwen3.5-4b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -169,7 +169,7 @@ models:
       -ngl 99 --flash-attn -np 1 -t 4 -c 16000
       -b 128 -ub 128 --no-warmup
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":true}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b
     host: 127.0.0.1:1235
@@ -182,7 +182,7 @@ models:
       -ngl 99 --flash-attn -np 1 -t 4 -c 16000
       -b 128 -ub 128 --no-warmup
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --chat-template-kwargs '{"enable_thinking":false}'
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b-uncensored
     host: 127.0.0.1:1235
