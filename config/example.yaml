@@ -11,12 +11,12 @@ models:
   qwopus-3.6-35b-architect:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -25,12 +25,12 @@ models:
   qwopus-3.6-35b-coder:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -39,121 +39,107 @@ models:
   qwopus-3.6-35b-instruct:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M.gguf
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":false}'
+      --jinja --reasoning off
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
 
   # ══════════════════════════════════════════════════════════════════════════
-  # ── Qwen 3.6 (35B - Standard & Uncensored) ────────────────────────────────
+  # ── Qwen 3.6 (35B - HauhauCS Aggressive Uncensored) ───────────────────────
   # ══════════════════════════════════════════════════════════════════════════
 
-  # Architect: Thinking enabled, general tasks & planning
+  # Architect: Thinking enabled, general uncensored planning & systems design
   qwen-3.6-35b-architect:
     command: |
       llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-GGUF:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Coder: Thinking enabled, precise coding & agentic tasks
+  # Coder: Thinking enabled, low temp, precise uncensored programming
   qwen-3.6-35b-coder:
     command: |
       llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-GGUF:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Instruct: Thinking disabled, reasoning & general chat
+  # Instruct: Thinking disabled, raw reasoning & fast chat responses
   qwen-3.6-35b-instruct:
     command: |
       llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-GGUF:Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":false}'
+      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --jinja --reasoning off
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Uncensored: Thinking disabled, unrestricted output
-  qwen-3.6-35b-uncensored:
-    command: |
-      llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
-      -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 128000
-      -b 256 -ub 256 --no-warmup --no-mmap
-      --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":false}'
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-uncensored
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
 
   # ══════════════════════════════════════════════════════════════════════════
-  # ── Gemma 4 & Gemopus (26B) ───────────────────────────────────────────────
+  # ── Gemma 4 (26B - HauhauCS Balanced Uncensored) ──────────────────────────
   # ══════════════════════════════════════════════════════════════════════════
 
-  # Architect: Thinking enabled, general tasks & planning
+  # Architect: Thinking enabled, global planning & creative system design
   gemma-4-26b-architect:
     command: |
       llama-server
-      -hf unsloth/gemma-4-26B-A4B-it-GGUF:gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Coder: Thinking enabled, precise coding & agentic tasks
+  # Coder: Thinking enabled, complex logic reasoning & agentic workflows
   gemma-4-26b-coder:
     command: |
       llama-server
-      -hf unsloth/gemma-4-26B-A4B-it-GGUF:gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Generalist: Thinking enabled, balanced tasks
-  gemopus-4-26b-generalist:
+  # Instruct: Thinking disabled, high-throughput conversational response
+  gemma-4-26b-instruct:
     command: |
       llama-server
-      -hf Jackrong/Gemopus-4-26B-A4B-it-GGUF:Gemopus-4-26B-A4B-it-Q4_K_M.gguf
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
       -ngl 99 -fa on -np 1 -t 4 -tb 16 -c 96000
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --chat-template-kwargs '{"enable_thinking":true}'
-      --host 127.0.0.1 --port 1235 --alias gemopus-4-26b-generalist
+      --jinja --reasoning off
+      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
@@ -166,11 +152,12 @@ models:
   qwopus-3.5-4b-coder:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Qwopus3.5-4B-v3-Q4_K_M.gguf
+      -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Qwopus3.5-4B-v3-Q4_K_M
       -ngl 99 --flash-attn -np 1 -t 4 -c 32000
       -b 128 -ub 128 --no-warmup --no-mmap
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --jinja
       --host 127.0.0.1 --port 1235 --alias qwopus-3.5-4b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -179,11 +166,12 @@ models:
   qwen-3.5-4b-uncensored:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
+      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
       -ngl 99 --flash-attn -np 1 -t 4 -c 32000
       -b 128 -ub 128 --no-warmup --no-mmap
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --jinja
       --host 127.0.0.1 --port 1235 --alias qwen-3.5-4b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -192,12 +180,12 @@ models:
   gemma-4-2b-architect:
     command: |
       llama-server
-      -hf unsloth/gemma-4-E2B-it-GGUF:gemma-4-E2B-it-Q4_K_M.gguf
+      -hf unsloth/gemma-4-E2B-it-GGUF:gemma-4-E2B-it-Q4_K_M
       -ngl 99 --flash-attn -np 1 -t 4 -c 16000
       -b 128 -ub 128 --no-warmup --no-mmap
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --chat-template-kwargs '{"enable_thinking":true}'
+      --jinja --reasoning on
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -206,12 +194,12 @@ models:
   gemma-4-2b-uncensored:
     command: |
       llama-server
-      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M.gguf
+      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
       -ngl 99 --flash-attn -np 1 -t 4 -c 16000
       -b 128 -ub 128 --no-warmup --no-mmap
       --cache-type-k q4_0 --cache-type-v q4_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --chat-template-kwargs '{"enable_thinking":false}'
+      --jinja --reasoning off
       --host 127.0.0.1 --port 1235 --alias gemma-4-2b-uncensored
     host: 127.0.0.1:1235
     ready_timeout: 2h
