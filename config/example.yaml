@@ -63,7 +63,7 @@ models:
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --jinja --reasoning on
+      --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -77,7 +77,7 @@ models:
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --jinja --reasoning on
+      --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -91,7 +91,7 @@ models:
       -b 256 -ub 256 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --jinja --reasoning off
+      --reasoning off
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
