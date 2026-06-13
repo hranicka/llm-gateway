@@ -1,6 +1,9 @@
 host: 0.0.0.0:1234
 debug: true
 auto_unload: 2h
+# How long to wait for active requests (e.g. streaming responses) to finish
+# before forcing the current model to shut down during a model switch.
+drain_timeout: 30s
 
 models:
   # ══════════════════════════════════════════════════════════════════════════

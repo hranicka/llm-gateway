@@ -58,9 +58,10 @@ func TestProxyHandler_Streaming(t *testing.T) {
 
 	// 2. Setup Gateway Config
 	cfg := &config.Config{
-		Host:       "127.0.0.1:9999",
-		Debug:      true,
-		AutoUnload: "1h",
+		Host:         "127.0.0.1:9999",
+		Debug:        true,
+		AutoUnload:   "1h",
+		DrainTimeout: "5s",
 		Models: map[string]config.ModelConf{
 			"test-model": {
 				Command:      "sleep 60",

@@ -278,8 +278,8 @@ func shutdownCurrentModelLocked() {
 	slog.Info("shutting down model", "model", currentModel)
 
 	// Wait for active requests to finish before killing the model.
-	// We wait up to 5 seconds.
-	drainDeadline := time.Now().Add(5 * time.Second)
+	drainTimeout := config.DrainTimeout()
+	drainDeadline := time.Now().Add(drainTimeout)
 	for activeRequests.Load() > 0 && time.Now().Before(drainDeadline) {
 		time.Sleep(100 * time.Millisecond)
 	}

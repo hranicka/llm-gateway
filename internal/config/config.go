@@ -12,10 +12,11 @@ import (
 )
 
 type Config struct {
-	Host       string               `yaml:"host"`
-	Debug      bool                 `yaml:"debug"`
-	AutoUnload string               `yaml:"auto_unload"`
-	Models     map[string]ModelConf `yaml:"models"`
+	Host         string               `yaml:"host"`
+	Debug        bool                 `yaml:"debug"`
+	AutoUnload   string               `yaml:"auto_unload"`
+	DrainTimeout string               `yaml:"drain_timeout"`
+	Models       map[string]ModelConf `yaml:"models"`
 }
 
 type ModelConf struct {
@@ -69,6 +70,16 @@ func Load(filename string) error {
 	if _, err := time.ParseDuration(ConfigApp.AutoUnload); err != nil {
 		return fmt.Errorf("auto_unload: %w", err)
 	}
+	if ConfigApp.DrainTimeout == "" {
+		return fmt.Errorf("drain_timeout is required")
+	}
+	drainTimeout, err := time.ParseDuration(ConfigApp.DrainTimeout)
+	if err != nil {
+		return fmt.Errorf("drain_timeout: %w", err)
+	}
+	if drainTimeout <= 0 {
+		return fmt.Errorf("drain_timeout must be greater than zero")
+	}
 
 	for name, m := range ConfigApp.Models {
 		if m.Command == "" {
@@ -106,6 +117,13 @@ func ModelReadyTimeout(modelName string) time.Duration {
 // AutoUnloadDuration returns the configured auto-unload idle duration.
 func AutoUnloadDuration() time.Duration {
 	d, _ := time.ParseDuration(ConfigApp.AutoUnload)
+	return d
+}
+
+// DrainTimeout returns the configured time to wait for active requests to
+// finish before terminating the current model during a switch.
+func DrainTimeout() time.Duration {
+	d, _ := time.ParseDuration(ConfigApp.DrainTimeout)
 	return d
 }
 

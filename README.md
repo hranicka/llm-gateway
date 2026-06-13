@@ -33,6 +33,7 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`host`**: The address the gateway listens on.
 - **`debug`**: Enables detailed request logging.
 - **`auto_unload`**: Idle duration after which the active model is shut down to free VRAM (e.g. `2h`). The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
+- **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
     - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`).
