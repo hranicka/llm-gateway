@@ -168,6 +168,36 @@ models:
     ready_timeout: 2h
 
   # ══════════════════════════════════════════════════════════════════════════
+  # ── Fast Local Explorers [Optimized for 8845HS Throughput] ────────────────
+  # ══════════════════════════════════════════════════════════════════════════
+
+  local-gemma-12b-flash:
+    command: |
+      llama-server
+      -hf OBLITERATUS/Gemma-4-12B-OBLITERATED:Q4_K_M
+      --no-mmproj
+      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
+      -b 2048 -ub 512 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.2 --top-p 0.9 --top-k 40
+      --host 127.0.0.1 --port 1235 --alias local-gemma-12b-flash
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  local-qwen-9b-flash:
+    command: |
+      llama-server
+      -hf Jackrong/Qwen3.5-9B-DeepSeek-V4-Flash-GGUF:Q4_K_M
+      --no-mmproj
+      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
+      -b 2048 -ub 512 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.1 --top-p 0.95 --min-p 0.05
+      --host 127.0.0.1 --port 1235 --alias local-qwen-9b-flash
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  # ══════════════════════════════════════════════════════════════════════════
   # ── Small Models [Optimized for Blackwell Pro 500 & Intel CPU] ────────────
   # ══════════════════════════════════════════════════════════════════════════
 
