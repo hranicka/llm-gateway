@@ -62,24 +62,35 @@ func buildServiceFile(username, homeDir string) []byte {
 }
 
 func promptConfig(configPath string) bool {
-	entries, err := os.ReadDir("config")
-	if err != nil {
-		fmt.Println("No config directory found, skipping config installation.")
-		return false
+	configDirs := []string{"config"}
+	if exe, err := os.Executable(); err == nil {
+		configDirs = append(configDirs, filepath.Join(filepath.Dir(exe), "config"))
 	}
 
 	var names []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".yaml") {
-			names = append(names, e.Name())
+	var baseDir string
+	for _, dir := range configDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".yaml") {
+				names = append(names, e.Name())
+			}
+		}
+		if len(names) > 0 {
+			baseDir = dir
+			break
 		}
 	}
-	sort.Strings(names)
 
 	if len(names) == 0 {
 		fmt.Println("No configs found.")
 		return false
 	}
+
+	sort.Strings(names)
 
 	fmt.Println("\nAvailable configs:")
 	fmt.Println("  [0] Do nothing (keep current config, if any)")
@@ -108,7 +119,7 @@ func promptConfig(configPath string) bool {
 	}
 
 	selected := names[idx-1]
-	data, err := os.ReadFile(filepath.Join("config", selected))
+	data, err := os.ReadFile(filepath.Join(baseDir, selected))
 	if err != nil {
 		slog.Error("failed to read config", "name", selected, "error", err)
 		os.Exit(1)
@@ -118,6 +129,9 @@ func promptConfig(configPath string) bool {
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		slog.Error("failed to write config", "error", err)
 		os.Exit(1)
+	}
+	if fi, err := os.Stat(configPath); err == nil {
+		fmt.Printf("Config installed (%d bytes)\n", fi.Size())
 	}
 	return true
 }
@@ -172,13 +186,17 @@ func DoInstall() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Starting service")
+	fmt.Println("Restarting service")
 	if err := runCommand("systemctl", "daemon-reload"); err != nil {
 		slog.Error("failed to reload systemd", "error", err)
 		os.Exit(1)
 	}
-	if err := runCommand("systemctl", "enable", "--now", "llm-gateway.service"); err != nil {
-		slog.Error("failed to start service", "error", err)
+	if err := runCommand("systemctl", "enable", "llm-gateway.service"); err != nil {
+		slog.Error("failed to enable service", "error", err)
+		os.Exit(1)
+	}
+	if err := runCommand("systemctl", "restart", "llm-gateway.service"); err != nil {
+		slog.Error("failed to restart service", "error", err)
 		os.Exit(1)
 	}
 
@@ -192,8 +210,7 @@ func DoInstall() {
 	if !configInstalled {
 		fmt.Println("Note: config was not installed. Review your existing config to ensure it contains the required models and their configuration.")
 	} else {
-		fmt.Println("Next step: edit the config file to add your models and their configuration:")
-		fmt.Println("  $EDITOR", configPath)
+		fmt.Println("The service has been restarted with the selected config.")
 	}
 	fmt.Println()
 	fmt.Println("  Status:  systemctl status llm-gateway.service")

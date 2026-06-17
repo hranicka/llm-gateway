@@ -39,7 +39,7 @@ jobs:
           go build -ldflags "-X llm-gateway/internal/manager.Version=${VERSION}" -o llm-gateway ./cmd/gateway
 
       - name: Package binary with configs
-        run: zip -j llm-gateway.zip llm-gateway config/*.yaml
+        run: zip -r llm-gateway.zip llm-gateway config/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
