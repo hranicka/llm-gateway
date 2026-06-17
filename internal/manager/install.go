@@ -1,15 +1,18 @@
 package manager
 
 import (
+	"bufio"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
-	"llm-gateway"
+	llmgateway "llm-gateway"
 )
 
 var Version = "dev"
@@ -58,6 +61,67 @@ func buildServiceFile(username, homeDir string) []byte {
 	return []byte(content)
 }
 
+func promptConfig(configPath string) bool {
+	entries, err := os.ReadDir("config")
+	if err != nil {
+		fmt.Println("No config directory found, skipping config installation.")
+		return false
+	}
+
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".yaml") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+
+	if len(names) == 0 {
+		fmt.Println("No configs found.")
+		return false
+	}
+
+	fmt.Println("\nAvailable configs:")
+	fmt.Println("  [0] Do nothing (keep current config, if any)")
+	for i, name := range names {
+		fmt.Printf("  [%d] %s\n", i+1, name)
+	}
+	fmt.Print("\nSelect config [0]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println()
+		return false
+	}
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return false
+	}
+	idx, err := strconv.Atoi(input)
+	if err != nil || idx < 0 || idx > len(names) {
+		fmt.Println("Invalid selection, skipping config installation.")
+		return false
+	}
+	if idx == 0 {
+		return false
+	}
+
+	selected := names[idx-1]
+	data, err := os.ReadFile(filepath.Join("config", selected))
+	if err != nil {
+		slog.Error("failed to read config", "name", selected, "error", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Installing config %s to %s\n", selected, configPath)
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		slog.Error("failed to write config", "error", err)
+		os.Exit(1)
+	}
+	return true
+}
+
 func DoInstall() {
 	RequireRoot()
 
@@ -98,17 +162,7 @@ func DoInstall() {
 		slog.Error("failed to create config directory", "error", err)
 		os.Exit(1)
 	}
-	configSkipped := false
-	if _, err := os.Stat(configPath); err == nil {
-		fmt.Println("Config already exists at", configPath, "— skipping copy")
-		configSkipped = true
-	} else {
-		fmt.Println("Installing config to", configPath)
-		if err := os.WriteFile(configPath, llmgateway.ExampleYAML, 0644); err != nil {
-			slog.Error("failed to write config", "error", err)
-			os.Exit(1)
-		}
-	}
+	configInstalled := promptConfig(configPath)
 
 	username, homeDir := detectInstallUser()
 	fmt.Printf("Configuring service to run as user %q (home: %s)\n", username, homeDir)
@@ -135,8 +189,8 @@ func DoInstall() {
 	fmt.Println("  Config:  ", configPath)
 	fmt.Println("  Service: ", serviceFile)
 	fmt.Println()
-	if configSkipped {
-		fmt.Println("Note: existing config was kept. Review it to ensure it contains the required models and their configuration.")
+	if !configInstalled {
+		fmt.Println("Note: config was not installed. Review your existing config to ensure it contains the required models and their configuration.")
 	} else {
 		fmt.Println("Next step: edit the config file to add your models and their configuration:")
 		fmt.Println("  $EDITOR", configPath)

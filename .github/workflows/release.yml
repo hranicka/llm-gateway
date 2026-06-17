@@ -38,9 +38,12 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           go build -ldflags "-X llm-gateway/internal/manager.Version=${VERSION}" -o llm-gateway ./cmd/gateway
 
+      - name: Package binary with configs
+        run: zip -j llm-gateway.zip llm-gateway config/*.yaml
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
-          files: llm-gateway
+          files: llm-gateway.zip
           generate_release_notes: true

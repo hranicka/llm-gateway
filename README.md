@@ -26,7 +26,7 @@ Running on consumer hardware typically means only one single quantized model can
 
 ## Configuration
 
-The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `config.yaml` and modify it to your needs.
+The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `config.yaml` and modify it to your needs, or use one of the machine-specific configs from the `config/` directory.
 
 ### Config Details
 
@@ -54,10 +54,11 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 
 ### Pre-built binaries
 
-Download the latest release from the [GitHub Releases page](https://github.com/hranicka/llm-gateway/releases).
+Download the latest release zip from the [GitHub Releases page](https://github.com/hranicka/llm-gateway/releases). It contains the `llm-gateway` binary alongside example configs.
 
 ```bash
-wget https://github.com/hranicka/llm-gateway/releases/latest/download/llm-gateway
+wget https://github.com/hranicka/llm-gateway/releases/latest/download/llm-gateway.zip
+unzip llm-gateway.zip
 chmod +x llm-gateway
 ./llm-gateway
 ```
@@ -66,7 +67,7 @@ chmod +x llm-gateway
 
 The gateway itself is self-contained. You only need a compatible backend (e.g., [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server)) configured in `config.yaml` to proxy requests to.
 
-> **Note**: [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server) is the recommended backend. See [`config/example.yaml`](config/example.yaml) for a ready-to-use configuration that includes `llama-server` settings. You can use any compatible backend by adjusting the `command` field.
+> **Note**: [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server) is the recommended backend. See [`config/example.yaml`](config/example.yaml) for a basic template, or the config files in [`config/`](config/) for ready-to-use configurations. You can use any compatible backend by adjusting the `command` field.
 
 #### Using Makefile (recommended)
 
@@ -122,13 +123,15 @@ Sending `SIGINT` or `SIGTERM` will trigger a graceful shutdown: the active model
 
 ## Autostart with systemd
 
-The gateway includes built-in `--install` and `--uninstall` commands that set up a systemd service, install the binary to `/usr/local/bin`, and place a config template at `/etc/llm-gateway/config.yaml`.
+The gateway includes built-in `--install` and `--uninstall` commands that set up a systemd service, install the binary to `/usr/local/bin`, and prompt which config to place at `/etc/llm-gateway/config.yaml`.
 
 The service is configured to run as the user who invoked `sudo` (detected via `$SUDO_USER`). This ensures the backend process (e.g., `llama-server`) can find tools installed in `~/.local/bin` and writes model cache to the correct `~/.cache/huggingface` directory.
 
 > **Note:** If your home directory is encrypted (e.g. ecryptfs or an unlocked-at-login LUKS volume), the model cache won't be accessible at boot before you log in. In that case, set `HF_HOME` to an unencrypted path in the backend `command`, for example prepend `HF_HOME=/var/cache/huggingface llama-server …`.
 
 ### Install
+
+Run from the directory where the zip was extracted (the binary and `config/` directory must be in the same location):
 
 ```bash
 sudo ./llm-gateway --install
