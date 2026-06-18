@@ -7,12 +7,16 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # ── 1. STANDALONE MODES (No eGPU / Fast 4B & 2B Models) ───────────────────
   # ══════════════════════════════════════════════════════════════════════════
+  # Note: --split-mode none is added to prevent llama.cpp from splitting
+  # tensors across the internal 6GB GPU and the eGPU (if connected),
+  # avoiding massive Thunderbolt bandwidth bottlenecks.
 
   qwopus-3.5-4b-planner:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Qwopus3.5-4B-v3-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -24,7 +28,8 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
@@ -36,7 +41,8 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -48,7 +54,8 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
@@ -60,7 +67,8 @@ models:
     command: |
       llama-server
       -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -72,7 +80,8 @@ models:
     command: |
       llama-server
       -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -84,7 +93,8 @@ models:
     command: |
       llama-server
       -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
-      --no-mmproj -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
+      --no-mmproj --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
       --cache-type-k q5_0 --cache-type-v q5_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -100,7 +110,8 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF:Q4_K_M
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
@@ -116,7 +127,8 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -131,7 +143,8 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -146,7 +159,8 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -161,7 +175,10 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -173,7 +190,10 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -185,7 +205,10 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":false}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -197,7 +220,10 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-architect
@@ -208,7 +234,10 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-coder
@@ -219,7 +248,10 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 131072
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 30 -fa on -np 1 -t 6 -tb 6 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":false}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-instruct
@@ -231,7 +263,8 @@ models:
       llama-server
       -hf OBLITERATUS/Gemma-4-12B-OBLITERATED:Q4_K_M
       --jinja --chat-template-kwargs '{"enable_thinking":false}'
-      --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 64000
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -244,7 +277,8 @@ models:
       llama-server
       -hf OBLITERATUS/Gemma-4-12B-OBLITERATED:Q4_K_M
       --jinja --chat-template-kwargs '{"enable_thinking":false}'
-      --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 64000
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 0.2 --top-p 0.95 --top-k 64 --presence-penalty 0.0

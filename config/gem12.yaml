@@ -13,7 +13,8 @@ models:
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
       --no-mmproj --no-context-shift
-      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
+      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 98304
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
@@ -189,7 +190,9 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -201,7 +204,9 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -213,7 +218,9 @@ models:
     command: |
       llama-server
       -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
       --chat-template-kwargs '{"enable_thinking":false}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
@@ -225,7 +232,9 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-architect
@@ -236,7 +245,9 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-coder
@@ -247,7 +258,9 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --jinja --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 30 -fa on -np 1 -t 8 -tb 8 -c 131072
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --chat-template-kwargs '{"enable_thinking":false}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-instruct
