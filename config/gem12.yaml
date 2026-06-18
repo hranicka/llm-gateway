@@ -17,11 +17,12 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 98304
       --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-planner
@@ -32,10 +33,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
@@ -46,10 +48,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
@@ -60,10 +63,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":false}'
       --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --reasoning off
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-instruct
@@ -74,10 +78,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
-      --no-context-shift
+      --jinja --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 48000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":false}'
       --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --reasoning off
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-vision
@@ -88,10 +93,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
@@ -102,10 +108,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-coder
@@ -116,10 +123,11 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced-Q4_K_P
-      --no-mmproj --no-context-shift
+      --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":false}'
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --reasoning off
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-instruct
@@ -140,7 +148,7 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF:Q4_K_M
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
@@ -156,7 +164,7 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Qwopus3.6-27B-Coder-MTP-IQ4_XS.gguf
-      --no-mmproj --no-context-shift --split-mode none
+      --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 26 -fa on -np 1 -t 8 -tb 8 -c 131072
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -173,7 +181,7 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -188,7 +196,7 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -203,7 +211,7 @@ models:
     command: |
       llama-server
       -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
-      --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -303,7 +311,7 @@ models:
       --no-mmproj --no-context-shift -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 64000
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
-      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
+      --temp 0.7 --top-p 0.9 --top-k 40 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b-it-gpu-tool-agent
     host: 127.0.0.1:1235
     ready_timeout: 2h
