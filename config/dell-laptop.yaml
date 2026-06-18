@@ -5,11 +5,15 @@ drain_timeout: 30s
 
 models:
   # ══════════════════════════════════════════════════════════════════════════
-  # ── 1. STANDALONE MODES (No eGPU / Fast 4B & 2B Models) ───────────────────
+  # ── 1. STANDALONE MODES (internal NVIDIA Pro 500 6GB, no eGPU) ────────────
   # ══════════════════════════════════════════════════════════════════════════
-  # Note: --split-mode none is added to prevent llama.cpp from splitting
-  # tensors across the internal 6GB GPU and the eGPU (if connected),
-  # avoiding massive Thunderbolt bandwidth bottlenecks.
+  # Machine: Dell laptop — Intel Core Ultra 7 265H (6 P-cores + 8 E-cores).
+  # GPU:    Internal NVIDIA Pro 500 (6GB GDDR6). Fast 4B / 2B MoE quants fit
+  #         with 32k/16k context; -ngl 99 fully offloads to the 6GB GPU.
+  #         -t 6 targets the 6 P-cores.
+  # Note: --split-mode none prevents llama.cpp from splitting tensors across
+  #       the internal 6GB GPU and the eGPU (if connected), avoiding massive
+  #       Thunderbolt bandwidth bottlenecks. Applies to all sections below.
 
   qwopus-3.5-4b-planner:
     command: |
@@ -103,8 +107,15 @@ models:
     ready_timeout: 2h
 
   # ══════════════════════════════════════════════════════════════════════════
-  # ── 2. eGPU ACCELERATED MODES (Thunderbolt 5 RTX 5060 Ti / Heavy Models) ──
+  # ── 2. eGPU ACCELERATED MODES (16GB NVIDIA RTX 5060 Ti via Thunderbolt 5) ─
   # ══════════════════════════════════════════════════════════════════════════
+  # Machine: Dell laptop — Intel Core Ultra 7 265H (6 P-cores + 8 E-cores) + 32GB RAM.
+  # eGPU:   16GB NVIDIA RTX 5060 Ti over Thunderbolt 5.
+  # Models: 35B/27B/26B heavy MoE with MTP speculative decoding, partially
+  #         offloaded (-ngl 22..30); 12B fully offloaded (-ngl 99).
+  #         131072-token context (98304 for the 27B coder), q8_0 KV cache.
+  #         -t 6 targets the 6 P-cores; --split-mode none keeps all layers on
+  #         the eGPU (see note in section 1).
 
   qwopus-3.6-35b-mtp-gpu-planner:
     command: |
@@ -120,6 +131,23 @@ models:
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-mtp-gpu-planner
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwopus-3.6-27b-mtp-gpu-coder:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Qwopus3.6-27B-Coder-MTP-IQ4_XS.gguf
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 98304
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 

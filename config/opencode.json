@@ -39,17 +39,21 @@
       "description": "Deterministic Local Code Writer. Low temperature and thinking disabled to prevent editorial drift. Optimized strictly for processing complex architectural blueprints and planner specs directly into exact file components."
     },
 
+    "cloud-glm": {
+      "mode": "primary",
+      "model": "opencode-go/glm-5.2",
+      "description": "Ultimate Cloud Architect and Senior Coder. Use for the most complex system tasks, reasoning, and code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
+    },
+
     "cloud-kimi": {
       "mode": "primary",
       "model": "opencode-go/kimi-k2.7-code",
-      "small_model": "opencode-go/deepseek-v4-flash",
-      "description": "Ultimate Cloud Architect and Senior Coder. Use for the most complex system tasks, heavy reasoning, and top-tier code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
+      "description": "Cloud Architect and Senior Coder. Use for complex system tasks, heavy reasoning, and top-tier code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
 
     "cloud-deepseek": {
       "mode": "all",
       "model": "opencode-go/deepseek-v4-pro",
-      "small_model": "opencode-go/deepseek-v4-flash",
       "description": "Senior Cloud Developer and excellent coder. Use for core feature building, implementation design, and heavy programming tasks. Delegate low-complexity tasks, file search, and routine code exploration to @cloud-instruct."
     },
 

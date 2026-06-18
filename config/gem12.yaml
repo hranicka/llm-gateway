@@ -5,8 +5,13 @@ drain_timeout: 30s
 
 models:
   # ══════════════════════════════════════════════════════════════════════════
-  # ── 1. STANDALONE MODES (AMD 8845HS / No dedicated GPU) ────────────────────
+  # ── 1. STANDALONE MODES (no dGPU — Radeon 780M iGPU + 32GB RAM) ───────────
   # ══════════════════════════════════════════════════════════════════════════
+  # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM, no dedicated GPU.
+  # GPU:    Integrated Radeon 780M (RDNA3, UMA — shares system RAM).
+  # Models: 35B-A3B / 26B-A4B MoE quants — the largest that fit 32GB RAM.
+  #         -ngl 99 offloads all layers to the iGPU (Vulkan/ROCm);
+  #         -t 8 matches the 8 physical cores.
 
   qwopus-3.6-35b-planner:
     command: |
@@ -122,8 +127,14 @@ models:
     ready_timeout: 2h
 
   # ══════════════════════════════════════════════════════════════════════════
-  # ── 2. eGPU ACCELERATED MODES (OCuLink RTX 5060 Ti / Heavy Models) ────────
+  # ── 2. eGPU ACCELERATED MODES (16GB NVIDIA RTX 5060 Ti via OCuLink) ───────
   # ══════════════════════════════════════════════════════════════════════════
+  # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
+  # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
+  # Models: 35B/27B/26B heavy MoE with MTP speculative decoding, partially
+  #         offloaded (-ngl 22..30); 12B fully offloaded (-ngl 99).
+  #         131072-token context, q8_0 KV cache — fits 16GB VRAM + 32GB RAM.
+  #         -t 8 matches the 8 physical cores.
 
   qwopus-3.6-35b-mtp-gpu-planner:
     command: |
@@ -138,6 +149,23 @@ models:
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --reasoning on
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-mtp-gpu-planner
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwopus-3.6-27b-mtp-gpu-coder:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Qwopus3.6-27B-Coder-MTP-IQ4_XS.gguf
+      --no-mmproj --no-context-shift --split-mode none
+      -ngl 26 -fa on -np 1 -t 8 -tb 8 -c 131072
+      --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
+      -b 1024 -ub 1024 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-coder
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
