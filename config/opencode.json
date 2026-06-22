@@ -4,7 +4,7 @@
 
   "agent": {
     "local-planner": {
-      "mode": "primary",
+      "mode": "all",
       "model": "network-gem12/qwopus-3.6-35b-planner",
       "description": "Top-level Local Planner and Deep Reasoning Engine. Employs advanced chain-of-thought distillation to orchestrate architecture layouts, break down complex logic requirements, and cross-examine system blueprints. Do not write implementation code directly—delegate system design to @local-architect, direct programming to @local-coder, and swift executions to @local-plan-executor."
     },
@@ -22,31 +22,31 @@
     },
 
     "local-instruct": {
-      "mode": "subagent",
+      "mode": "all",
       "model": "network-gem12/qwen-3.6-35b-instruct",
       "description": "Fast Local Conversation Worker. Thinking disabled for instant, low-latency discussions, explanation of structural frameworks, general text formatting, and direct Q&A."
     },
 
     "local-tool-agent": {
-      "mode": "subagent",
+      "mode": "all",
       "model": "network-gem12/gemma-4-12b-it-gpu-tool-agent",
       "description": "Frictionless Local Execution subagent. Thinking disabled for low-latency JSON payload manipulation, multi-turn function calling, workspace indexing, and fast API integration tasks."
     },
 
     "local-plan-executor": {
-      "mode": "subagent",
+      "mode": "all",
       "model": "network-gem12/gemma-4-12b-it-gpu-plan-executor",
       "description": "Deterministic Local Code Writer. Low temperature and thinking disabled to prevent editorial drift. Optimized strictly for processing complex architectural blueprints and planner specs directly into exact file components."
     },
 
     "cloud-glm": {
-      "mode": "primary",
+      "mode": "all",
       "model": "opencode-go/glm-5.2",
       "description": "Ultimate Cloud Architect and Senior Coder. Use for the most complex system tasks, reasoning, and code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
 
     "cloud-kimi": {
-      "mode": "primary",
+      "mode": "all",
       "model": "opencode-go/kimi-k2.7-code",
       "description": "Cloud Architect and Senior Coder. Use for complex system tasks, heavy reasoning, and top-tier code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
@@ -58,7 +58,7 @@
     },
 
     "cloud-instruct": {
-      "mode": "subagent",
+      "mode": "all",
       "model": "opencode-go/deepseek-v4-flash",
       "description": "Ultra-cheap Cloud Subagent. Use strictly for easy tasks, raw file searching, codebase indexing, and basic instructions that require zero deep reasoning or heavy logic."
     }
