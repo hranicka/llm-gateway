@@ -18,7 +18,7 @@ models:
   qwopus-3.5-4b-planner:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Qwopus3.5-4B-v3-Q4_K_M
+      -hf Jackrong/Qwopus3.5-4B-v3-GGUF:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
@@ -33,7 +33,7 @@ models:
   qwen-3.5-4b-architect:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
+      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
@@ -48,7 +48,7 @@ models:
   qwen-3.5-4b-coder:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
+      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
@@ -63,7 +63,7 @@ models:
   qwen-3.5-4b-instruct:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Qwen3.5-4B-Uncensored-HauhauCS-Aggressive-Q4_K_M
+      -hf HauhauCS/Qwen3.5-4B-Uncensored-HauhauCS-Aggressive:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 32000
       -b 512 -ub 512 --no-warmup
@@ -78,7 +78,7 @@ models:
   gemma-4-2b-architect:
     command: |
       llama-server
-      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
+      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
@@ -93,7 +93,7 @@ models:
   gemma-4-2b-coder:
     command: |
       llama-server
-      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
+      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
@@ -108,7 +108,7 @@ models:
   gemma-4-2b-instruct:
     command: |
       llama-server
-      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:gemma-4-E2B-it-uncensored-Q4_K_M
+      -hf TrevorJS/gemma-4-E2B-it-uncensored-GGUF:Q4_K_M
       --jinja --no-mmproj --split-mode none
       -ngl 99 -fa on -np 1 -t 6 -tb 6 -c 16000
       -b 512 -ub 512 --no-warmup
@@ -151,7 +151,7 @@ models:
   qwopus-3.6-27b-mtp-gpu-coder:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Qwopus3.6-27B-Coder-MTP-IQ4_XS.gguf
+      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 98304
       --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
@@ -168,7 +168,7 @@ models:
   qwen-3.6-35b-mtp-gpu-architect:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -184,7 +184,7 @@ models:
   qwen-3.6-35b-mtp-gpu-coder:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -200,7 +200,7 @@ models:
   qwen-3.6-35b-mtp-gpu-instruct:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 22 -fa on -np 1 -t 6 -tb 6 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap

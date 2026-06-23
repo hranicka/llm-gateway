@@ -16,7 +16,7 @@ models:
   qwopus-3.6-35b-planner:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Qwopus3.6-35B-A3B-v1-Q4_K_M
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 98304
       --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
@@ -32,7 +32,7 @@ models:
   qwen-3.6-35b-architect:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -47,7 +47,7 @@ models:
   qwen-3.6-35b-coder:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -62,7 +62,7 @@ models:
   qwen-3.6-35b-instruct:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -77,7 +77,7 @@ models:
   qwen-3.6-35b-vision:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
       --jinja --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 48000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -163,10 +163,10 @@ models:
   qwopus-3.6-27b-mtp-gpu-coder:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Qwopus3.6-27B-Coder-MTP-IQ4_XS.gguf
+      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift --split-mode none
       -ngl 26 -fa on -np 1 -t 8 -tb 8 -c 131072
-      --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
+      --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
       --spec-type draft-mtp --spec-draft-n-max 2
@@ -180,7 +180,7 @@ models:
   qwen-3.6-35b-mtp-gpu-architect:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
@@ -195,7 +195,7 @@ models:
   qwen-3.6-35b-mtp-gpu-coder:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
@@ -210,7 +210,7 @@ models:
   qwen-3.6-35b-mtp-gpu-instruct:
     command: |
       llama-server
-      -hf LuffyTheFox/Qwen3.6-35B-A3B-Uncensored-Genesis-V2-APEX-MTP-GGUF:Qwen3.6-35B-A3B-Uncensored-Genesis-MTP-APEX-Compact.gguf
+      -hf llmfan46/Qwen3.6-35B-A3B-uncensored-heretic-Native-MTP-Preserved-GGUF:Q4_K_M
       --jinja --no-mmproj --no-context-shift -ngl 22 -fa on -np 1 -t 8 -tb 8 -c 131072
       -b 1024 -ub 1024 --no-warmup --no-mmap
       --cache-type-k q8_0 --cache-type-v q8_0 -cb
