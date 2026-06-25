@@ -1,29 +1,29 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "network-gem12/qwen-3.6-35b-coder",
+  "model": "network-gem12/qwen-3.6-35b-gpu-coder",
 
   "agent": {
     "local-planner": {
       "mode": "all",
-      "model": "network-gem12/qwopus-3.6-35b-planner",
+      "model": "network-gem12/qwopus-3.6-35b-gpu-planner",
       "description": "Top-level Local Planner and Deep Reasoning Engine. Employs advanced chain-of-thought distillation to orchestrate architecture layouts, break down complex logic requirements, and cross-examine system blueprints. Do not write implementation code directly—delegate system design to @local-architect, direct programming to @local-coder, and swift executions to @local-plan-executor."
     },
 
     "local-architect": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.6-35b-architect",
+      "model": "network-gem12/qwen-3.6-35b-gpu-architect",
       "description": "Senior Local System Architect. Employs Thinking Mode for unconstrained code architecture, systemic refactoring, design pattern modeling, and deep code reviews. Delegate active feature development to @local-coder and automated tool integration to @local-tool-agent."
     },
 
     "local-coder": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.6-35b-coder",
+      "model": "network-gem12/qwen-3.6-35b-gpu-coder",
       "description": "Core Local Programmer. Employs precision Thinking Mode for generating codebase features, complex algorithmic implementation, deep debugging, and native script building. Delegate raw code generation from finalized plans to @local-plan-executor."
     },
 
     "local-instruct": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.6-35b-instruct",
+      "model": "network-gem12/qwen-3.6-35b-gpu-instruct",
       "description": "Fast Local Conversation Worker. Thinking disabled for instant, low-latency discussions, explanation of structural frameworks, general text formatting, and direct Q&A."
     },
 
@@ -82,21 +82,22 @@
         "gemma-4-26b-coder": { "limit": { "context": 64000, "output": 32768 } },
         "gemma-4-26b-instruct": { "limit": { "context": 64000, "output": 32768 } },
 
-        "qwopus-3.6-35b-mtp-gpu-planner": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "qwopus-3.6-35b-gpu-planner": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-26b-mtp-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-mtp-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-mtp-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "gemma-4-26b-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-26b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 64000, "output": 32768 } },
-        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 64000, "output": 32768 } }
+        "qwopus-3.6-27b-mtp-gpu-planner": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } }
       }
     },
 
@@ -116,21 +117,22 @@
         "gemma-4-2b-coder": { "limit": { "context": 16000, "output": 8192 } },
         "gemma-4-2b-instruct": { "limit": { "context": 16000, "output": 8192 } },
 
-        "qwopus-3.6-35b-mtp-gpu-planner": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-mtp-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "qwopus-3.6-35b-gpu-planner": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "qwen-3.6-35b-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-26b-mtp-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-mtp-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-mtp-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "gemma-4-26b-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-26b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
+        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 98304, "output": 32768 } },
 
-        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 64000, "output": 32768 } },
-        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 64000, "output": 32768 } }
+        "qwopus-3.6-27b-mtp-gpu-planner": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "qwopus-3.6-27b-mtp-gpu-instruct": { "limit": { "context": 98304, "output": 32768 } }
       }
     }
   }

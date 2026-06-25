@@ -1,0 +1,237 @@
+host: 0.0.0.0:1234
+debug: true
+auto_unload: 2h
+drain_timeout: 30s
+
+models:
+  # ══════════════════════════════════════════════════════════════════════════
+  # ── eGPU ACCELERATED MODES (16GB NVIDIA RTX 5060 Ti via OCuLink)
+  # ══════════════════════════════════════════════════════════════════════════
+  # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
+  # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
+   # Strategy:
+   #   * MoE models (35B-A3B, 26B-A4B): -ngl 99 --n-cpu-moe 26. This offloads
+   #     all attention/shared-expert/KV-cache layers to the 16GB GPU while keeping
+   #     the first 26 layers' routed-expert weights on CPU/RAM. It is the current
+   #     sweet spot: ~927 tok/s prefill on 4K-8K prompts, ~53-54 tok/s decode for
+   #     the 35B Q4_K_P, and it avoids the OOM that pure -ngl 99 hits. If a
+   #     model OOMs, raise --n-cpu-moe; if prefill is still too slow, lower it.
+   #   * Fixed -ngl ceiling (legacy): with -b 4096 / 96K ctx / q8_0 KV, only
+   #     -ngl 22 fits for 35B, giving ~20-26 decode / ~1000+ prefill. Revert to
+   #     that if the --n-cpu-moe approach ever misbehaves.
+   #   * Dense models: 12B fits fully -> -ngl 99. 27B Coder is dense and uses
+   #     native MTP speculative decode; -ngl 24/26 leaves room for the MTP draft
+   #     head + q8_0 KV cache.
+   #   * q8_0 KV cache everywhere: tiny impact on Qwen 3.6 hybrid, significant
+   #     VRAM savings on dense/Gemma models.
+   # --ctx-checkpoints 4 limits VRAM snapshots. -t 8 matches 8 physical cores.
+
+  qwopus-3.6-35b-gpu-planner:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-gpu-planner
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.6-35b-gpu-architect:
+    command: |
+      llama-server
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-gpu-architect
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.6-35b-gpu-coder:
+    command: |
+      llama-server
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-gpu-coder
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.6-35b-gpu-instruct:
+    command: |
+      llama-server
+      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":false}'
+      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning off
+      --host 127.0.0.1:1235 --alias qwen-3.6-35b-gpu-instruct
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  gemma-4-26b-gpu-architect:
+    command: |
+      llama-server
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
+      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-architect
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  gemma-4-26b-gpu-coder:
+    command: |
+      llama-server
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
+      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-gpu-coder
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  gemma-4-26b-gpu-instruct:
+    command: |
+      llama-server
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      --jinja --no-mmproj --no-context-shift
+      -ngl 99 --n-cpu-moe 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --chat-template-kwargs '{"enable_thinking":false}'
+      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
+      --host 127.0.0.1:1235 --alias gemma-4-26b-gpu-instruct
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  gemma-4-12b-it-gpu-tool-agent:
+    command: |
+      llama-server
+      -hf OBLITERATUS/Gemma-4-12B-OBLITERATED:Q4_K_M
+      --jinja --chat-template-kwargs '{"enable_thinking":false}'
+      --no-mmproj --no-context-shift
+      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.7 --top-p 0.9 --top-k 40 --presence-penalty 0.0 --repeat-penalty 1.1
+      --host 127.0.0.1 --port 1235 --alias gemma-4-12b-it-gpu-tool-agent
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  gemma-4-12b-it-gpu-plan-executor:
+    command: |
+      llama-server
+      -hf OBLITERATUS/Gemma-4-12B-OBLITERATED:Q4_K_M
+      --jinja --chat-template-kwargs '{"enable_thinking":false}'
+      --no-mmproj --no-context-shift
+      -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --temp 0.2 --top-p 0.95 --top-k 64 --presence-penalty 0.0
+      --host 127.0.0.1 --port 1235 --alias gemma-4-12b-it-gpu-plan-executor
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # ── DENSE 27B MTP VARIANTS (the only MTP family that helps on this hardware)
+  # ══════════════════════════════════════════════════════════════════════════
+  # Qwopus 27B is dense, so the MTP draft head is much cheaper than the main
+  # FFN and speculative decode gives a real speedup. MoE MTP was tested and
+  # rejected: high acceptance but draft generation was not faster.
+  #
+  # Planner / Architect / Instruct share the general Qwopus 27B v2 weights.
+  # Coder uses the reasoning-distilled Coder weights. v2 is slightly larger
+  # (16.8 vs 16.2 GiB Q4_K_M), so -ngl is conservative (24 vs 26).
+
+  qwopus-3.6-27b-mtp-gpu-planner:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-v2-MTP-GGUF:Q4_K_M
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 24 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-planner
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwopus-3.6-27b-mtp-gpu-architect:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-v2-MTP-GGUF:Q4_K_M
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 24 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-architect
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwopus-3.6-27b-mtp-gpu-coder:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-Coder-MTP-GGUF:Q4_K_M
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 26 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --reasoning on
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-coder
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwopus-3.6-27b-mtp-gpu-instruct:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-27B-v2-MTP-GGUF:Q4_K_M
+      --jinja --no-mmproj --no-context-shift --split-mode none
+      -ngl 24 -fa on -np 1 -t 8 -tb 8 -c 98304 --ctx-checkpoints 4
+      --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
+      -b 4096 -ub 4096 --no-warmup --no-mmap
+      --cache-type-k q8_0 --cache-type-v q8_0 -cb
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --chat-template-kwargs '{"enable_thinking":false}'
+      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --reasoning off
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-27b-mtp-gpu-instruct
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
