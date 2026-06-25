@@ -1,47 +1,47 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "network-gem12/qwen-3.6-35b-gpu-coder",
+  "model": "network-gem12/qwen-3.6-35b-coder",
 
   "agent": {
     "local-planner": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/qwopus-3.6-35b-gpu-planner",
+      "model": "network-gem12/qwopus-3.6-35b-planner",
       "description": "Top-level Local Planner and Deep Reasoning Engine. Employs advanced chain-of-thought distillation to orchestrate architecture layouts, break down complex logic requirements, and cross-examine system blueprints. Do not write implementation code directly—delegate system design to @local-architect, direct programming to @local-coder, and swift executions to @local-plan-executor."
     },
 
     "local-architect": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/qwen-3.6-35b-gpu-architect",
+      "model": "network-gem12/qwen-3.6-35b-architect",
       "description": "Senior Local System Architect. Employs Thinking Mode for unconstrained code architecture, systemic refactoring, design pattern modeling, and deep code reviews. Delegate active feature development to @local-coder and automated tool integration to @local-tool-agent."
     },
 
     "local-coder": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/qwen-3.6-35b-gpu-coder",
+      "model": "network-gem12/qwen-3.6-35b-coder",
       "description": "Core Local Programmer. Employs precision Thinking Mode for generating codebase features, complex algorithmic implementation, deep debugging, and native script building. Delegate raw code generation from finalized plans to @local-plan-executor."
     },
 
     "local-instruct": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/qwen-3.6-35b-gpu-instruct",
+      "model": "network-gem12/qwen-3.6-35b-instruct",
       "description": "Fast Local Conversation Worker. Thinking disabled for instant, low-latency discussions, explanation of structural frameworks, general text formatting, and direct Q&A."
     },
 
     "local-tool-agent": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/gemma-4-12b-it-gpu-tool-agent",
+      "model": "network-gem12/gemma-4-12b-it-tool-agent",
       "description": "Frictionless Local Execution subagent. Thinking disabled for low-latency JSON payload manipulation, multi-turn function calling, workspace indexing, and fast API integration tasks."
     },
 
     "local-plan-executor": {
       "mode": "all",
       "providers": ["network-gem12"],
-      "model": "network-gem12/gemma-4-12b-it-gpu-plan-executor",
+      "model": "network-gem12/gemma-4-12b-it-plan-executor",
       "description": "Deterministic Local Code Writer. Low temperature and thinking disabled to prevent editorial drift. Optimized strictly for processing complex architectural blueprints and planner specs directly into exact file components."
     },
 
@@ -91,17 +91,8 @@
         "gemma-4-26b-coder": { "limit": { "context": 64000, "output": 32768 } },
         "gemma-4-26b-instruct": { "limit": { "context": 64000, "output": 32768 } },
 
-        "qwopus-3.6-35b-gpu-planner": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
-
-        "gemma-4-26b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
-
-        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 131072, "output": 32768 } }
+        "gemma-4-12b-it-tool-agent": { "limit": { "context": 64000, "output": 32768 } },
+        "gemma-4-12b-it-plan-executor": { "limit": { "context": 64000, "output": 32768 } }
       }
     },
 
@@ -119,19 +110,7 @@
         "qwen-3.5-4b-instruct": { "limit": { "context": 32000, "output": 16384 } },
         "gemma-4-2b-architect": { "limit": { "context": 16000, "output": 8192 } },
         "gemma-4-2b-coder": { "limit": { "context": 16000, "output": 8192 } },
-        "gemma-4-2b-instruct": { "limit": { "context": 16000, "output": 8192 } },
-
-        "qwopus-3.6-35b-gpu-planner": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
-
-        "gemma-4-26b-gpu-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b-gpu-instruct": { "limit": { "context": 131072, "output": 32768 } },
-
-        "gemma-4-12b-it-gpu-tool-agent": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-12b-it-gpu-plan-executor": { "limit": { "context": 131072, "output": 32768 } }
+        "gemma-4-2b-instruct": { "limit": { "context": 16000, "output": 8192 } }
       }
     }
   }
