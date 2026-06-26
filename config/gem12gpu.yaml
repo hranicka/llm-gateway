@@ -29,11 +29,11 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 17 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 4096 --ubatch-size 4096
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
@@ -43,11 +43,11 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 17 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 4096 --ubatch-size 4096
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
     host: 127.0.0.1:1235
@@ -57,11 +57,11 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 17 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 4096 --ubatch-size 4096
       --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-instruct
     host: 127.0.0.1:1235
@@ -72,10 +72,10 @@ models:
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
       --n-gpu-layers 999 --n-cpu-moe 10 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      --ctx-size 65536 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
+      --batch-size 4096 --ubatch-size 2048
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
     host: 127.0.0.1:1235
@@ -86,10 +86,10 @@ models:
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
       --n-gpu-layers 999 --n-cpu-moe 10 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      --ctx-size 65536 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
+      --batch-size 4096 --ubatch-size 2048
       --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-coder
     host: 127.0.0.1:1235
@@ -100,10 +100,10 @@ models:
       llama-server
       -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
       --n-gpu-layers 999 --n-cpu-moe 10 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      --ctx-size 65536 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
+      --batch-size 4096 --ubatch-size 2048
       --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b-instruct
     host: 127.0.0.1:1235
@@ -114,10 +114,10 @@ models:
       llama-server
       -hf unsloth/gemma-4-12b-it-GGUF:UD-Q4_K_XL
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      --ctx-size 65536 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
+      --batch-size 4096 --ubatch-size 2048
       --temp 0.7 --top-p 0.9 --top-k 40 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b-it-tool-agent
     host: 127.0.0.1:1235
@@ -128,10 +128,10 @@ models:
       llama-server
       -hf unsloth/gemma-4-12b-it-GGUF:UD-Q4_K_XL
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      --ctx-size 65536 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
+      --batch-size 4096 --ubatch-size 2048
       --temp 0.2 --top-p 0.95 --top-k 64 --presence-penalty 0.0
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b-it-plan-executor
     host: 127.0.0.1:1235
