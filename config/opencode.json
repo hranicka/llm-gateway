@@ -83,16 +83,15 @@
         "apiKey": ""
       },
       "models": {
-        "qwopus-3.6-35b-planner": { "limit": { "context": 96000, "output": 32768 } },
-        "qwen-3.6-35b-architect": { "limit": { "context": 96000, "output": 32768 } },
-        "qwen-3.6-35b-coder": { "limit": { "context": 96000, "output": 32768 } },
-        "qwen-3.6-35b-instruct": { "limit": { "context": 96000, "output": 32768 } },
-        "gemma-4-26b-architect": { "limit": { "context": 64000, "output": 32768 } },
-        "gemma-4-26b-coder": { "limit": { "context": 64000, "output": 32768 } },
-        "gemma-4-26b-instruct": { "limit": { "context": 64000, "output": 32768 } },
-
-        "gemma-4-12b-it-tool-agent": { "limit": { "context": 64000, "output": 32768 } },
-        "gemma-4-12b-it-plan-executor": { "limit": { "context": 64000, "output": 32768 } }
+        "qwopus-3.6-35b-planner": { "limit": { "context": 114688, "output": 32768 } },
+        "qwen-3.6-35b-architect": { "limit": { "context": 105000, "output": 32768 } },
+        "qwen-3.6-35b-coder": { "limit": { "context": 105000, "output": 32768 } },
+        "qwen-3.6-35b-instruct": { "limit": { "context": 105000, "output": 32768 } },
+        "gemma-4-26b-architect": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-coder": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-26b-instruct": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-12b-it-tool-agent": { "limit": { "context": 98304, "output": 32768 } },
+        "gemma-4-12b-it-plan-executor": { "limit": { "context": 98304, "output": 32768 } }
       }
     },
 

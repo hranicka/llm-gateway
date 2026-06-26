@@ -32,7 +32,7 @@ models:
   qwen-3.6-35b-architect:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -47,7 +47,7 @@ models:
   qwen-3.6-35b-coder:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -62,7 +62,7 @@ models:
   qwen-3.6-35b-instruct:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
       --jinja --no-mmproj --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 96000
       -b 1024 -ub 1024 --no-warmup --no-mmap
@@ -77,7 +77,7 @@ models:
   qwen-3.6-35b-vision:
     command: |
       llama-server
-      -hf HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive:Q4_K_P
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
       --jinja --no-context-shift
       -ngl 99 -fa on -np 1 -t 8 -tb 8 -c 48000
       -b 1024 -ub 1024 --no-warmup --no-mmap
