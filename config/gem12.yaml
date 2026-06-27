@@ -11,7 +11,7 @@ models:
   # GPU:    Integrated Radeon 780M (RDNA3, UMA — shares system RAM).
   # Models: 35B-A3B / 26B-A4B MoE quants — fully offloaded to iGPU.
 
-  qwopus-3.6-35b-planner:
+  qwopus-3.6-35b:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
@@ -22,7 +22,7 @@ models:
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-planner
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
