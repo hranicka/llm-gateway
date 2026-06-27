@@ -1,72 +1,80 @@
 {
   "$schema": "https://opencode.ai/config.json",
-      "model": "network-gem12/qwen-3.6-35b-coder",
-
+  "model": "network-gem12/qwen-3.6-35b-coder",
   "agent": {
     "local-planner": {
       "mode": "all",
-      "providers": ["network-gem12"],
+      "providers": [
+        "network-gem12"
+      ],
       "model": "network-gem12/qwopus-3.6-35b",
       "description": "Top-level Local Planner and Deep Reasoning Engine. Employs advanced chain-of-thought distillation to orchestrate architecture layouts, break down complex logic requirements, and cross-examine system blueprints. Do not write implementation code directly—delegate system design to @local-architect, direct programming to @local-coder, and swift executions to @local-plan-executor."
     },
-
     "local-architect": {
       "mode": "all",
-      "providers": ["network-gem12"],
+      "providers": [
+        "network-gem12"
+      ],
       "model": "network-gem12/qwen-3.6-35b-architect",
       "description": "Senior Local System Architect. Employs Thinking Mode for unconstrained code architecture, systemic refactoring, design pattern modeling, and deep code reviews. Delegate active feature development to @local-coder and automated tool integration to @local-assistant."
     },
-
     "local-coder": {
       "mode": "all",
-      "providers": ["network-gem12"],
+      "providers": [
+        "network-gem12"
+      ],
       "model": "network-gem12/qwen-3.6-35b-coder",
       "description": "Core Local Programmer. Employs precision Thinking Mode for generating codebase features, complex algorithmic implementation, deep debugging, and native script building."
     },
-
     "local-agent": {
       "mode": "all",
-      "providers": ["network-gem12"],
+      "providers": [
+        "network-gem12"
+      ],
       "model": "network-gem12/qwopus-3.6-35b",
       "description": "Handles tool execution, API calls, and multi-step agent workflows."
     },
-
     "local-assistant": {
       "mode": "all",
-      "providers": ["network-gem12"],
+      "providers": [
+        "network-gem12"
+      ],
       "model": "network-gem12/gemma-4-12b",
       "description": "Vision-enabled assistant for general-purpose tasks, code review, and interactive conversations."
     },
-
     "cloud-glm": {
       "mode": "all",
-      "providers": ["opencode-go"],
+      "providers": [
+        "opencode-go"
+      ],
       "model": "opencode-go/glm-5.2",
       "description": "Ultimate Cloud Architect and Senior Coder. Use only with cloud models, not local. Use for the most complex system tasks, reasoning, and code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
-
     "cloud-kimi": {
       "mode": "all",
-      "providers": ["opencode-go"],
+      "providers": [
+        "opencode-go"
+      ],
       "model": "opencode-go/kimi-k2.7-code",
       "description": "Cloud Architect and Senior Coder. Use only with cloud models, not local. Use for complex system tasks, heavy reasoning, and top-tier code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
-
     "cloud-deepseek": {
       "mode": "all",
-      "providers": ["opencode-go"],
+      "providers": [
+        "opencode-go"
+      ],
       "model": "opencode-go/deepseek-v4-pro",
       "description": "Senior Cloud Developer and excellent coder. Use only with cloud models, not local. Use for core feature building, implementation design, and heavy programming tasks. Delegate low-complexity tasks, file search, and routine code exploration to @cloud-instruct."
     },
-
     "cloud-instruct": {
       "mode": "all",
-      "providers": ["opencode-go"],
+      "providers": [
+        "opencode-go"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
       "description": "Ultra-cheap Cloud Subagent. Use only with cloud models, not local. Use strictly for easy tasks, raw file searching, codebase indexing, and basic instructions that require zero deep reasoning or heavy logic."
     }
   },
-
   "provider": {
     "network-gem12": {
       "npm": "@ai-sdk/openai-compatible",
@@ -76,15 +84,44 @@
         "apiKey": ""
       },
       "models": {
-        "ornith-1.0-35b": { "limit": { "context": 131072, "output": 32768 } },
-        "qwopus-3.6-35b": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-architect": { "limit": { "context": 131072, "output": 32768 } },
-        "qwen-3.6-35b-coder": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-26b": { "limit": { "context": 131072, "output": 32768 } },
-        "gemma-4-12b": { "limit": { "context": 131072, "output": 32768 } }
+        "ornith-1.0-35b": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "qwopus-3.6-35b": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "qwen-3.6-35b-architect": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "qwen-3.6-35b-coder": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "gemma-4-26b": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "gemma-4-12b": {
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        }
       }
     },
-
     "local-laptop": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Local Laptop",
@@ -93,13 +130,48 @@
         "apiKey": ""
       },
       "models": {
-        "qwopus-3.5-4b-planner": { "limit": { "context": 32000, "output": 16384 } },
-        "qwen-3.5-4b-architect": { "limit": { "context": 32000, "output": 16384 } },
-        "qwen-3.5-4b-coder": { "limit": { "context": 32000, "output": 16384 } },
-        "qwen-3.5-4b-instruct": { "limit": { "context": 32000, "output": 16384 } },
-        "gemma-4-2b-architect": { "limit": { "context": 16000, "output": 8192 } },
-        "gemma-4-2b-coder": { "limit": { "context": 16000, "output": 8192 } },
-        "gemma-4-2b-instruct": { "limit": { "context": 16000, "output": 8192 } }
+        "qwopus-3.5-4b-planner": {
+          "limit": {
+            "context": 32000,
+            "output": 16384
+          }
+        },
+        "qwen-3.5-4b-architect": {
+          "limit": {
+            "context": 32000,
+            "output": 16384
+          }
+        },
+        "qwen-3.5-4b-coder": {
+          "limit": {
+            "context": 32000,
+            "output": 16384
+          }
+        },
+        "qwen-3.5-4b-instruct": {
+          "limit": {
+            "context": 32000,
+            "output": 16384
+          }
+        },
+        "gemma-4-2b-architect": {
+          "limit": {
+            "context": 16000,
+            "output": 8192
+          }
+        },
+        "gemma-4-2b-coder": {
+          "limit": {
+            "context": 16000,
+            "output": 8192
+          }
+        },
+        "gemma-4-2b-instruct": {
+          "limit": {
+            "context": 16000,
+            "output": 8192
+          }
+        }
       }
     }
   }
