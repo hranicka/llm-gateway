@@ -31,7 +31,7 @@
       "providers": [
         "network-gem12"
       ],
-      "model": "network-gem12/qwopus-3.6-35b",
+      "model": "network-gem12/ornith-1.0-35b",
       "description": "Handles tool execution, API calls, and multi-step agent workflows."
     },
     "local-assistant": {
