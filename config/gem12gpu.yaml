@@ -4,6 +4,7 @@ auto_unload: 2h
 drain_timeout: 30s
 
 models:
+  # Non-MTP model variants (use gem12gpumtp.yaml for MTP/draft models)
   # ══════════════════════════════════════════════════════════════════════════
   # ── eGPU ACCELERATED MODES (16GB NVIDIA RTX 5060 Ti via OCuLink)
   # ══════════════════════════════════════════════════════════════════════════

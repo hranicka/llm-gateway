@@ -10,6 +10,7 @@ models:
   # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
   # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
 
+  # Note: ornith-1.0-35b is included here for convenience but is NOT an MTP model
   ornith-1.0-35b:
     command: |
       llama-server
