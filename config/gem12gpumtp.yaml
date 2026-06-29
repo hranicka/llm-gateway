@@ -19,7 +19,7 @@ models:
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 2048 --ubatch-size 2048
       --temp 1.0 --top-p 1.0 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias ornith-1.0-35b
     host: 127.0.0.1:1235
@@ -34,8 +34,8 @@ models:
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
-      --spec-type draft-mtp --spec-draft-n-max 3
+      --batch-size 2048 --ubatch-size 2048
+      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b
     host: 127.0.0.1:1235
@@ -45,12 +45,12 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 22 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 21 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
-      --spec-type draft-mtp --spec-draft-n-max 3
+      --batch-size 2048 --ubatch-size 2048
+      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
     host: 127.0.0.1:1235
@@ -60,12 +60,12 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 22 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 21 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
-      --spec-type draft-mtp --spec-draft-n-max 3
+      --batch-size 2048 --ubatch-size 2048
+      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
     host: 127.0.0.1:1235
@@ -79,8 +79,8 @@ models:
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
-      --spec-type draft-mtp --spec-draft-n-max 3
+      --batch-size 2048 --ubatch-size 2048
+      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-26b
     host: 127.0.0.1:1235
@@ -92,12 +92,12 @@ models:
       -hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M
       --no-mmproj
       --spec-draft-hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced -md mtp-gemma-4-12B-it.gguf
-      --spec-type draft-mtp --spec-draft-n-max 3
+      --spec-type draft-mtp --spec-draft-n-max 2
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
        --flash-attn on --no-mmap --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 4096 --ubatch-size 4096
       --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b
     host: 127.0.0.1:1235
