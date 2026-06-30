@@ -1,7 +1,7 @@
 host: 0.0.0.0:1234
 debug: true
 auto_unload: 2h
-drain_timeout: 30s
+drain_timeout: 5m
 
 models:
   # ══════════════════════════════════════════════════════════════════════════
@@ -9,21 +9,7 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
   # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
-
-  # Note: ornith-1.0-35b is included here for convenience but is NOT an MTP model
-  ornith-1.0-35b:
-    command: |
-      llama-server
-      -hf deepreinforce-ai/Ornith-1.0-35B-GGUF:Q4_K_M
-      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
-      --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 2048 --ubatch-size 2048
-      --temp 1.0 --top-p 1.0 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias ornith-1.0-35b
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
+  # Built with CUDA 13 + CMAKE_CUDA_ARCHITECTURES=89 (sm_120 SOFT_MAX kernel bugged).
 
   qwopus-3.6-35b:
     command: |
@@ -41,7 +27,24 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwen-3.6-35b-architect:
+  qwopus-3.6-35b-coder:
+    command: |
+      llama-server
+      -hf Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF:Q4_K_M
+      --n-gpu-layers 999 --n-cpu-moe 20 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 131072 --cont-batching
+      --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --flash-attn on --no-mmap --no-mmproj --jinja --tools all
+      --batch-size 2048 --ubatch-size 2048
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --chat-template-kwargs '{"enable_thinking":false}'
+      --host 127.0.0.1 --port 1235 --alias qwopus-3.6-35b-coder
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.6-35b:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
@@ -52,22 +55,7 @@ models:
       --batch-size 2048 --ubatch-size 2048
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-architect
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
-  qwen-3.6-35b-coder:
-    command: |
-      llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 21 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
-      --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 2048 --ubatch-size 2048
-      --spec-type draft-mtp --spec-draft-n-max 2
-      --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-coder
+      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 

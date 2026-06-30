@@ -5,47 +5,51 @@
       "/tmp/*": "allow"
     }
   },
-  "model": "network-gem12/qwen-3.6-35b-coder",
+  "model": "network-gem12/qwen-3.6-35b",
+  "mode": {
+    "build": {
+      "model": "network-gem12/qwopus-3.6-35b-coder"
+    },
+    "plan": {
+      "model": "network-gem12/qwopus-3.6-35b"
+    }
+  },
   "agent": {
-    "local-planner": {
+    "qwopus": {
       "mode": "all",
       "providers": [
         "network-gem12"
       ],
       "model": "network-gem12/qwopus-3.6-35b",
-      "description": "Top-level Local Planner and Deep Reasoning Engine. Employs advanced chain-of-thought distillation to orchestrate architecture layouts, break down complex logic requirements, and cross-examine system blueprints. Do not write implementation code directly—delegate system design to @local-architect, direct programming to @local-coder, and swift executions to @local-plan-executor."
+      "description": "Top-level planning and deep reasoning agent",
+      "prompt": "You are a top-level planner and deep reasoning engine.\n\nRules:\n- Do not make file edits or run bash commands yourself.\n- Always delegate code search and implementation work to the @qwopus-coder subagent via the task tool.\n- Delegate architecture/design discussions to the @qwen subagent.\n- Consult decisions with @qwen before finalizing plans.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
     },
-    "local-architect": {
+    "qwen": {
       "mode": "all",
       "providers": [
         "network-gem12"
       ],
-      "model": "network-gem12/qwen-3.6-35b-architect",
-      "description": "Senior Local System Architect. Employs Thinking Mode for unconstrained code architecture, systemic refactoring, design pattern modeling, and deep code reviews. Delegate active feature development to @local-coder and automated tool integration to @local-assistant."
+      "model": "network-gem12/qwen-3.6-35b",
+      "description": "System architecture and design review agent",
+      "prompt": "You are a senior system architect specializing in unconstrained thinking mode.\n\nRules:\n- Use Thinking Mode for deep architectural analysis, systemic refactoring, and design pattern modeling.\n- Delegate active feature development tasks to @qwopus-coder.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
     },
-    "local-coder": {
+    "qwopus-coder": {
       "mode": "all",
       "providers": [
         "network-gem12"
       ],
-      "model": "network-gem12/qwen-3.6-35b-coder",
-      "description": "Core Local Programmer. Employs precision Thinking Mode for generating codebase features, complex algorithmic implementation, deep debugging, and native script building."
+      "model": "network-gem12/qwopus-3.6-35b-coder",
+      "description": "Core coding agent with agentic execution focus",
+      "prompt": "You are the primary coder agent.\n\nRules:\n- Do not invoke other coding subagents — you are the only coder.\n- Always execute changes directly rather than suggesting them in text.\n- Use chain-of-thought before making complex edits, but keep it brief.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
     },
-    "local-agent": {
-      "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
-      "model": "network-gem12/ornith-1.0-35b",
-      "description": "Handles tool execution, API calls, and multi-step agent workflows."
-    },
-    "local-assistant": {
+    "gemma-12b": {
       "mode": "all",
       "providers": [
         "network-gem12"
       ],
       "model": "network-gem12/gemma-4-12b",
-      "description": "Vision-enabled assistant for general-purpose tasks, code review, and interactive conversations."
+      "description": "General-purpose assistant for code review and conversations",
+      "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks.\n- For deep architectural analysis, defer to @qwen.\n- For complex coding tasks, defer to @qwopus-coder."
     },
     "cloud-glm": {
       "mode": "all",
@@ -53,7 +57,8 @@
         "opencode-go"
       ],
       "model": "opencode-go/glm-5.2",
-      "description": "Ultimate Cloud Architect and Senior Coder. Use only with cloud models, not local. Use for the most complex system tasks, reasoning, and code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
+      "description": "Ultimate cloud architect and senior coder",
+      "prompt": "You are the ultimate cloud architect and senior coder.\n\nRules:\n- Handle the most complex system tasks, heavy reasoning, and code design.\n- Delegate standard software development tasks to @cloud-deepseek.\n- Delegate simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
     "cloud-kimi": {
       "mode": "all",
@@ -61,7 +66,8 @@
         "opencode-go"
       ],
       "model": "opencode-go/kimi-k2.7-code",
-      "description": "Cloud Architect and Senior Coder. Use only with cloud models, not local. Use for complex system tasks, heavy reasoning, and top-tier code design. Delegate standard software development tasks to @cloud-deepseek and simple utilities, file searches, or easy lookups to @cloud-instruct."
+      "description": "Cloud architect and senior coder",
+      "prompt": "You are a cloud architect and senior coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and top-tier code design.\n- Delegate standard software development tasks to @cloud-deepseek.\n- Delegate simple utilities, file searches, or easy lookups to @cloud-instruct."
     },
     "cloud-deepseek": {
       "mode": "all",
@@ -69,7 +75,8 @@
         "opencode-go"
       ],
       "model": "opencode-go/deepseek-v4-pro",
-      "description": "Senior Cloud Developer and excellent coder. Use only with cloud models, not local. Use for core feature building, implementation design, and heavy programming tasks. Delegate low-complexity tasks, file search, and routine code exploration to @cloud-instruct."
+      "description": "Senior cloud developer for core feature building and implementation",
+      "prompt": "You are a senior cloud developer and excellent coder.\n\nRules:\n- Handle core feature building, implementation design, and heavy programming tasks.\n- Delegate low-complexity tasks, file search, and routine code exploration to @cloud-instruct."
     },
     "cloud-instruct": {
       "mode": "all",
@@ -77,7 +84,8 @@
         "opencode-go"
       ],
       "model": "opencode-go/deepseek-v4-flash",
-      "description": "Ultra-cheap Cloud Subagent. Use only with cloud models, not local. Use strictly for easy tasks, raw file searching, codebase indexing, and basic instructions that require zero deep reasoning or heavy logic."
+      "description": "Ultra-cheap cloud subagent for easy tasks and lookups",
+      "prompt": "You are an ultra-cheap cloud subagent.\n\nRules:\n- Handle easy tasks, raw file searching, codebase indexing, and basic instructions.\n- Never attempt deep reasoning or heavy logic — defer to @cloud-glm, @cloud-kimi, or @cloud-deepseek for complex work."
     }
   },
   "provider": {
@@ -89,7 +97,7 @@
         "apiKey": ""
       },
       "models": {
-        "ornith-1.0-35b": {
+        "qwopus-3.6-35b-coder": {
           "limit": {
             "context": 131072,
             "output": 32768
@@ -101,13 +109,7 @@
             "output": 32768
           }
         },
-        "qwen-3.6-35b-architect": {
-          "limit": {
-            "context": 131072,
-            "output": 32768
-          }
-        },
-        "qwen-3.6-35b-coder": {
+        "qwen-3.6-35b": {
           "limit": {
             "context": 131072,
             "output": 32768
@@ -135,46 +137,16 @@
         "apiKey": ""
       },
       "models": {
-        "qwopus-3.5-4b-planner": {
+        "qwen-3.5-4b": {
           "limit": {
-            "context": 32000,
-            "output": 16384
+            "context": 96000,
+            "output": 32768
           }
         },
-        "qwen-3.5-4b-architect": {
+        "gemma-4-2b": {
           "limit": {
-            "context": 32000,
-            "output": 16384
-          }
-        },
-        "qwen-3.5-4b-coder": {
-          "limit": {
-            "context": 32000,
-            "output": 16384
-          }
-        },
-        "qwen-3.5-4b-instruct": {
-          "limit": {
-            "context": 32000,
-            "output": 16384
-          }
-        },
-        "gemma-4-2b-architect": {
-          "limit": {
-            "context": 16000,
-            "output": 8192
-          }
-        },
-        "gemma-4-2b-coder": {
-          "limit": {
-            "context": 16000,
-            "output": 8192
-          }
-        },
-        "gemma-4-2b-instruct": {
-          "limit": {
-            "context": 16000,
-            "output": 8192
+            "context": 96000,
+            "output": 32768
           }
         }
       }
