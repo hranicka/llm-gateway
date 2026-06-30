@@ -71,7 +71,7 @@ models:
   gemma-4-26b-architect:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_P
       -ngl 99 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 64000 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
@@ -85,7 +85,7 @@ models:
   gemma-4-26b-coder:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_P
       -ngl 99 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 64000 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
@@ -99,7 +99,7 @@ models:
   gemma-4-26b-instruct:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_P
       -ngl 99 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 64000 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0

@@ -71,7 +71,7 @@ models:
   gemma-4-26b:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_M
+      -hf HauhauCS/Gemma4-26B-A4B-Uncensored-HauhauCS-Balanced:Q4_K_P
       --n-gpu-layers 999 --n-cpu-moe 10 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
