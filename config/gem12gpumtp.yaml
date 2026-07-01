@@ -9,13 +9,12 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
   # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
-  # Built with CUDA 13 + CMAKE_CUDA_ARCHITECTURES=89 (sm_120 SOFT_MAX kernel bugged).
 
   qwopus-3.6-35b:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF:Q4_K_M
-      --n-gpu-layers 999 --n-cpu-moe 20 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       --cache-type-k q8_0 --cache-type-v q8_0
@@ -31,7 +30,7 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF:Q4_K_M
-      --n-gpu-layers 999 --n-cpu-moe 20 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 19 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768
       --cache-type-k q8_0 --cache-type-v q8_0
@@ -48,7 +47,7 @@ models:
     command: |
       llama-server
       -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      --n-gpu-layers 999 --n-cpu-moe 21 --parallel 1 --threads 8 --threads-batch 8
+      --n-gpu-layers 999 --n-cpu-moe 20 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
@@ -62,8 +61,10 @@ models:
   gemma-4-26b:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP:Q4_K_M
-      --n-gpu-layers 999 --n-cpu-moe 11 --parallel 1 --threads 8 --threads-batch 8
+      -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
+      --spec-draft-hf unsloth/gemma-4-26B-A4B-it-qat-GGUF -md MTP/gemma-4-26B-A4B-it-Q4_0-MTP.gguf
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --n-gpu-layers 999 --n-cpu-moe 6 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
@@ -78,13 +79,12 @@ models:
     command: |
       llama-server
       -hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --no-mmproj
       --spec-draft-hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced -md mtp-gemma-4-12B-it.gguf
       --spec-type draft-mtp --spec-draft-n-max 2
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
-       --flash-attn on --no-mmap --jinja --tools all
+       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
       --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b

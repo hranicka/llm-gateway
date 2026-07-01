@@ -5,18 +5,18 @@ drain_timeout: 5m
 
 models:
   # ══════════════════════════════════════════════════════════════════════════
-  # ── STANDALONE MODES (Radeon 780M iGPU + 32GB RAM, fully offloaded)
+  # ── iGPU MODES (Radeon 780M UMA + 32GB system RAM, fully offloaded to GPU)
   # ══════════════════════════════════════════════════════════════════════════
   # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
-  # GPU:    Integrated Radeon 780M (RDNA3, UMA — shares system RAM).
-  # Models: 35B-A3B / 26B-A4B MoE quants — fully offloaded to iGPU.
+  # GPU:    Integrated Radeon 780M (RDNA3, UMA — up to ~16GB VRAM available).
+  # All layers and MoE experts offloaded to iGPU; no CPU offloading needed.
 
   qwopus-3.6-35b:
     command: |
       llama-server
-      -hf Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF:Q4_K_M
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 96000 --cont-batching
+      -hf Jackrong/Qwopus3.6-35B-A3B-v1-GGUF:Q4_K_M
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
       --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
@@ -30,8 +30,8 @@ models:
     command: |
       llama-server
       -hf Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF:Q4_K_M
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 96000 --cont-batching
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
       --rope-scaling yarn --rope-scale 3 --yarn-orig-ctx 32768
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
@@ -45,69 +45,41 @@ models:
   qwen-3.6-35b:
     command: |
       llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 96000 --cont-batching
+      -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_XL
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
+      --batch-size 4096 --ubatch-size 4096
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwen-3.6-35b-instruct:
+  gemma-4-26b:
     command: |
       llama-server
-      -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 96000 --cont-batching
-      --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 2048
-      --temp 0.7 --top-p 0.8 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias qwen-3.6-35b-instruct
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
-  gemma-4-26b-architect:
-    command: |
-      llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP:Q4_K_M
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 64000 --cont-batching
+      -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
-      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-architect
+      --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
+      --host 127.0.0.1 --port 1235 --alias gemma-4-26b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  gemma-4-26b-coder:
+  gemma-4-12b:
     command: |
       llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP:Q4_K_M
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 64000 --cont-batching
+      -hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --no-mmap --no-mmproj --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
-      --temp 0.6 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-coder
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
-  gemma-4-26b-instruct:
-    command: |
-      llama-server
-      -hf HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP:Q4_K_M
-      -ngl 99 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 64000 --cont-batching
-      --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --no-mmap --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
-      --temp 1.0 --top-p 0.95 --top-k 64 --presence-penalty 0.0
-      --host 127.0.0.1 --port 1235 --alias gemma-4-26b-instruct
+      --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
+      --host 127.0.0.1 --port 1235 --alias gemma-4-12b
     host: 127.0.0.1:1235
     ready_timeout: 2h

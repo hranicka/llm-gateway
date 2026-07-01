@@ -5,8 +5,6 @@ drain_timeout: 5m
 
 models:
   # Machine: Dell laptop — Intel Core Ultra 7 265H (6P+8E). GPU: NVIDIA Pro 500 (6GB GDDR6).
-  # Built with CUDA 13 + CMAKE_CUDA_ARCHITECTURES=89 (sm_120 SOFT_MAX kernel bugged).
-  # JetBrains sends ~11.5K token payloads — ctx-size must exceed that.
 
   qwen-3.5-4b:
     command: |
