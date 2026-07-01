@@ -7,14 +7,6 @@
     }
   },
   "model": "network-gem12/qwen-3.6-35b",
-  "mode": {
-    "build": {
-      "model": "network-gem12/qwopus-3.6-35b-coder"
-    },
-    "plan": {
-      "model": "network-gem12/qwopus-3.6-35b"
-    }
-  },
   "agent": {
     "qwen": {
       "mode": "all",
