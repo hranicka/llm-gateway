@@ -85,11 +85,6 @@
       "type": "local",
       "command": ["npx", "-y", "ddg-search-mcp"],
       "enabled": true
-    },
-    "google_search": {
-      "type": "local",
-      "command": ["npx", "-y", "@fukayatti0/googlesearch-mcp"],
-      "enabled": true
     }
   },
   "provider": {
