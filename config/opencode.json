@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "default_agent": "plan",
   "permission": {
     "external_directory": {
       "/tmp/*": "allow"
@@ -15,32 +16,14 @@
     }
   },
   "agent": {
-    "qwopus": {
-      "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
-      "model": "network-gem12/qwopus-3.6-35b",
-      "description": "Top-level planning and deep reasoning agent",
-      "prompt": "You are a top-level planner and deep reasoning engine.\n\nRules:\n- Do not make file edits or run bash commands yourself.\n- Always delegate code search and implementation work to the @qwopus-coder subagent via the task tool.\n- Delegate architecture/design discussions to the @qwen subagent.\n- Consult decisions with @qwen before finalizing plans.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
-    },
     "qwen": {
       "mode": "all",
       "providers": [
         "network-gem12"
       ],
       "model": "network-gem12/qwen-3.6-35b",
-      "description": "System architecture and design review agent",
+      "description": "System architecture and design review",
       "prompt": "You are a senior system architect specializing in unconstrained thinking mode.\n\nRules:\n- Use Thinking Mode for deep architectural analysis, systemic refactoring, and design pattern modeling.\n- Delegate active feature development tasks to @qwopus-coder.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
-    },
-    "qwopus-coder": {
-      "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
-      "model": "network-gem12/qwopus-3.6-35b-coder",
-      "description": "Core coding agent with agentic execution focus",
-      "prompt": "You are the primary coder agent.\n\nRules:\n- Do not invoke other coding subagents — you are the only coder.\n- Always execute changes directly rather than suggesting them in text.\n- Use chain-of-thought before making complex edits, but keep it brief.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
     },
     "gemma-12b": {
       "mode": "all",
@@ -50,6 +33,15 @@
       "model": "network-gem12/gemma-4-12b",
       "description": "General-purpose assistant for code review and conversations",
       "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks.\n- For deep architectural analysis, defer to @qwen.\n- For complex coding tasks, defer to @qwopus-coder."
+    },
+    "qwopus-coder": {
+      "mode": "all",
+      "providers": [
+        "network-gem12"
+      ],
+      "model": "network-gem12/qwopus-3.6-35b-coder",
+      "description": "Core coding agent, agentic execution focus",
+      "prompt": "You are the primary coder agent.\n\nRules:\n- Do not invoke other coding subagents — you are the only coder.\n- Always execute changes directly rather than suggesting them in text.\n- Use chain-of-thought before making complex edits, but keep it brief.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
     },
     "cloud-glm": {
       "mode": "all",
@@ -86,6 +78,18 @@
       "model": "opencode-go/deepseek-v4-flash",
       "description": "Ultra-cheap cloud subagent for easy tasks and lookups",
       "prompt": "You are an ultra-cheap cloud subagent.\n\nRules:\n- Handle easy tasks, raw file searching, codebase indexing, and basic instructions.\n- Never attempt deep reasoning or heavy logic — defer to @cloud-glm, @cloud-kimi, or @cloud-deepseek for complex work."
+    }
+  },
+  "mcp": {
+    "ddg": {
+      "type": "local",
+      "command": ["npx", "-y", "ddg-search-mcp"],
+      "enabled": true
+    },
+    "google_search": {
+      "type": "local",
+      "command": ["npx", "-y", "@fukayatti0/googlesearch-mcp"],
+      "enabled": true
     }
   },
   "provider": {
