@@ -84,7 +84,7 @@ esac
 
 case "$BACKEND" in
     cuda)
-        echo "Configuring CUDA (CUDA 12 toolkit, sm_89;120)..."
+        echo "Configuring CUDA (sm_120 / Blackwell)..."
 
         if ! nvcc --version &>/dev/null; then
             echo " -> Installing CUDA 12 toolkit..."
@@ -106,7 +106,9 @@ case "$BACKEND" in
         # CMake auto-detects Vulkan (mesa-vulkan-drivers) and enables both
         # backends — at runtime Vulkan grabs the first GPU (iGPU) instead of
         # the NVIDIA eGPU.
-        CMAKE_ARGS+=("-DGGML_CUDA=ON" "-DGGML_VULKAN=OFF" "-DCMAKE_CUDA_ARCHITECTURES=89;120")
+        # All described targets are Blackwell (sm_120); no need to compile
+        # Ada (sm_89) kernels — doing so only increases build time.
+        CMAKE_ARGS+=("-DGGML_CUDA=ON" "-DGGML_VULKAN=OFF" "-DCMAKE_CUDA_ARCHITECTURES=120")
         CMAKE_ARGS+=("-DCMAKE_CUDA_FLAGS=-Wno-unused-parameter")
         ;;
     vulkan)
@@ -163,18 +165,56 @@ echo "Installing to /usr/local/bin..."
 sudo cmake --install build --prefix /usr/local
 sudo ldconfig
 
+# ------------------------------------------------------------
+# 8. POST-INSTALL BINARY VERIFICATION
+# ------------------------------------------------------------
+echo ""
+echo "Verifying installed binary..."
+
+# Confirm the correct backend symbol is present and the wrong one is absent.
+HAS_CUDA=0
+HAS_VULKAN=0
+if strings /usr/local/bin/llama-server 2>/dev/null | grep -q 'ggml_cuda_init'; then
+    HAS_CUDA=1
+fi
+if strings /usr/local/bin/llama-server 2>/dev/null | grep -q 'ggml_vk_init'; then
+    HAS_VULKAN=1
+fi
+
+case "$BACKEND" in
+    cuda)
+        if [ "$HAS_CUDA" -eq 1 ] && [ "$HAS_VULKAN" -eq 0 ]; then
+            echo " -> OK: binary has CUDA backend and no Vulkan backend."
+        elif [ "$HAS_CUDA" -eq 0 ]; then
+            echo " -> CRITICAL: ggml_cuda_init not found in binary."
+            echo "    The binary has no CUDA support — it will fall back to CPU/Vulkan."
+            echo "    Ensure 'nvcc' is in PATH and CUDA 12 toolkit is installed, then re-run."
+            exit 1
+        else
+            echo " -> CRITICAL: binary has BOTH CUDA and Vulkan backends."
+            echo "    At runtime Vulkan will capture the AMD iGPU instead of the NVIDIA GPU."
+            echo "    Rebuild with -DGGML_VULKAN=OFF (already set by this script — check CMake output)."
+            exit 1
+        fi
+        ;;
+    vulkan)
+        if [ "$HAS_VULKAN" -eq 1 ]; then
+            echo " -> OK: binary has Vulkan backend."
+        else
+            echo " -> WARNING: ggml_vk_init not found in binary — Vulkan may be missing."
+        fi
+        ;;
+    cpu)
+        echo " -> OK: CPU-only build."
+        ;;
+esac
+
 echo "======================================================"
 echo " Installation Complete! "
 echo "======================================================"
 if [ "$BACKEND" == "cuda" ]; then
     echo " CUDA backend: verify the GPU is visible (nvidia-smi)."
-    echo " For eGPU, hot-plug the enclosure before launching llama-server."
-    echo " For your gateway config.yaml, prepend 'CUDA_VISIBLE_DEVICES=0' to"
-    echo " the model command so the binary targets the NVIDIA GPU exclusively, e.g.:"
-    echo ""
-    echo "   models:"
-    echo "     my-model:"
-    echo "       command: |"
-    echo "         CUDA_VISIBLE_DEVICES=0 llama-server"
-    echo "         -hf org/repo:quant ..."
+    echo " For eGPU, ensure the enclosure is connected before launching llama-server."
+    echo " The binary has Vulkan disabled — it will always use the NVIDIA GPU exclusively."
+    echo " No CUDA_VISIBLE_DEVICES prefix is needed in config.yaml."
 fi

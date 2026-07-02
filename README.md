@@ -137,6 +137,13 @@ Run from the directory where the zip was extracted (the binary and `config/` dir
 sudo ./llm-gateway --install
 ```
 
+The installer will prompt for:
+
+1. **Config** — pick one of the bundled `config/*.yaml` files (or keep an existing one).
+2. **Service type** — choose the systemd unit that matches your GPU setup:
+   - `[1] Generic / Vulkan` — iGPU only (Radeon 780M, Intel iGPU). No NVIDIA ordering.
+   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Adds `After=nvidia-persistenced.service` and a 30-second `/dev/nvidia0` wait so llama-server never starts before the NVIDIA driver has finished probing the GPU.
+
 ### Remove
 
 ```bash

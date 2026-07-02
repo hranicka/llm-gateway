@@ -258,8 +258,15 @@ echo "   nvidia-smi"
 echo "   boltctl            # check TB eGPU enrollment"
 echo "   nvtop"
 echo
-echo " Then rebuild llama.cpp:"
-echo "   sudo ./install-llama.sh   # option 2"
+echo " Verify llama-server binary uses CUDA (not Vulkan/iGPU):"
+echo "   strings \$(which llama-server) | grep -E 'ggml_cuda_init|ggml_vk_init'"
+echo "   # Expected: ggml_cuda_init present, ggml_vk_init absent"
+echo "   # If wrong: re-run sudo ./install-llama.sh  (option 2 — CUDA)"
+echo
+echo " Then install/reinstall the gateway service (choose option 2 — CUDA/eGPU):"
+echo "   sudo ./llm-gateway --install"
+echo "   # Select config: gem12gpu.yaml (or gem12gpumtp.yaml)"
+echo "   # Select service: [2] CUDA / eGPU"
 echo
 echo " For TB eGPU: if GPU not visible, enroll the enclosure:"
 echo "   sudo boltctl enroll <uuid> --policy auto"

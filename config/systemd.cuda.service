@@ -1,0 +1,58 @@
+[Unit]
+Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
+# Start after nvidia-persistenced so the NVIDIA driver has fully initialised
+# and /dev/nvidia* device nodes exist before llama-server is launched.
+# Wants= (not Requires=) so the service still starts when the eGPU is
+# temporarily disconnected or nvidia-persistenced is not installed.
+After=network-online.target nvidia-persistenced.service
+Wants=network-online.target nvidia-persistenced.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=%LLM_USER%
+Group=%LLM_USER%
+Environment=HOME=%LLM_HOME%
+Environment=PATH=%LLM_PATH%
+WorkingDirectory=/etc/llm-gateway
+
+# Belt-and-suspenders: wait up to 30 s for the NVIDIA device node to appear.
+# On some systems the driver finishes probing the eGPU slightly after
+# nvidia-persistenced.service reports active. Exits 0 regardless so the
+# service still starts when the GPU is temporarily unavailable.
+ExecStartPre=/bin/sh -c 'i=0; while [ ! -c /dev/nvidia0 ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done; true'
+
+ExecStart=/usr/local/bin/llm-gateway
+
+# --- GPU & Memory Permissions ---
+SupplementaryGroups=render video
+LimitMEMLOCK=infinity
+
+# NVIDIA CUDA device nodes.
+# Note: DeviceAllow= is only enforced when DevicePolicy=closed or
+# PrivateDevices=yes is also set; these entries document the required nodes.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+# /dev/nvidia-caps/* wildcard is NOT supported by systemd DeviceAllow;
+# list explicitly if MIG / confidential-compute features are needed:
+# DeviceAllow=/dev/nvidia-caps/nvidia-cap1 rw
+# DeviceAllow=/dev/nvidia-caps/nvidia-cap2 rw
+
+# AMD/Intel DRI access (also needed if iGPU is used alongside NVIDIA)
+DeviceAllow=/dev/dri/renderD128 rw
+DeviceAllow=/dev/dri/renderD129 rw
+DeviceAllow=/dev/dri/card0 rw
+DeviceAllow=/dev/dri/card1 rw
+# --------------------------------
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

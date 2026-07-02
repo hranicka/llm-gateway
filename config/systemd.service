@@ -18,15 +18,7 @@ ExecStart=/usr/local/bin/llm-gateway
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
 
-# NVIDIA CUDA access (optional — ignored when no NVIDIA GPU present)
-DeviceAllow=/dev/nvidia0 rw
-DeviceAllow=/dev/nvidiactl rw
-DeviceAllow=/dev/nvidia-modeset rw
-DeviceAllow=/dev/nvidia-uvm rw
-DeviceAllow=/dev/nvidia-uvm-tools rw
-DeviceAllow=/dev/nvidia-caps/* rw
-
-# AMD/Intel DRI access (used by 8845HS 780M and Dell Intel iGPU)
+# AMD/Intel DRI access (Radeon 780M iGPU, Intel iGPU)
 DeviceAllow=/dev/dri/renderD128 rw
 DeviceAllow=/dev/dri/renderD129 rw
 DeviceAllow=/dev/dri/card0 rw

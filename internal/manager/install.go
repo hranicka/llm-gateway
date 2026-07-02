@@ -49,16 +49,39 @@ func detectInstallUser() (username, homeDir string) {
 	return "root", "/root"
 }
 
-// buildServiceFile replaces placeholders in the embedded service template with
+// buildServiceFile replaces placeholders in the given service template with
 // values appropriate for the target user so the daemon runs with the correct
 // identity, home directory, and PATH (including ~/.local/bin).
-func buildServiceFile(username, homeDir string) []byte {
+func buildServiceFile(template []byte, username, homeDir string) []byte {
 	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:" + homeDir + "/.local/bin"
-	content := string(llmgateway.SystemdService)
+	content := string(template)
 	content = strings.ReplaceAll(content, "%LLM_USER%", username)
 	content = strings.ReplaceAll(content, "%LLM_HOME%", homeDir)
 	content = strings.ReplaceAll(content, "%LLM_PATH%", path)
 	return []byte(content)
+}
+
+// promptServiceType asks whether to install the generic (Vulkan/iGPU) or the
+// CUDA/eGPU service template and returns the appropriate embedded bytes.
+func promptServiceType() []byte {
+	fmt.Println("\nSelect service type:")
+	fmt.Println("  [1] Generic / Vulkan  — iGPU only, no NVIDIA GPU (default)")
+	fmt.Println("  [2] CUDA / eGPU       — NVIDIA GPU (RTX 5060 Ti eGPU, etc.)")
+	fmt.Print("\nSelect [1]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println()
+		return llmgateway.SystemdService
+	}
+	input = strings.TrimSpace(input)
+	if input == "2" {
+		fmt.Println("Using CUDA/eGPU service (waits for /dev/nvidia0 at boot).")
+		return llmgateway.SystemdServiceCUDA
+	}
+	fmt.Println("Using generic/Vulkan service.")
+	return llmgateway.SystemdService
 }
 
 func promptConfig(configPath string) bool {
@@ -178,10 +201,11 @@ func DoInstall() {
 	}
 	configInstalled := promptConfig(configPath)
 
+	serviceTemplate := promptServiceType()
 	username, homeDir := detectInstallUser()
 	fmt.Printf("Configuring service to run as user %q (home: %s)\n", username, homeDir)
 	fmt.Println("Installing systemd service to", serviceFile)
-	if err := os.WriteFile(serviceFile, buildServiceFile(username, homeDir), 0644); err != nil {
+	if err := os.WriteFile(serviceFile, buildServiceFile(serviceTemplate, username, homeDir), 0644); err != nil {
 		slog.Error("failed to write service file", "error", err)
 		os.Exit(1)
 	}
