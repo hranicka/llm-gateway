@@ -72,13 +72,6 @@
       "prompt": "You are an ultra-cheap cloud subagent.\n\nRules:\n- Handle easy tasks, raw file searching, codebase indexing, and basic instructions.\n- Never attempt deep reasoning or heavy logic — defer to @cloud-glm, @cloud-kimi, or @cloud-deepseek for complex work."
     }
   },
-  "mcp": {
-    "ddg": {
-      "type": "local",
-      "command": ["npx", "-y", "ddg-search-mcp"],
-      "enabled": true
-    }
-  },
   "provider": {
     "network-gem12": {
       "npm": "@ai-sdk/openai-compatible",

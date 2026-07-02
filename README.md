@@ -142,7 +142,7 @@ The installer will prompt for:
 1. **Config** — pick one of the bundled `config/*.yaml` files (or keep an existing one).
 2. **Service type** — choose the systemd unit that matches your GPU setup:
    - `[1] Generic / Vulkan` — iGPU only (Radeon 780M, Intel iGPU). No NVIDIA ordering.
-   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Adds `After=nvidia-persistenced.service` and a 30-second `/dev/nvidia0` wait so llama-server never starts before the NVIDIA driver has finished probing the GPU.
+   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Adds `After=nvidia-persistenced.service` and a 120-second wait for `/dev/nvidia0` (the actual GPU device node, not just the kernel module) followed by an `nvidia-smi` check, so llama-server never starts before the NVIDIA driver has finished probing the GPU.
 
 ### Remove
 

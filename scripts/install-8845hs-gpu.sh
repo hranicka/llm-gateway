@@ -202,6 +202,21 @@ else
     apt-get install -y nvidia-driver-open || true
 fi
 
+# Ensure all four NVIDIA kernel modules load at boot.
+# nvidia-uvm is critical: it creates /dev/nvidia-uvm which cuInit() requires.
+# Without it, CUDA returns "unknown error" (999) even though nvidia-smi works,
+# because nvidia-persistenced only keeps nvidia.ko alive, not nvidia-uvm.ko.
+cat >/etc/modules-load.d/nvidia.conf <<EOF
+nvidia
+nvidia-drm
+nvidia-modeset
+nvidia-uvm
+EOF
+echo " -> NVIDIA modules (incl. nvidia-uvm) configured to load at boot"
+
+# Load nvidia-uvm now so the current session can use CUDA without rebooting.
+modprobe nvidia-uvm 2>/dev/null && echo " -> nvidia-uvm loaded for current session" || true
+
 # Enable persistence daemon
 if command -v nvidia-persistenced >/dev/null 2>&1; then
     systemctl enable --now nvidia-persistenced 2>/dev/null || true
