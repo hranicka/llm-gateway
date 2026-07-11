@@ -1,7 +1,5 @@
 [Unit]
 Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
-# Wait for nvidia-persistenced before probing the GPU.
-# Wants= (not Requires=) so the service still starts without it.
 After=network-online.target nvidia-persistenced.service
 Wants=network-online.target nvidia-persistenced.service
 StartLimitIntervalSec=60
@@ -15,32 +13,29 @@ Environment=HOME=%LLM_HOME%
 Environment=PATH=%LLM_PATH%
 WorkingDirectory=/etc/llm-gateway
 
-# nvidia-uvm is needed by cuInit() but not loaded by nvidia-persistenced.
-# The '+' prefix grants full privileges regardless of User=.
+# --- GPU readiness (all steps use '-' or '+' so the service starts without a GPU) ---
+
+# nvidia-uvm is required by cuInit() but not loaded by nvidia-persistenced.
 ExecStartPre=+/sbin/modprobe nvidia-uvm
 
-# Wait for /dev/nvidia0 (actual GPU, only exists when driver detects hardware).
-# Logs elapsed seconds so boot-timing issues are visible in the journal.
-# Exits 0 on timeout so the service still starts without the eGPU.
-ExecStartPre=/bin/sh -c 'i=0; while [ ! -c /dev/nvidia0 ] && [ $i -lt 300 ]; do sleep 1; i=$((i+1)); done; echo "llm-gateway: waited ${i}s for /dev/nvidia0" >&2; true'
+# Wait for the eGPU to appear on the PCIe bus (OCuLink/Thunderbolt).
+# Logs elapsed time so boot-timing issues are visible in the journal.
+ExecStartPre=-/bin/sh -c 'i=0; while [ ! -c /dev/nvidia0 ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done; echo "llm-gateway: waited ${i}s for /dev/nvidia0" >&2; true'
 
-# After /dev/nvidia0 appears, /dev/nvidia-uvm may need an extra moment.
-ExecStartPre=/bin/sh -c 'i=0; while [ ! -c /dev/nvidia-uvm ] && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done; true'
-
-# Final check: driver must be able to enumerate the GPU.
-ExecStartPre=/bin/sh -c 'i=0; while ! nvidia-smi -L >/dev/null 2>&1 && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done; true'
-
-# Enable GPU persistence mode so the compute engine stays initialized.
-# Without this, the GPU can power down between the ExecStartPre checks
-# and the first cuInit() call from llama-server, causing
-#  "ggml_cuda_init: failed to initialize CUDA: unknown error"
-# The '-' prefix ignores the exit code so the service still starts without a GPU.
-# '+' runs as root (required for nvidia-smi -pm).
+# Enable GPU persistence mode so the compute engine stays initialized
+# between service start and the first request (which may arrive minutes later).
 ExecStartPre=-+/usr/bin/nvidia-smi -pm 1
+
+# Wait for the CUDA driver stack — not just NVML — to be ready.
+# nvidia-smi uses NVML (ready early on cold boot) but cuInit() needs
+# GPU firmware loaded and PCIe BARs mapped. On a dual-GPU system with an
+# eGPU over OCuLink, this finishes seconds after the device appears.
+# Calls cuInit() directly via Python ctypes; retries up to 30 s.
+ExecStartPre=-/bin/sh -c 'i=0; while [ $i -lt 30 ]; do if python3 -c "import ctypes,sys; sys.exit(ctypes.CDLL(\"libcuda.so.1\").cuInit(0))" 2>/dev/null; then echo "llm-gateway: CUDA ready after ${i}s" >&2; break; fi; sleep 1; i=$((i+1)); done; true'
 
 ExecStart=/usr/local/bin/llm-gateway
 
-# --- GPU & Memory Permissions ---
+# --- Permissions ---
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
 
