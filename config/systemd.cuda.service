@@ -2,8 +2,8 @@
 Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
 After=network-online.target nvidia-persistenced.service
 Wants=network-online.target nvidia-persistenced.service
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -18,23 +18,14 @@ WorkingDirectory=/etc/llm-gateway
 # nvidia-uvm is required by cuInit() but not loaded by nvidia-persistenced.
 ExecStartPre=+/sbin/modprobe nvidia-uvm
 
-# Wait for the eGPU to appear on the PCIe bus (OCuLink/Thunderbolt).
-# Logs elapsed time so boot-timing issues are visible in the journal.
-# $$ escapes the dollar sign from systemd specifier expansion so the
-# shell variable i survives intact.
-ExecStartPre=-/bin/sh -c 'i=0; while [ ! -c /dev/nvidia0 ] && [ $$i -lt 30 ]; do sleep 1; i=$$((i+1)); done; echo "llm-gateway: waited $${i}s for /dev/nvidia0" >&2; true'
-
-# Enable GPU persistence mode so the compute engine stays initialized
-# between service start and the first request (which may arrive minutes later).
-ExecStartPre=-+/usr/bin/nvidia-smi -pm 1
-
-# Wait for the CUDA driver stack — not just NVML — to be ready.
-# nvidia-smi uses NVML (ready early on cold boot) but cuInit() needs
-# GPU firmware loaded and PCIe BARs mapped. On a dual-GPU system with an
-# eGPU over OCuLink, this finishes seconds after the device appears.
-# Calls cuInit() directly via Python ctypes; retries up to 30 s.
+# Wait for the eGPU to be fully ready (OCuLink/Thunderbolt cold boot can take 1-2 min).
+# Checks: /dev/nvidia0 exists, /dev/nvidia-uvm exists, and the driver can query the GPU.
 # $$ escapes the dollar sign from systemd specifier expansion.
-ExecStartPre=-/bin/sh -c 'i=0; while [ $$i -lt 30 ]; do if python3 -c "import ctypes,sys; sys.exit(ctypes.CDLL(\"libcuda.so.1\").cuInit(0))" 2>/dev/null; then echo "llm-gateway: CUDA ready after $${i}s" >&2; break; fi; sleep 1; i=$$((i+1)); done; true'
+ExecStartPre=-/bin/sh -c 'i=0; while [ $$i -lt 120 ]; do if [ -c /dev/nvidia0 ] && [ -c /dev/nvidia-uvm ] && nvidia-smi --query-gpu=name --format=csv,noheader >/dev/null 2>&1; then echo "llm-gateway: GPU ready after $${i}s" >&2; break; fi; sleep 1; i=$$((i+1)); done; true'
+
+# Enable persistence mode so the compute engine stays initialized between
+# service start and the first request (which may arrive minutes later).
+ExecStartPre=-+/usr/bin/nvidia-smi -pm 1
 
 ExecStart=/usr/local/bin/llm-gateway
 
@@ -42,14 +33,14 @@ ExecStart=/usr/local/bin/llm-gateway
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
 
-# NVIDIA CUDA device nodes (only enforced with PrivateDevices=yes).
+# NVIDIA CUDA device nodes
 DeviceAllow=/dev/nvidia0 rw
 DeviceAllow=/dev/nvidiactl rw
 DeviceAllow=/dev/nvidia-modeset rw
 DeviceAllow=/dev/nvidia-uvm rw
 DeviceAllow=/dev/nvidia-uvm-tools rw
 
-# AMD/Intel DRI access (iGPU used alongside NVIDIA).
+# AMD/Intel DRI access (iGPU used alongside NVIDIA)
 DeviceAllow=/dev/dri/renderD128 rw
 DeviceAllow=/dev/dri/renderD129 rw
 DeviceAllow=/dev/dri/card0 rw
