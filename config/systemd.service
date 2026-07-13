@@ -2,7 +2,7 @@
 Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=60
+StartLimitIntervalSec=120
 StartLimitBurst=3
 
 [Service]
@@ -17,6 +17,9 @@ ExecStart=/usr/local/bin/llm-gateway
 # --- GPU & Memory Permissions ---
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
+
+# Restrict to explicitly listed devices only.
+DevicePolicy=closed
 
 # AMD/Intel DRI access (Radeon 780M iGPU, Intel iGPU)
 DeviceAllow=/dev/dri/renderD128 rw

@@ -2,8 +2,10 @@
 Description=LLM Gateway - OpenAI-compatible proxy for on-demand model serving
 After=network-online.target nvidia-persistenced.service
 Wants=network-online.target nvidia-persistenced.service
-StartLimitIntervalSec=300
-StartLimitBurst=5
+# Each failed start cycle costs ~190 s (TimeoutStartSec=180 + RestartSec=10).
+# 3 attempts × 190 s = 570 s; window of 600 s fits all three before giving up.
+StartLimitIntervalSec=600
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -12,20 +14,23 @@ Group=%LLM_USER%
 Environment=HOME=%LLM_HOME%
 Environment=PATH=%LLM_PATH%
 WorkingDirectory=/etc/llm-gateway
-TimeoutStartSec=600
+# Cold-boot nvidia-smi can take 60–80 s loading eGPU firmware; leave headroom.
+TimeoutStartSec=180
 
-# nvidia-uvm is required by cuInit() but not loaded by nvidia-persistenced.
-# nvidia-smi probes NVML and triggers GPU firmware loading on Blackwell open RM,
-# so the cuInit poll below completes faster (NVML alone is ready but CUDA error 999 persists).
-# $ escapes to $$ for systemd specifier expansion.
-ExecStartPre=+/sbin/modprobe nvidia-uvm
+# nvidia-uvm is required by CUDA but not loaded by nvidia-persistenced.
+# nvidia-smi probes NVML and triggers GPU firmware loading on Blackwell open RM —
+# the step that makes CUDA succeed on cold boot. Both steps run as root (+).
+# -+ prefix: run as root, ignore failure so the service still starts without GPU.
+ExecStartPre=-+/sbin/modprobe nvidia-uvm
 ExecStartPre=-+/usr/bin/nvidia-smi -pm 1
-ExecStartPre=-/bin/sh -c 'i=0; while [ "$$i" -lt 300 ]; do if python3 -c "import ctypes,sys; sys.exit(ctypes.CDLL(\"libcuda.so.1\").cuInit(0))" 2>/dev/null; then echo "llm-gateway: CUDA ready after $${i}s" >&2; break; fi; sleep 1; i=$$((i+1)); done; [ "$$i" -lt 300 ] || echo "llm-gateway: CUDA not ready after 300s, starting without GPU" >&2; true'
 
 ExecStart=/usr/local/bin/llm-gateway
 
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
+
+# Restrict to explicitly listed devices only.
+DevicePolicy=closed
 
 # NVIDIA CUDA device nodes
 DeviceAllow=/dev/nvidia0 rw

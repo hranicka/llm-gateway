@@ -77,7 +77,7 @@ func promptServiceType() []byte {
 	}
 	input = strings.TrimSpace(input)
 	if input == "2" {
-		fmt.Println("Using CUDA/eGPU service (waits for /dev/nvidia0 at boot).")
+		fmt.Println("Using CUDA/eGPU service (starts after nvidia-persistenced, triggers GPU firmware via nvidia-smi on cold boot).")
 		return llmgateway.SystemdServiceCUDA
 	}
 	fmt.Println("Using generic/Vulkan service.")
