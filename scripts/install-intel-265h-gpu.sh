@@ -24,7 +24,7 @@ echo "========================================================="
 echo
 
 # ------------------------------------------------------------------------------
-# Helper
+# Helper Functions
 # ------------------------------------------------------------------------------
 add_grub_param() {
     local param="$1"
@@ -120,7 +120,6 @@ add_grub_param "iommu=pt"
 add_grub_param "pci=noaer"
 
 # NVIDIA DRM modesetting required for Wayland + NVIDIA GPU compositing.
-# Without this the compositor falls back to CPU/iGPU rendering -> laggy UI.
 add_grub_param "nvidia-drm.modeset=1"
 
 # pci=realloc / assign-busses / hpbussize break WiFi (M.2 PCIe) BAR mapping.
@@ -131,25 +130,25 @@ remove_grub_param_regex 'hpbussize=[^"]*'
 echo " -> GRUB parameters updated"
 
 # ------------------------------------------------------------------------------
-# 3. Early i915 + Thunderbolt loading
+# 3. Early iGPU (xe) + Thunderbolt loading
 # ------------------------------------------------------------------------------
-echo "[3/7] Configuring Intel iGPU + Thunderbolt loading..."
+echo "[3/7] Configuring modern Intel iGPU (xe) + Thunderbolt loading..."
 
 MODULES_FILE="/etc/initramfs-tools/modules"
-grep -qxF "i915" "$MODULES_FILE" || echo "i915" >> "$MODULES_FILE"
+# Remove legacy i915 if present
+sed -i '/^i915$/d' "$MODULES_FILE"
+# Add modern xe driver for Arrow Lake
+grep -qxF "xe" "$MODULES_FILE" || echo "xe" >> "$MODULES_FILE"
 grep -qxF "thunderbolt" "$MODULES_FILE" || echo "thunderbolt" >> "$MODULES_FILE"
 
-echo " -> i915 + thunderbolt added to initramfs"
+echo " -> xe + thunderbolt configured in initramfs"
 
 # ------------------------------------------------------------------------------
-# 4. Useful packages (Moved up to ensure headers exist for DKMS)
+# 4. Useful packages
 # ------------------------------------------------------------------------------
 echo "[4/7] Installing tooling and kernel headers..."
 
 apt-get update
-# linux-headers-generic covers the standard case; try the exact running
-# kernel's headers too, but don't fail the whole script if they're absent
-# (e.g. OEM/custom kernel without a matching -headers package).
 apt-get install -y dkms linux-headers-generic || true
 apt-get install -y "linux-headers-$(uname -r)" 2>/dev/null || true
 apt-get install -y \
@@ -184,44 +183,28 @@ options nouveau modeset=0
 EOF
 
 # Allow open kernel modules to bind to eGPU bridges (CRITICAL for 5060 Ti Blackwell)
-cat >/etc/modprobe.d/nvidia-egpu.conf <<EOF
+# Enable Dynamic Power Management for the hybrid laptop setup (CRITICAL for Wayland/Battery)
+cat >/etc/modprobe.d/nvidia-custom.conf <<EOF
 options nvidia NVreg_OpenRmEnableUnsupportedGpus=1
+options nvidia NVreg_DynamicPowerManagement=0x02
 EOF
 
 if ! command -v nvidia-smi >/dev/null 2>&1; then
     echo " -> NVIDIA driver not detected, installing open kernel modules..."
-    # Blackwell (RTX 50 / PRO 500) needs the open kernel module variant.
-    # 610.x is the latest production branch (replaces 595.x).
     apt-get install -y nvidia-driver-open || ubuntu-drivers autoinstall || true
 else
     echo " -> NVIDIA driver already installed. Upgrading to latest open kernel modules..."
     apt-get install -y nvidia-driver-open || true
 fi
 
-# Ensure all four NVIDIA kernel modules load at boot.
-# nvidia-uvm is critical: it creates /dev/nvidia-uvm which cuInit() requires.
-# Without it, CUDA returns "unknown error" (999) even though nvidia-smi works,
-# because nvidia-persistenced only keeps nvidia.ko alive, not nvidia-uvm.ko.
-cat >/etc/modules-load.d/nvidia.conf <<EOF
-nvidia
-nvidia-drm
-nvidia-modeset
-nvidia-uvm
-EOF
-echo " -> NVIDIA modules (incl. nvidia-uvm) configured to load at boot"
-
-# Load nvidia-uvm now so the current session can use CUDA without rebooting.
-modprobe nvidia-uvm 2>/dev/null && echo " -> nvidia-uvm loaded for current session" || true
-
-# Enable persistence daemon
-if command -v nvidia-persistenced >/dev/null 2>&1; then
-    systemctl enable --now nvidia-persistenced 2>/dev/null || true
-    nvidia-smi -pm 1 2>/dev/null || true
-    echo " -> NVIDIA persistence enabled"
+# Clean up any problematic forced loading or persistence left over from older scripts
+rm -f /etc/modules-load.d/nvidia.conf
+if systemctl is-enabled nvidia-persistenced.service >/dev/null 2>&1; then
+    systemctl disable --now nvidia-persistenced.service || true
+    echo " -> Disabled static NVIDIA persistence mode (better for hybrid laptops)"
 fi
 
 # CUDA 13+ toolkit required for native sm_120 (Blackwell) llama.cpp builds.
-# CUDA 13 supports GCC 15 natively and fixes the glibc 2.41 math conflict.
 echo " -> Installing CUDA 13 toolkit for Blackwell (sm_120) support..."
 if ! command -v nvcc >/dev/null 2>&1; then
     wget -q --no-netrc https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb -O /tmp/cuda-keyring.deb
@@ -263,7 +246,7 @@ echo " Completed successfully."
 echo
 echo " Recommended checks after reboot:"
 echo
-echo "   lsmod | grep -E 'i915|thunderbolt|nvidia'"
+echo "   lsmod | grep -E 'xe|thunderbolt|nvidia'"
 echo "   lspci | grep -E 'VGA|3D|NVIDIA'"
 echo "   vulkaninfo --summary"
 echo "   nvidia-smi"
