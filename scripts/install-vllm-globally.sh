@@ -59,10 +59,10 @@ rm -rf "${VENV_DIR:?}/venv"  # safety: clear existing
 echo "[3/5] Creating venv at ${VENV_DIR}/venv..."
 uv venv "${VENV_DIR}/venv" --python "$PYVER"
 
-echo "[4/5] Installing torch + vLLM (pre-built wheels, CUDA 13.2 for Blackwell)..."
+echo "[4/5] Installing torch + vLLM (pre-built wheels, CUDA 13.0 for Blackwell)..."
 source "${VENV_DIR}/venv/bin/activate"
 uv pip install huggingface_hub vllm \
-	--torch-backend=cu132
+	--torch-backend=cu130
 
 # ── 5. Register nvidia libs with ldconfig + wrapper + verify ─────────────────
 # vLLM's C extensions link against libcudart.so.13 (nvidia-cuda-runtime 13.x)
@@ -79,6 +79,8 @@ ldconfig
 rm -f /usr/local/bin/vllm
 cat > /usr/local/bin/vllm <<EOF
 #!/usr/bin/env bash
+export FLASHINFER_CUDA_ARCH_LIST="12.0f"
+export TORCH_CUDA_ARCH_LIST="12.0f"
 exec "${VENV_DIR}/venv/bin/python3" "${VENV_DIR}/venv/bin/vllm" "\$@"
 EOF
 chmod +x /usr/local/bin/vllm
