@@ -36,7 +36,7 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
     - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
-    - **`command`**: Full command to run (as a multiline string, passed via `sh -c`).
+    - **`command`**: Full command to run (as a multiline string, passed via `sh -c`). Line breaks are collapsed into spaces, so the whole block runs as a single command; quote any argument that contains spaces (e.g. `--chat-template-kwargs '{"enable_thinking": true}'`).
     - **`host`**: The `host:port` address the model will listen on.
 
 > **Important**: The model backend port must differ from the gateway port. If they match, the gateway's health-check would hit itself (passing instantly) and the reverse-proxy would loop. The example config uses `:1234` for the gateway and `:1235` for all backends. Ensure the ports are different to avoid this.
@@ -142,7 +142,7 @@ The installer will prompt for:
 1. **Config** — pick one of the bundled `config/*.yaml` files (or keep an existing one).
 2. **Service type** — choose the systemd unit that matches your GPU setup:
    - `[1] Generic / Vulkan` — iGPU only (Radeon 780M, Intel iGPU). No NVIDIA ordering.
-   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Adds `After=nvidia-persistenced.service` and a 120-second wait for `/dev/nvidia0` (the actual GPU device node, not just the kernel module) followed by an `nvidia-smi` check, so llama-server never starts before the NVIDIA driver has finished probing the GPU.
+   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Starts after `nvidia-persistenced.service`, loads `nvidia-uvm`, then runs a full `nvidia-smi` query before `llm-gateway` starts. This matches the manual recovery sequence that warms the GPU on cold boot. If NVIDIA is not ready yet, the unit fails and systemd retries instead of starting the gateway in a CPU-fallback state.
 
 ### Remove
 

@@ -111,3 +111,85 @@ func TestProxyHandler_Streaming(t *testing.T) {
 	// Cleanup manager
 	manager.ShutdownCurrentModel()
 }
+
+func assertOpenAICode(t *testing.T, w *httptest.ResponseRecorder, wantCode string) {
+	t.Helper()
+	var resp openaiErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if resp.Error.Code != wantCode {
+		t.Errorf("error code = %v, want %q", resp.Error.Code, wantCode)
+	}
+}
+
+func TestProxyHandler_ModelRequired(t *testing.T) {
+	body, _ := json.Marshal(map[string]string{"messages": "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+	ProxyHandler(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	assertOpenAICode(t, w, "model_required")
+}
+
+func TestProxyHandler_InvalidBody(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString("{not json"))
+	w := httptest.NewRecorder()
+	ProxyHandler(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	assertOpenAICode(t, w, "invalid_body")
+}
+
+func TestProxyHandler_LoopDetection(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString("{}"))
+	req.Header.Set(loopDetectHeader, "1")
+	w := httptest.NewRecorder()
+	ProxyHandler(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502", w.Code)
+	}
+	assertOpenAICode(t, w, "proxy_loop")
+}
+
+func TestModelsHandler(t *testing.T) {
+	config.SortedModelNames = []string{"a-model", "b-model"}
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	w := httptest.NewRecorder()
+	ModelsHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var list modelList
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode models list: %v", err)
+	}
+	if list.Object != "list" {
+		t.Errorf("object = %q, want list", list.Object)
+	}
+	if len(list.Data) != 2 || list.Data[0].ID != "a-model" || list.Data[1].ID != "b-model" {
+		t.Errorf("data = %+v, want [a-model b-model]", list.Data)
+	}
+}
+
+func TestHealthHandler(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	HealthHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestNotFoundHandler(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/nope", nil)
+	w := httptest.NewRecorder()
+	NotFoundHandler(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+	assertOpenAICode(t, w, "not_found")
+}

@@ -123,14 +123,14 @@
       "models": {
         "qwen-3.5-4b": {
           "limit": {
-            "context": 96000,
-            "output": 32768
+            "context": 16384,
+            "output": 8192
           }
         },
         "gemma-4-2b": {
           "limit": {
-            "context": 96000,
-            "output": 32768
+            "context": 16384,
+            "output": 8192
           }
         }
       }

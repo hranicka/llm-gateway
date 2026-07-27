@@ -134,9 +134,10 @@ func BuildCommand(modelName string) (string, string, error) {
 		return "", "", fmt.Errorf("model %q not found in config", modelName)
 	}
 
-	// Normalize multi-line YAML block scalar: newlines act as command
-	// separators in sh -c, so collapse all whitespace to single spaces.
-	cmdStr := strings.Join(strings.Fields(m.Command), " ")
+	// Normalize the multi-line YAML block scalar into a single shell command
+	// line: collapse line breaks to spaces so the whole string runs as one
+	// command under sh -c. Spaces inside quoted arguments are preserved.
+	cmdStr := strings.ReplaceAll(strings.TrimSpace(m.Command), "\n", " ")
 	backendURL := fmt.Sprintf("http://%s", m.Host)
 	return cmdStr, backendURL, nil
 }
