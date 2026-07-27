@@ -61,7 +61,7 @@ uv venv "${VENV_DIR}/venv" --python "$PYVER"
 
 echo "[4/5] Installing torch + vLLM (pre-built wheels, CUDA 13.0 for Blackwell)..."
 source "${VENV_DIR}/venv/bin/activate"
-uv pip install huggingface_hub vllm nvidia-cuda-nvcc \
+uv pip install huggingface_hub vllm "nvidia-cuda-nvcc==13.0.*" "cuda-toolkit==13.0.*" \
 	--torch-backend=cu130
 
 # ── 5. Register nvidia libs with ldconfig + wrapper + verify ─────────────────

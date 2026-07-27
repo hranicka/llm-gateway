@@ -74,6 +74,7 @@ models:
       vllm serve unsloth/gemma-4-12b-it-NVFP4
       --served-model-name gemma-4-12b
       --port 1235 --max-model-len 131072 --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.95 --enforce-eager
       --enable-chunked-prefill
     host: 127.0.0.1:1235
     health_endpoint: /v1/models
