@@ -156,3 +156,81 @@ func TestDurations(t *testing.T) {
 		t.Errorf("ModelReadyTimeout(missing) = %v, want 0", d)
 	}
 }
+
+func TestHealthEndpoint(t *testing.T) {
+	ConfigApp = &Config{
+		Models: map[string]ModelConf{
+			"llama-model": {Host: "127.0.0.1:1235"}, // no health_endpoint set → default
+			"vllm-model":  {Host: "127.0.0.1:1235", HealthEndpoint: "/v1/models"},
+		},
+	}
+
+	if ep := HealthEndpoint("llama-model"); ep != "/health" {
+		t.Errorf("HealthEndpoint(llama-model) = %q, want /health", ep)
+	}
+	if ep := HealthEndpoint("vllm-model"); ep != "/v1/models" {
+		t.Errorf("HealthEndpoint(vllm-model) = %q, want /v1/models", ep)
+	}
+	if ep := HealthEndpoint("missing"); ep != "/health" {
+		t.Errorf("HealthEndpoint(missing) = %q, want /health (fallback)", ep)
+	}
+}
+
+const healthConfig = `host: 0.0.0.0:1234
+debug: false
+auto_unload: 1h
+drain_timeout: 30s
+
+models:
+  vllm-test:
+    command: |
+      ~/vllm-env/bin/vllm serve org/repo
+      --port 1235 --max-model-len 8192
+    host: 127.0.0.1:1235
+    health_endpoint: /v1/models
+    ready_timeout: 4h
+`
+
+func TestLoad_HealthEndpoint(t *testing.T) {
+	if err := Load(writeConfig(t, healthConfig)); err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if ep := HealthEndpoint("vllm-test"); ep != "/v1/models" {
+		t.Errorf("HealthEndpoint(vllm-test) = %q, want /v1/models", ep)
+	}
+	if ConfigApp.Models["vllm-test"].ReadyTimeout != "4h" {
+		t.Errorf("ReadyTimeout = %q, want 4h", ConfigApp.Models["vllm-test"].ReadyTimeout)
+	}
+}
+
+func TestBackendModel(t *testing.T) {
+	cfg := &Config{
+		Models: map[string]ModelConf{
+			"client-name": {
+				Command:      "cmd",
+				Host:         "127.0.0.1:1",
+				ReadyTimeout: "5m",
+				BackendModel: "backend_name",
+			},
+			"no-rewrite": {
+				Command:      "cmd",
+				Host:         "127.0.0.1:1",
+				ReadyTimeout: "5m",
+			},
+		},
+	}
+
+	// When model has backend_model configured.
+	ConfigApp = cfg
+	if got := BackendModel("client-name"); got != "backend_name" {
+		t.Errorf("BackendModel(client-name) = %q, want backend_name", got)
+	}
+	// When model has no backend_model — empty string means no rewrite.
+	if got := BackendModel("no-rewrite"); got != "" {
+		t.Errorf("BackendModel(no-rewrite) = %q, want empty", got)
+	}
+	// Unknown model returns empty.
+	if got := BackendModel("unknown"); got != "" {
+		t.Errorf("BackendModel(unknown) = %q, want empty", got)
+	}
+}

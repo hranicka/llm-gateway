@@ -67,7 +67,25 @@ chmod +x llm-gateway
 
 The gateway itself is self-contained. You only need a compatible backend (e.g., [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server)) configured in `config.yaml` to proxy requests to.
 
-> **Note**: [`llama-server`](https://github.com/ggerganov/llama.cpp/tree/master/examples/server) is the recommended backend. See [`config/example.yaml`](config/example.yaml) for a basic template, or the config files in [`config/`](config/) for ready-to-use configurations. You can use any compatible backend by adjusting the `command` field.
+> **Note**: The gateway spawns whatever process you put in the `command` field — it is **backend-agnostic**. See below for supported backends. For a basic template see [`config/example.yaml`](config/example.yaml), or the ready-to-use configs in [`config/`](config/).
+
+### Supported Backends
+
+| Backend | Best for | Install |
+|---|---|---|
+| [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
+| [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
+
+**Choosing a backend:**
+
+- **GGUF (llama-server):** Faster cold-start loads (~10 s), lower VRAM overhead during loading, supports ROCm/Vulkan/iGPU, and has built-in speculative decoding via MTP (`--spec-draft-hf`). Models are downloaded automatically from HuggingFace by `--hf`/`-hf` flag. Uses quantized formats (Q4_K_M, Q8_0, etc.) that fit on smaller GPU VRAM.
+- **vLLM:** True NVFP4 and BF16 precision for safetensors models — no GGUF conversion quality loss. Ships its own CUDA runtime so it works alongside llama.cpp without conflicts. Supports fp8 KV cache with 131K context length even on 16 GB VRAM. Requires NVIDIA GPU with Open Kernel Modules and ≥ 8 GB VRAM for ~12 B parameter models. Cold-start is slower (~60–90 s loading safetensors into VRAM).
+
+> **Running both backends concurrently:** The gateway creates one backend process per model, each listening on its own `host:port`. Different models can use different backends (e.g. llama-server for some models, vllm for others) — they simply share whatever ports you assign in their respective configs.
+
+### Installation notes for vLLM
+
+The vLLM installer (`scripts/install-vllm-globally.sh`) installs torch + vllm system-wide via `pip3` (no virtual environment). PyTorch ships with its own CUDA runtime (cu129) — it does not conflict with the system `cuda-toolkit-12`. No compilation or nvcc is needed; the wheels are pre-built binaries for Blackwell/Ada/Lovelace GPUs. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
 
 #### Using Makefile (recommended)
 

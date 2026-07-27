@@ -221,7 +221,8 @@ func startModelLocked(modelName string) error {
 
 	go monitorProcess(cmd, modelName)
 
-	if err := waitForServerOrExit(ShutdownCtx(), cmd, backendURL+"/health", config.ModelReadyTimeout(modelName)); err != nil {
+	healthURL := backendURL + config.HealthEndpoint(modelName)
+	if err := waitForServerOrExit(ShutdownCtx(), cmd, healthURL, config.ModelReadyTimeout(modelName)); err != nil {
 		killProcessGroup(cmd)
 		if activeCmd == cmd {
 			clearStateLocked()

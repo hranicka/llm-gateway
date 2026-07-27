@@ -20,9 +20,11 @@ type Config struct {
 }
 
 type ModelConf struct {
-	Command      string `yaml:"command"`
-	Host         string `yaml:"host"`
-	ReadyTimeout string `yaml:"ready_timeout"`
+	Command        string `yaml:"command"`
+	Host           string `yaml:"host"`
+	ReadyTimeout   string `yaml:"ready_timeout"`
+	HealthEndpoint string `yaml:"health_endpoint"` // optional; defaults to "/health" (used by llama-server)
+	BackendModel   string `yaml:"backend_model"`   // optional; client "model" field rewritten to this value for vLLM
 }
 
 // Default config search paths.
@@ -101,6 +103,7 @@ func Load(filename string) error {
 	}
 
 	SortedModelNames = slices.Sorted(maps.Keys(ConfigApp.Models))
+
 	return nil
 }
 
@@ -140,4 +143,25 @@ func BuildCommand(modelName string) (string, string, error) {
 	cmdStr := strings.ReplaceAll(strings.TrimSpace(m.Command), "\n", " ")
 	backendURL := fmt.Sprintf("http://%s", m.Host)
 	return cmdStr, backendURL, nil
+}
+
+// HealthEndpoint returns the health-check path for the given model. Returns
+// the configured value if set (e.g. "/v1/models" for vllm serve), otherwise
+// the default "/health" used by llama-server.
+func HealthEndpoint(modelName string) string {
+	m, ok := ConfigApp.Models[modelName]
+	if !ok || m.HealthEndpoint == "" {
+		return "/health"
+	}
+	return m.HealthEndpoint
+}
+
+// BackendModel returns the model name to send in the JSON body to the backend.
+// Returns empty string when not configured (no rewrite needed).
+func BackendModel(modelName string) string {
+	m, ok := ConfigApp.Models[modelName]
+	if !ok || m.BackendModel == "" {
+		return ""
+	}
+	return m.BackendModel
 }

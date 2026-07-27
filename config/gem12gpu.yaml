@@ -71,14 +71,10 @@ models:
 
   gemma-4-12b:
     command: |
-      llama-server
-      -hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M
-      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
-      --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --no-mmproj-offload --jinja --tools all
-      --batch-size 4096 --ubatch-size 4096
-      --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
-      --host 127.0.0.1 --port 1235 --alias gemma-4-12b
+      vllm serve unsloth/gemma-4-12b-it-NVFP4
+      --port 1235 --max-model-len 131072 --kv-cache-dtype fp8
+      --enable-chunked-prefill
     host: 127.0.0.1:1235
+    health_endpoint: /v1/models
     ready_timeout: 2h
+    backend_model: unsloth_gemma_4_12B_it_NVFP4

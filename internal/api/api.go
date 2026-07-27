@@ -101,6 +101,24 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, ok := config.ConfigApp.Models[payload.Model]; !ok {
+		slog.Error("model not found", "model", payload.Model)
+		writeOpenAIError(w, fmt.Sprintf("Model %s not found in configuration", payload.Model), "model_not_found", http.StatusBadRequest)
+		return
+	}
+
+	// Rewrite the JSON body with backend_model if configured.
+	if m := config.ConfigApp.Models[payload.Model].BackendModel; m != "" && m != payload.Model {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(bodyBytes, &raw); err == nil {
+			modelJSON, _ := json.Marshal(m)
+			raw["model"] = modelJSON
+			bodyBytes, _ = json.Marshal(raw)
+			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			r.ContentLength = int64(len(bodyBytes))
+		}
+	}
+
 	slog.Debug("request received", "model", payload.Model, "method", r.Method, "path", r.URL.Path)
 	backend, release, err := manager.SwitchModel(payload.Model)
 	if err != nil {
