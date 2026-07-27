@@ -74,6 +74,12 @@ echo "[5/5] Registering nvidia libs + creating wrapper in \$PATH..."
 ls -d "${SITE_PKG}"/nvidia/*/lib 2>/dev/null > /etc/ld.so.conf.d/vllm-nvidia.conf
 ldconfig
 
+# CUDA 13 pip packages install under nvidia/cu13/ but FlashInfer JIT expects
+# nvidia/cuda_nvcc/bin/nvcc. Symlink so the hardcoded path resolves.
+if [ -d "${SITE_PKG}/nvidia/cu13" ] && [ ! -e "${SITE_PKG}/nvidia/cuda_nvcc" ]; then
+	ln -s "${SITE_PKG}/nvidia/cu13" "${SITE_PKG}/nvidia/cuda_nvcc"
+fi
+
 # Wrapper runs the pip entry-point script with the venv python explicitly
 # (the script's own shebang may be broken after uv venv creation)
 rm -f /usr/local/bin/vllm
