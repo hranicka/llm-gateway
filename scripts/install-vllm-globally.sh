@@ -58,10 +58,10 @@ rm -rf "${VENV_DIR:?}/venv"  # safety: clear existing
 echo "[3/5] Creating venv at ${VENV_DIR}/venv..."
 uv venv "${VENV_DIR}/venv" --python "$PYVER"
 
-echo "[4/5] Installing torch + vLLM (pre-built wheels)..."
+echo "[4/5] Installing torch + vLLM (pre-built wheels, CUDA 12.9 for Blackwell)..."
 source "${VENV_DIR}/venv/bin/activate"
 uv pip install huggingface_hub vllm \
-	--torch-backend=auto
+	--torch-backend=cu129
 
 # ── 5. Symlink 'vllm' CLI + python + verify ───────────────────────────────────
 echo "[5/5] Sym-linking into \$PATH..."
