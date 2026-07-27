@@ -79,6 +79,8 @@ ldconfig
 rm -f /usr/local/bin/vllm
 cat > /usr/local/bin/vllm <<EOF
 #!/usr/bin/env bash
+export CUDA_HOME="${VENV_DIR}/venv/lib/python${PYVER}/site-packages/nvidia/cuda_nvcc"
+export PATH="\${CUDA_HOME}/bin:\$PATH"
 export FLASHINFER_CUDA_ARCH_LIST="12.0f"
 export TORCH_CUDA_ARCH_LIST="12.0f"
 exec "${VENV_DIR}/venv/bin/python3" "${VENV_DIR}/venv/bin/vllm" "\$@"
