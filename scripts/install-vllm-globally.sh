@@ -74,10 +74,11 @@ echo "[5/5] Registering nvidia libs + creating wrapper in \$PATH..."
 ls -d "${SITE_PKG}"/nvidia/*/lib 2>/dev/null > /etc/ld.so.conf.d/vllm-nvidia.conf
 ldconfig
 
-# Wrapper calls python -m vllm directly (avoids broken shebang in pip entry-point)
+# Wrapper runs the pip entry-point script with the venv python explicitly
+# (the script's own shebang may be broken after uv venv creation)
 cat > /usr/local/bin/vllm <<EOF
 #!/usr/bin/env bash
-exec "${VENV_DIR}/venv/bin/python3" -m vllm "\$@"
+exec "${VENV_DIR}/venv/bin/python3" "${VENV_DIR}/venv/bin/vllm" "\$@"
 EOF
 chmod +x /usr/local/bin/vllm
 
