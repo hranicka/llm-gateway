@@ -189,5 +189,6 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 // NotFoundHandler returns an OpenAI-shaped 404 for unknown routes.
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Warn("unknown route", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
 	writeOpenAIError(w, fmt.Sprintf("Path %s not found", r.URL.Path), "not_found", http.StatusNotFound)
 }
