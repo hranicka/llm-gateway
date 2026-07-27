@@ -7,7 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/exec"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -298,13 +301,67 @@ func shutdownCurrentModelLocked() {
 		}
 	}
 
-	if !waitForGroupExit(pgid, 10*time.Second) {
-		slog.Warn("model did not exit on SIGTERM, sending SIGKILL", "model", currentModel)
-		killProcessGroup(cmd)
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		if !waitForGroupExit(pgid, 10*time.Second) {
+			slog.Warn("model did not exit on SIGTERM, escalating to SIGKILL", "model", currentModel)
+			killProcessGroup(cmd)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		killDescendants(cmd.Process.Pid)
+	}()
+
+	wg.Wait()
 
 	clearStateLocked()
 	lastExit = time.Now()
+}
+
+// readChildren reads /proc/<pid>/status Children: field and returns live child PIDs.
+func readChildren(pid int) []int {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "Children:") {
+			var children []int
+			for _, m := range strings.Fields(strings.TrimPrefix(line, "Children:")) {
+				var p int
+				_, err := fmt.Sscanf(m, "%d", &p)
+				if err == nil && p > 0 {
+					children = append(children, p)
+				}
+			}
+			return children
+		}
+	}
+	return nil
+}
+
+// isAlive checks if a process exists by sending signal 0.
+// EPERM means the process exists but we lack permission to signal it.
+func isAlive(pid int) bool {
+	err := syscall.Kill(pid, syscall.Signal(0))
+	return err == nil || err == syscall.EPERM
+}
+
+// waitForSingleExit polls until pid or any of its children no longer exists.
+func waitForSingleExit(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !isAlive(pid) {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
 }
 
 // killProcessGroup sends SIGKILL to the whole process group and waits for exit.
@@ -319,6 +376,66 @@ func killProcessGroup(cmd *exec.Cmd) {
 		}
 	}
 	waitForGroupExit(pgid, 5*time.Second)
+}
+
+const maxDescendantNodes = 512
+
+// collectAllDescendants collects all descendants of pid from /proc/*/status by
+// finding processes whose PPid matches any PID in the current set. Returns a
+// unique set of descendant PIDs (does not include pid itself). Traversal is
+// capped at maxDescendantNodes to avoid unbounded work on pathological trees.
+func collectAllDescendants(pid int) []int {
+	seen := map[int]struct{}{pid: {}}
+	queue := []int{pid}
+	capped := false
+	for len(queue) > 0 && !capped {
+		next := queue[:0]
+		for _, p := range queue {
+			children := readChildren(p)
+			for _, c := range children {
+				if _, ok := seen[c]; !ok {
+					seen[c] = struct{}{}
+					next = append(next, c)
+					if len(seen) > maxDescendantNodes {
+						capped = true
+						break
+					}
+				}
+			}
+			if capped {
+				break
+			}
+		}
+		queue = next
+	}
+	if capped {
+		slog.Warn("descendant traversal capped", "root_pid", pid, "limit", maxDescendantNodes)
+	}
+	pids := make([]int, 0, len(seen)-1)
+	for p := range seen {
+		if p != pid {
+			pids = append(pids, p)
+		}
+	}
+	sort.Ints(pids)
+	return pids
+}
+
+// killDescendants SIGKILLs all descendants of pid and waits for them to exit.
+func killDescendants(pid int) {
+	descendants := collectAllDescendants(pid)
+	for _, d := range descendants {
+		if isAlive(d) {
+			if err := syscall.Kill(d, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+				slog.Debug("failed to SIGKILL descendent process", "pid", d, "error", err)
+			}
+		}
+	}
+	for _, d := range descendants {
+		if isAlive(d) {
+			waitForSingleExit(d, 2*time.Second)
+		}
+	}
 }
 
 // waitForGroupExit polls until no process in the process group pgid exists,
