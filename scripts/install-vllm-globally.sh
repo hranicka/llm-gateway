@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Usage: sudo ./scripts/install-vllm-globally.sh
 #
-# Creates a uv-managed venv at /opt/vllm/venv with torch + vLLM, then
-# installs a 'vllm' wrapper into /usr/local/bin so it's callable from config.yaml.
+# Creates a uv-managed venv at /opt/vllm/venv with torch + vLLM, registers
+# nvidia pip libs with ldconfig, and installs a 'vllm' wrapper into
+# /usr/local/bin so it's callable from config.yaml.
 
 set -euo pipefail
 
@@ -63,24 +64,26 @@ source "${VENV_DIR}/venv/bin/activate"
 uv pip install huggingface_hub vllm \
 	--torch-backend=cu129
 
-# ── 5. Wrapper script + verify ────────────────────────────────────────────────
+# ── 5. Register nvidia libs with ldconfig + wrapper + verify ─────────────────
 # vLLM's C extensions link against libcudart.so.13 (nvidia-cuda-runtime 13.x)
 # which lives in site-packages/nvidia/*/lib — not on the default loader path.
-# A wrapper script sets LD_LIBRARY_PATH so the dynamic linker finds them.
+# Register those dirs with ldconfig so the dynamic linker finds them natively.
 SITE_PKG="${VENV_DIR}/venv/lib/python${PYVER}/site-packages"
-NVIDIA_LIBS=$(ls -d "${SITE_PKG}"/nvidia/*/lib 2>/dev/null | tr '\n' ':')
 
-echo "[5/5] Creating wrapper in \$PATH..."
+echo "[5/5] Registering nvidia libs + creating wrapper in \$PATH..."
+ls -d "${SITE_PKG}"/nvidia/*/lib 2>/dev/null > /etc/ld.so.conf.d/vllm-nvidia.conf
+ldconfig
+
+# Wrapper calls python -m vllm directly (avoids broken shebang in pip entry-point)
 cat > /usr/local/bin/vllm <<EOF
 #!/usr/bin/env bash
-export LD_LIBRARY_PATH="${NVIDIA_LIBS}\${LD_LIBRARY_PATH:+:\${LD_LIBRARY_PATH}}"
-exec "${VENV_DIR}/venv/bin/vllm" "\$@"
+exec "${VENV_DIR}/venv/bin/python3" -m vllm "\$@"
 EOF
 chmod +x /usr/local/bin/vllm
 
 ln -sf "${VENV_DIR}/venv/bin/python3" /usr/local/bin/python3-vllm
 
-LD_LIBRARY_PATH="${NVIDIA_LIBS}" "${VENV_DIR}/venv/bin/python3" -c \
+"${VENV_DIR}/venv/bin/python3" -c \
 	"import torch, vllm; print(f'PyTorch {torch.__version__} + CUDA {torch.version.cuda}'); print(f'vLLM  {vllm.__version__}')"
 
 echo ""
