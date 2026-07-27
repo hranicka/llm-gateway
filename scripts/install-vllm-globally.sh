@@ -41,7 +41,8 @@ echo
 # ── 1. Install uv if missing ───────────────────────────────────────────────────
 if ! command -v uv &>/dev/null; then
 	echo "[0/4] Installing uv..."
-	curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --no-modify-path
+	curl -LsSf https://astral.sh/uv/install.sh | sh -s --
+	export UV_NO_MODIFY_PATH=1
 	export PATH="$HOME/.local/bin:$PATH"
 fi
 
@@ -58,13 +59,9 @@ echo "[2/4] Creating venv at ${VENV_DIR}/venv..."
 uv venv "${VENV_DIR}/venv" --python "$PYVER"
 
 echo "[3/4] Installing torch + vLLM (pre-built wheels)..."
-uv pip install --python "${VENV_DIR}/venv/bin/python3" \
-	"huggingface_hub[cli]" \
-	vllm \
-	--torch-backend=auto \
-	2>&1 | tee /tmp/vllm_pip.log || {
-	echo "  -> pip install failed — see /tmp/vllm_pip.log"; exit 1
-}
+source "${VENV_DIR}/venv/bin/activate"
+uv pip install huggingface_hub vllm \
+	--torch-backend=auto
 
 # ── 4. Symlink 'vllm' CLI + python ────────────────────────────────────────────
 echo "[4/4] Sym-linking into \$PATH..."
@@ -87,9 +84,10 @@ if [ -d "$MODEL_DIR/download" ] && \
    [ "$(find "$MODEL_DIR" -name '*.safetensors' -print -quit)" ]; then
 	echo " -> already cached ($(du -sh "$MODEL_DIR" 2>/dev/null | cut -f1))"
 else
-	HUGGINGFACE_HUB_CACHE="$HF_HOME" "${VENV_DIR}/venv/bin/python3" \
-		-m huggingface_hub.cli download \
-		unsloth/gemma-4-12b-it-NVFP4 --local-dir "$MODEL_DIR" || {
+	HUGGINGFACE_HUB_CACHE="$HF_HOME" "${VENV_DIR}/venv/bin/python3" -c "
+from huggingface_hub import snapshot_download
+snapshot_download('unsloth/gemma-4-12b-it-NVFP4', local_dir='$MODEL_DIR')
+" || {
 		echo " -> download failed"; exit 1
 	}
 	chown -R "${SUDO_USER:-root}:${SUDO_USER:+$(id -Gn "$SUDO_USER" 2>/dev/null | head -1)}" \

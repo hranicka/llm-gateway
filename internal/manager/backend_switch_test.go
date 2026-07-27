@@ -28,7 +28,7 @@ func resetManagerState(t *testing.T) {
 	if activeCmd != nil {
 		pgid := activeCmd.Process.Pid
 		mu.Unlock()
-		syscall.Kill(-pgid, syscall.SIGKILL) // be aggressive before reset
+		_ = syscall.Kill(-pgid, syscall.SIGKILL) // be aggressive before reset
 		waitForGroupExit(pgid, 2*time.Second)
 		mu.Lock()
 	}
@@ -44,7 +44,7 @@ func resetManagerState(t *testing.T) {
 		mu.Lock()
 		if activeCmd != nil && activeCmd.Process != nil {
 			for _, sig := range []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL} {
-				syscall.Kill(-activeCmd.Process.Pid, sig) // best effort cleanup
+				_ = syscall.Kill(-activeCmd.Process.Pid, sig) // best effort cleanup
 			}
 			waitForGroupExit(activeCmd.Process.Pid, 2*time.Second)
 		}
@@ -95,7 +95,7 @@ func TestBackendSwitch_LlamaServerCycle(t *testing.T) {
 
 	setDirectConfig(map[string]config.ModelConf{
 		"llama-model": {
-			Command:      fmt.Sprintf("sleep 60"),         // stand-in for llama-server
+			Command:      "sleep 60",                      // stand-in for llama-server
 			Host:         server.Listener.Addr().String(), // fake port, real health check
 			ReadyTimeout: "5s",
 		},
@@ -135,11 +135,7 @@ func TestBackendSwitch_LlamaServerCycle(t *testing.T) {
 		t.Fatal("state not cleared after ShutdownCurrentModel")
 	}
 
-	// Verify no stale process group remains.
-	mu.RLock()
-	// We don't have direct access to pgid, but the process is already killed.
-	// The fact that clearStateLocked ran and activeCmd is nil confirms it.
-	mu.RUnlock()
+	// Verify no stale process group remains — activeCmd is nil (checked above).
 }
 
 func TestBackendSwitch_vLLMCycle(t *testing.T) {
@@ -149,7 +145,7 @@ func TestBackendSwitch_vLLMCycle(t *testing.T) {
 	// vLLM uses a different health endpoint: /v1/models
 	setDirectConfig(map[string]config.ModelConf{
 		"vllm-model": {
-			Command:        fmt.Sprintf("sleep 60"), // stand-in for vllm serve
+			Command:        "sleep 60", // stand-in for vllm serve
 			Host:           server.Listener.Addr().String(),
 			HealthEndpoint: "/v1/models",
 			ReadyTimeout:   "5s",
