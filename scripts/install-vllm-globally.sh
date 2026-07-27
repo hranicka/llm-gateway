@@ -76,6 +76,7 @@ ldconfig
 
 # Wrapper runs the pip entry-point script with the venv python explicitly
 # (the script's own shebang may be broken after uv venv creation)
+rm -f /usr/local/bin/vllm
 cat > /usr/local/bin/vllm <<EOF
 #!/usr/bin/env bash
 exec "${VENV_DIR}/venv/bin/python3" "${VENV_DIR}/venv/bin/vllm" "\$@"
