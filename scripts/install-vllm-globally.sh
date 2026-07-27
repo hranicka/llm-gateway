@@ -2,7 +2,7 @@
 # Usage: sudo ./scripts/install-vllm-globally.sh
 #
 # Creates a uv-managed venv at /opt/vllm/venv with torch + vLLM, then
-# symlinks 'vllm' into /usr/local/bin so it's callable from config.yaml.
+# installs a 'vllm' wrapper into /usr/local/bin so it's callable from config.yaml.
 
 set -euo pipefail
 
@@ -63,12 +63,25 @@ source "${VENV_DIR}/venv/bin/activate"
 uv pip install huggingface_hub vllm \
 	--torch-backend=cu129
 
-# ── 5. Symlink 'vllm' CLI + python + verify ───────────────────────────────────
-echo "[5/5] Sym-linking into \$PATH..."
-ln -sf "${VENV_DIR}/venv/bin/vllm" /usr/local/bin/vllm
+# ── 5. Wrapper script + verify ────────────────────────────────────────────────
+# vLLM's C extensions link against libcudart.so.13 (nvidia-cuda-runtime 13.x)
+# which lives in site-packages/nvidia/*/lib — not on the default loader path.
+# A wrapper script sets LD_LIBRARY_PATH so the dynamic linker finds them.
+SITE_PKG="${VENV_DIR}/venv/lib/python${PYVER}/site-packages"
+NVIDIA_LIBS=$(ls -d "${SITE_PKG}"/nvidia/*/lib 2>/dev/null | tr '\n' ':')
+
+echo "[5/5] Creating wrapper in \$PATH..."
+cat > /usr/local/bin/vllm <<EOF
+#!/usr/bin/env bash
+export LD_LIBRARY_PATH="${NVIDIA_LIBS}\${LD_LIBRARY_PATH:+:\${LD_LIBRARY_PATH}}"
+exec "${VENV_DIR}/venv/bin/vllm" "\$@"
+EOF
+chmod +x /usr/local/bin/vllm
+
 ln -sf "${VENV_DIR}/venv/bin/python3" /usr/local/bin/python3-vllm
 
-"${VENV_DIR}/venv/bin/python3" -c "import torch, vllm; print(f'PyTorch {torch.__version__} + CUDA {torch.version.cuda}'); print(f'vLLM  {vllm.__version__}')"
+LD_LIBRARY_PATH="${NVIDIA_LIBS}" "${VENV_DIR}/venv/bin/python3" -c \
+	"import torch, vllm; print(f'PyTorch {torch.__version__} + CUDA {torch.version.cuda}'); print(f'vLLM  {vllm.__version__}')"
 
 echo ""
 echo "Done!"
