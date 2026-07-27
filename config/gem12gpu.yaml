@@ -71,11 +71,15 @@ models:
 
   gemma-4-12b:
     command: |
+      TORCHINDUCTOR_COMPILE_THREADS=1 CUDA_MODULE_LOADING=LAZY
       vllm serve unsloth/gemma-4-12b-it-NVFP4
       --served-model-name gemma-4-12b
-      --port 1235 --max-model-len 131072 --kv-cache-dtype fp8
-      --gpu-memory-utilization 0.95 --enforce-eager
+      --port 1235 --max-model-len 32768 --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.92 --enforce-eager
       --enable-chunked-prefill
+      --max-num-batched-tokens 4096 --max-num-seqs 1 --swap-space 0
+      --no-enable-flashinfer-autotune --no-enable-cutedsl-warmup
+      --limit-mm-per-prompt '{"image": 0, "audio": 0, "video": 0}'
     host: 127.0.0.1:1235
     health_endpoint: /v1/models
     ready_timeout: 2h
