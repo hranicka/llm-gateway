@@ -1,94 +1,108 @@
 #!/usr/bin/env bash
 # Usage: sudo ./scripts/install-vllm-globally.sh
+#
+# Creates a uv-managed venv at /opt/vllm/venv with torch + vLLM, then
+# symlinks 'vllm' into /usr/local/bin so it's callable from config.yaml.
 
-set -e
+set -euo pipefail
+
+VENV_DIR="/opt/vllm"
+PYVER="3.12"
+
+if [ "$(id -u)" -ne 0 ]; then
+	echo "ERROR: this script must be run as root."
+	echo "       Usage: sudo $(basename "$0")"
+	exit 1
+fi
+
 
 echo "======================================================"
-echo "    vLLM — global install (pip-installed) + NVIDIA"
+echo "    vLLM — uv-managed venv (isolated, no system break)"
 echo "------------------------------------------------------"
-echo " Installs torch + vllm system-wide so vllm serve can be"
-echo " called directly (no venv, no symlinks)."
+echo " Creates a clean Python ${PYVER} venv at ${VENV_DIR}/venv"
+echo " with torch + vLLM pre-built wheels."
 echo ""
 echo " Works on Blackwell/Ada/Lovelace — ships its own CUDA"
 echo " runtime; does not conflict with cuda-toolkit-12."
 echo "======================================================"
 echo
 
-# 0. NVIDIA driver check
-if ! command -v nvidia-smi &>/dev/null; then
-    echo "ERROR: no NVIDIA driver (nvidia-smi)."
-    echo "       Run install-8845hs-gpu.sh first."
-    exit 1
+# ── 0. NVIDIA check ────────────────────────────────────────────────────────────
+if ! nvidia-smi &>/dev/null; then
+	echo "ERROR: no NVIDIA driver (nvidia-smi)."
+	exit 1
 fi
-
-echo "NVIDIA driver: $(sudo nvidia-smi --query-gpu=driver_version \
-    --format=csv,noheader | head -1)"
-echo GPU: "$(sudo nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
+DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+echo "NVIDIA driver: ${DRIVER}"
+echo "GPU:           ${GPU_NAME}"
 echo
 
-# 1. Install system-wide via pip (no venv)
-echo "[1/3] Installing torch + vllm system-wide..."
-
-pip3 install --upgrade pip || true
-
-pip3 install \
-    torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu129 \
-    2>&1 | tee /tmp/vllm_pip.log || {
-    echo "pip install failed — see /tmp/vllm_pip.log"; exit 1
-}
-
-pip3 install \
-    "huggingface_hub[cli]" \
-    vllm \
-    2>&1 | tee -a /tmp/vllm_pip.log || {
-    echo "pip install failed — see /tmp/vllm_pip.log"; exit 1
-}
-
-echo ""
-python3 -c "import torch, vllm; print(f'  PyTorch {torch.__version__} + CUDA {torch.version.cuda}'); print(f'  vLLM       {vllm.__version__}')"
-
-# Preserve original user's home when run as sudo — without this the HF cache
-# lands in /root/ instead of /home/<user>/ and subsequent non-root processes
-# won't find the downloaded model.
-ORIGINAL_HOME="$HOME"
-if [ -n "$SUDO_USER" ]; then
-    ORIGINAL_HOME="/home/$SUDO_USER"
+# ── 1. Install uv if missing ───────────────────────────────────────────────────
+if ! command -v uv &>/dev/null; then
+	echo "[0/4] Installing uv..."
+	curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --no-modify-path
+	export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# 2. Download the safetensors model into the standard HF cache
+# ── 2. Ensure Python ${PYVER} is available (managed by uv) ────────────────────
+if ! uv python list | grep -q "$PYVER"; then
+	echo "[1/4] Downloading uv-managed Python ${PYVER}..."
+	uv python install "$PYVER"
+fi
+
+# ── 3. Create venv + install vLLM ──────────────────────────────────────────────
+rm -rf "${VENV_DIR:?}/venv"  # safety: clear existing
+
+echo "[2/4] Creating venv at ${VENV_DIR}/venv..."
+uv venv "${VENV_DIR}/venv" --python "$PYVER"
+
+echo "[3/4] Installing torch + vLLM (pre-built wheels)..."
+uv pip install --python "${VENV_DIR}/venv/bin/python3" \
+	"huggingface_hub[cli]" \
+	vllm \
+	--torch-backend=auto \
+	2>&1 | tee /tmp/vllm_pip.log || {
+	echo "  -> pip install failed — see /tmp/vllm_pip.log"; exit 1
+}
+
+# ── 4. Symlink 'vllm' CLI + python ────────────────────────────────────────────
+echo "[4/4] Sym-linking into \$PATH..."
+ln -sf "${VENV_DIR}/venv/bin/vllm" /usr/local/bin/vllm
+ln -sf "${VENV_DIR}/venv/bin/python3" /usr/local/bin/python3-vllm
+
+# ── 5. Download model + verify (run as original user) ─────────────────────────
+ORIGINAL_HOME="$HOME"
+if [ -n "$SUDO_USER" ]; then
+	ORIGINAL_HOME="/home/$SUDO_USER"
+fi
+
 HF_HOME="${HF_HOME:-$ORIGINAL_HOME/.cache/huggingface}"
 MODEL_DIR="$HF_HOME/hub/models--unsloth/gemma-4-12b-it-NVFP4"
 
 echo ""
-echo "[2/3] Downloading unsloth/gemma-4-12b-it-NVFP4 (~9.3 GB)..."
+echo "[5/5] Downloading unsloth/gemma-4-12b-it-NVFP4 (~9.3 GB)..."
 
-if [ "$(find "$MODEL_DIR" -name '*.safetensors' 2>/dev/null | wc -l)" -gt 0 ]; then
-    echo " -> already cached ($(du -sh "$MODEL_DIR" | cut -f1))"
+if [ -d "$MODEL_DIR/download" ] && \
+   [ "$(find "$MODEL_DIR" -name '*.safetensors' -print -quit)" ]; then
+	echo " -> already cached ($(du -sh "$MODEL_DIR" 2>/dev/null | cut -f1))"
 else
-    sudo -u "${SUDO_USER:-root}" huggingface-cli download unsloth/gemma-4-12b-it-NVFP4 \
-        --local-dir "$MODEL_DIR" || {
-        echo " -> download failed — check /tmp/vllm_pip.log"; exit 1
-    }
-    echo " -> cached ($(du -sh "$MODEL_DIR" | cut -f1))"
+	HUGGINGFACE_HUB_CACHE="$HF_HOME" "${VENV_DIR}/venv/bin/python3" \
+		-m huggingface_hub.cli download \
+		unsloth/gemma-4-12b-it-NVFP4 --local-dir "$MODEL_DIR" || {
+		echo " -> download failed"; exit 1
+	}
+	chown -R "${SUDO_USER:-root}:${SUDO_USER:+$(id -Gn "$SUDO_USER" 2>/dev/null | head -1)}" \
+		"$MODEL_DIR" 2>/dev/null || true
+	echo " -> cached ($(du -sh "$MODEL_DIR" | cut -f1))"
 fi
 
-# 3. Quick verification that the model can be instantiated on GPU
 echo ""
-echo "[3/3] Verifying..."
-python3 -c "
-import torch
-from transformers import AutoConfig
-c = AutoConfig.from_pretrained('$MODEL_DIR', trust_remote_code=True)
-print(f'  Architecture: {type(c).__name__}')
-qt = getattr(c, 'quantization_config', None)
-if qt: print('  Quant method: compressed-tensors (NVFP4 + Float8)')
-print('  OK')
-"
+"${VENV_DIR}/venv/bin/python3" -c "import torch, vllm; print(f'PyTorch {torch.__version__} + CUDA {torch.version.cuda}'); print(f'vLLM  {vllm.__version__}')"
 
 echo ""
 echo "Done!"
 echo ""
-echo " Usage in config.yaml (command field):"
-echo "   vllm serve unsloth/gemma-4-12b-it-NVFP4 \\
-       --port 1235 --max-model-len 131072 --kv-cache-dtype fp8"
+echo " In config.yaml use:"
+echo "   command: vllm serve unsloth/gemma-4-12b-it-NVFP4 \\"
+echo "          --port 1235 --max-model-len 131072 --kv-cache-dtype fp8"
