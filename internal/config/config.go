@@ -24,7 +24,6 @@ type ModelConf struct {
 	Host           string `yaml:"host"`
 	ReadyTimeout   string `yaml:"ready_timeout"`
 	HealthEndpoint string `yaml:"health_endpoint"` // optional; defaults to "/health" (used by llama-server)
-	BackendModel   string `yaml:"backend_model"`   // optional; client "model" field rewritten to this value for vLLM
 }
 
 // Default config search paths.
@@ -154,14 +153,4 @@ func HealthEndpoint(modelName string) string {
 		return "/health"
 	}
 	return m.HealthEndpoint
-}
-
-// BackendModel returns the model name to send in the JSON body to the backend.
-// Returns empty string when not configured (no rewrite needed).
-func BackendModel(modelName string) string {
-	m, ok := ConfigApp.Models[modelName]
-	if !ok || m.BackendModel == "" {
-		return ""
-	}
-	return m.BackendModel
 }

@@ -508,9 +508,9 @@ func TestHealthCheck_DifferentEndpoints(t *testing.T) {
 	ShutdownCurrentModel()
 }
 
-// TestHealthCheck_MismatchEndpoint verifies that starting a model with the
-// wrong health endpoint causes startup to fail (timeout waiting for server).
-func TestHealthCheck_MismatchEndpoint(t *testing.T) {
+// TestHealthCheck_FallbackEndpoint verifies that when the default /health
+// endpoint returns 404, the gateway falls back to /v1/models and succeeds.
+func TestHealthCheck_FallbackEndpoint(t *testing.T) {
 	resetManagerState(t)
 
 	// Server returns 200 ONLY on /v1/models, NOT on /health.
@@ -528,23 +528,21 @@ func TestHealthCheck_MismatchEndpoint(t *testing.T) {
 		"wrong-hc": {
 			Command:      "sleep 30",
 			Host:         vllmOnly.Listener.Addr().String(),
-			ReadyTimeout: "2s", // default health_endpoint = "/health" → will NOT match
+			ReadyTimeout: "5s", // default health_endpoint = "/health" → 404 → fallback to /v1/models
 		},
 	})
 
-	// This should fail because the model is configured with default /health
-	// but the server only responds on /v1/models.
-	if _, _, err := SwitchModel("wrong-hc"); err == nil {
-		t.Error("expected error when health endpoint does not match, got nil")
+	// Should succeed via the /v1/models fallback.
+	backend, release, err := SwitchModel("wrong-hc")
+	if err != nil {
+		t.Fatalf("expected fallback to /v1/models to succeed, got: %v", err)
+	}
+	release()
+	if backend == "" {
+		t.Error("expected non-empty backend URL")
 	}
 
-	mu.RLock()
-	finalCmd := activeCmd
-	finalModel := currentModel
-	mu.RUnlock()
-	if finalCmd != nil || finalModel != "" {
-		t.Error("state should be cleared after failed startup")
-	}
+	ShutdownCurrentModel()
 }
 
 // TestConcurrentSwitches verifies that two concurrent SwitchModel calls for

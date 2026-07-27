@@ -21,8 +21,8 @@ models:
   # your-model-name:
   #   command: |
   #     vllm serve org/repo-name
+  #     --served-model-name your-model-name
   #     --port 1235 --max-model-len 131072 --kv-cache-dtype fp8
   #   host: 127.0.0.1:1235
   #   health_endpoint: /v1/models        # vllm has no /health endpoint
-  #   backend_model: org_repo_name       # rewrite client "model" field for vllm
   #   ready_timeout: 4h

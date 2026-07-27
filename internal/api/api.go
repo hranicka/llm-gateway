@@ -107,18 +107,6 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rewrite the JSON body with backend_model if configured.
-	if m := config.ConfigApp.Models[payload.Model].BackendModel; m != "" && m != payload.Model {
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(bodyBytes, &raw); err == nil {
-			modelJSON, _ := json.Marshal(m)
-			raw["model"] = modelJSON
-			bodyBytes, _ = json.Marshal(raw)
-			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			r.ContentLength = int64(len(bodyBytes))
-		}
-	}
-
 	slog.Debug("request received", "model", payload.Model, "method", r.Method, "path", r.URL.Path)
 	backend, release, err := manager.SwitchModel(payload.Model)
 	if err != nil {
@@ -140,6 +128,16 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.SetURL(target)
 			req.Out.Header.Set(loopDetectHeader, "1")
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			if resp.StatusCode >= 400 {
+				slog.Warn("backend returned error",
+					"status", resp.StatusCode,
+					"backend", backend,
+					"path", r.URL.Path,
+				)
+			}
+			return nil
 		},
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {

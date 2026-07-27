@@ -21,7 +21,7 @@ Running on consumer hardware typically means only one single quantized model can
 2. **Model Switch**:
     - If the model is already running, the request is proxied immediately.
     - If not, the gateway shuts down the current backend process (using `SIGTERM`, falling back to `SIGKILL`), waits for it to exit, and then starts the new one.
-3. **Readiness**: The gateway polls the model's `/health` endpoint before proxying the request.
+3. **Readiness**: The gateway polls the model's health endpoint (default `/health`) before proxying the request. If the endpoint returns 404, it automatically falls back to `/v1/models` (for backends like vLLM that lack a `/health` route).
 4. **Monitoring**: If a model process exits unexpectedly, the gateway resets its state and will reload it on the next request.
 
 ## Configuration
@@ -86,6 +86,8 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 ### Installation notes for vLLM
 
 The vLLM installer (`scripts/install-vllm-globally.sh`) installs torch + vllm system-wide via `pip3` (no virtual environment). PyTorch ships with its own CUDA runtime (cu129) — it does not conflict with the system `cuda-toolkit-12`. No compilation or nvcc is needed; the wheels are pre-built binaries for Blackwell/Ada/Lovelace GPUs. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
+
+> **Model naming:** Use `--served-model-name <gateway-model-name>` in the vLLM command so the `model` field in API requests matches the gateway's model key. This is the vLLM equivalent of llama-server's `--alias` flag. Without it, clients must send the full HuggingFace repo name (e.g. `unsloth/gemma-4-12b-it-NVFP4`) as the model field.
 
 #### Using Makefile (recommended)
 

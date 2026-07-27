@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
@@ -461,10 +462,14 @@ func waitForGroupExit(pgid int, timeout time.Duration) bool {
 }
 
 // waitForServerOrExit polls the model process health endpoint until it returns
-// 200, the process exits, ctx is cancelled, or timeout elapses.
-func waitForServerOrExit(ctx context.Context, cmd *exec.Cmd, url string, timeout time.Duration) error {
+// 200, the process exits, ctx is cancelled, or timeout elapses. If the
+// configured health endpoint returns 404, it falls back to /v1/models (vLLM
+// has no /health endpoint by default).
+func waitForServerOrExit(ctx context.Context, cmd *exec.Cmd, healthURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	client := http.Client{Timeout: 2 * time.Second}
+	sURL := healthURL
+	fallbackUsed := false
 
 	for time.Now().Before(deadline) {
 		if ctx.Err() != nil {
@@ -473,13 +478,23 @@ func waitForServerOrExit(ctx context.Context, cmd *exec.Cmd, url string, timeout
 		if !processAlive(cmd) {
 			return fmt.Errorf("process exited before becoming ready")
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sURL, nil)
 		if err == nil {
 			resp, err := client.Do(req)
 			if err == nil {
+				status := resp.StatusCode
 				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
+				if status == http.StatusOK {
 					return nil
+				}
+				if status == http.StatusNotFound && !fallbackUsed {
+					fallbackUsed = true
+					if parsedURL, err := url.Parse(healthURL); err == nil {
+						parsedURL.Path = "/v1/models"
+						sURL = parsedURL.String()
+						slog.Info("health endpoint returned 404, falling back to /v1/models", "url", sURL)
+					}
+					continue
 				}
 			}
 		}
@@ -489,5 +504,5 @@ func waitForServerOrExit(ctx context.Context, cmd *exec.Cmd, url string, timeout
 		case <-time.After(time.Second):
 		}
 	}
-	return fmt.Errorf("timeout waiting for server at %s", url)
+	return fmt.Errorf("timeout waiting for server at %s", sURL)
 }

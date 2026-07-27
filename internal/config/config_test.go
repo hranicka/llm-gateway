@@ -202,35 +202,3 @@ func TestLoad_HealthEndpoint(t *testing.T) {
 		t.Errorf("ReadyTimeout = %q, want 4h", ConfigApp.Models["vllm-test"].ReadyTimeout)
 	}
 }
-
-func TestBackendModel(t *testing.T) {
-	cfg := &Config{
-		Models: map[string]ModelConf{
-			"client-name": {
-				Command:      "cmd",
-				Host:         "127.0.0.1:1",
-				ReadyTimeout: "5m",
-				BackendModel: "backend_name",
-			},
-			"no-rewrite": {
-				Command:      "cmd",
-				Host:         "127.0.0.1:1",
-				ReadyTimeout: "5m",
-			},
-		},
-	}
-
-	// When model has backend_model configured.
-	ConfigApp = cfg
-	if got := BackendModel("client-name"); got != "backend_name" {
-		t.Errorf("BackendModel(client-name) = %q, want backend_name", got)
-	}
-	// When model has no backend_model — empty string means no rewrite.
-	if got := BackendModel("no-rewrite"); got != "" {
-		t.Errorf("BackendModel(no-rewrite) = %q, want empty", got)
-	}
-	// Unknown model returns empty.
-	if got := BackendModel("unknown"); got != "" {
-		t.Errorf("BackendModel(unknown) = %q, want empty", got)
-	}
-}
