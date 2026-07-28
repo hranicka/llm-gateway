@@ -6,70 +6,48 @@
       "/tmp/*": "allow"
     }
   },
-  "model": "network-gem12/qwen-3.6-35b",
   "agent": {
+    "qwopus-coder": {
+      "mode": "all",
+      "model": "network-gem12/qwopus-3.6-35b-coder",
+      "description": "Core coding agent for direct implementation and edits",
+      "prompt": "You are the primary coder agent.\n\nRules:\n- Execute changes directly rather than suggesting them.\n- Use chain-of-thought before complex edits, but keep it brief."
+    },
     "qwen": {
       "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
       "model": "network-gem12/qwen-3.6-35b",
       "description": "System architecture and design review",
-      "prompt": "You are a senior system architect specializing in unconstrained thinking mode.\n\nRules:\n- Use Thinking Mode for deep architectural analysis, systemic refactoring, and design pattern modeling.\n- Delegate active feature development tasks to @qwopus-coder.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
+      "prompt": "You are a senior system architect.\n\nRules:\n- Focus on architectural analysis, systemic refactoring, and design patterns."
     },
     "gemma-12b": {
       "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
       "model": "network-gem12/gemma-4-12b",
       "description": "General-purpose assistant for code review and conversations",
-      "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks.\n- For deep architectural analysis, defer to @qwen.\n- For complex coding tasks, defer to @qwopus-coder."
-    },
-    "qwopus-coder": {
-      "mode": "all",
-      "providers": [
-        "network-gem12"
-      ],
-      "model": "network-gem12/qwopus-3.6-35b-coder",
-      "description": "Core coding agent, agentic execution focus",
-      "prompt": "You are the primary coder agent.\n\nRules:\n- Do not invoke other coding subagents — you are the only coder.\n- Always execute changes directly rather than suggesting them in text.\n- Use chain-of-thought before making complex edits, but keep it brief.\n- Run subagents sequentially — only one at a time, but multiple are fine as long as they're not concurrent."
+      "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks."
     },
     "cloud-glm": {
       "mode": "all",
-      "providers": [
-        "opencode-go"
-      ],
       "model": "opencode-go/glm-5.2",
-      "description": "Ultimate cloud architect and senior coder",
-      "prompt": "You are the ultimate cloud architect and senior coder.\n\nRules:\n- Handle the most complex system tasks, heavy reasoning, and code design.\n- Delegate standard software development tasks to @cloud-deepseek.\n- Delegate simple utilities, file searches, or easy lookups to @cloud-instruct."
+      "description": "Senior architect for complex system design and heavy reasoning",
+      "prompt": "You are a senior architect and coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and code design."
     },
     "cloud-kimi": {
       "mode": "all",
-      "providers": [
-        "opencode-go"
-      ],
       "model": "opencode-go/kimi-k2.7-code",
       "description": "Cloud architect and senior coder",
-      "prompt": "You are a cloud architect and senior coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and top-tier code design.\n- Delegate standard software development tasks to @cloud-deepseek.\n- Delegate simple utilities, file searches, or easy lookups to @cloud-instruct."
+      "prompt": "You are a cloud architect and senior coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and top-tier code design."
     },
     "cloud-deepseek": {
       "mode": "all",
-      "providers": [
-        "opencode-go"
-      ],
       "model": "opencode-go/deepseek-v4-pro",
-      "description": "Senior cloud developer for core feature building and implementation",
-      "prompt": "You are a senior cloud developer and excellent coder.\n\nRules:\n- Handle core feature building, implementation design, and heavy programming tasks.\n- Delegate low-complexity tasks, file search, and routine code exploration to @cloud-instruct."
+      "description": "Senior developer for core feature building and implementation",
+      "prompt": "You are a senior developer.\n\nRules:\n- Handle core feature building, implementation design, and heavy programming tasks."
     },
     "cloud-instruct": {
       "mode": "all",
-      "providers": [
-        "opencode-go"
-      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "description": "Ultra-cheap cloud subagent for easy tasks and lookups",
-      "prompt": "You are an ultra-cheap cloud subagent.\n\nRules:\n- Handle easy tasks, raw file searching, codebase indexing, and basic instructions.\n- Never attempt deep reasoning or heavy logic — defer to @cloud-glm, @cloud-kimi, or @cloud-deepseek for complex work."
+      "description": "Lightweight subagent for easy tasks, lookups, and file searches",
+      "prompt": "You are a lightweight assistant.\n\nRules:\n- Handle easy tasks, file searching, codebase indexing, and basic lookups."
     }
   },
   "provider": {
