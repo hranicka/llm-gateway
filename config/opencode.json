@@ -60,30 +60,40 @@
       },
       "models": {
         "qwopus-3.6-35b-coder": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "qwopus-3.6-35b": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "qwen-3.6-35b": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "gemma-4-26b": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "gemma-4-12b": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
             "output": 32768
