@@ -1,5 +1,43 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "jetbrains": {
+      "type": "remote",
+      "url": "http://127.0.0.1:64422/sse",
+      "enabled": true
+    }
+  },
+  "lsp": {
+    "gopls": {
+      "command": ["gopls"],
+      "extensions": [".go"],
+      "initialization": {
+        "analyses": {
+          "nilness": true,
+          "shadow": true,
+          "unusedparams": true
+        },
+        "gofumpt": true,
+        "staticcheck": true
+      }
+    },
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"],
+      "initialization": {
+        "preferences": {
+          "importModuleSpecifierPreference": "relative",
+          "includeInlayParameterNameHints": "all",
+          "includeInlayParameterNameHintsWhenArgumentMatchesName": false,
+          "includeInlayVariableTypeHints": true
+        }
+      }
+    },
+    "php": {
+      "command": ["intelephense", "--stdio"],
+      "extensions": [".php"]
+    }
+  },
   "default_agent": "plan",
   "permission": {
     "external_directory": {
