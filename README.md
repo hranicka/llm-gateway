@@ -43,13 +43,13 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 
 ### OpenCode language support
 
-The bundled [`config/opencode.json`](config/opencode.json) configures OpenCode to use standalone language servers for Go, JavaScript/TypeScript, and PHP. This gives OpenCode compiler-aware diagnostics, symbol navigation, references, completions, and formatting context. The Go configuration enables `gopls`'s `staticcheck`, `nilness`, `shadow`, and `unusedparams` analyses.
+The bundled [`config/opencode.json`](config/opencode.json) configures LSP servers for Go, JavaScript/TypeScript, Vue, ESLint, Bash, YAML, and PHP. This gives OpenCode compiler-aware diagnostics, symbol navigation, references, completions, and formatting context. Each server declares its executable and file extensions explicitly. The Go configuration also enables `gopls`'s `staticcheck`, `nilness`, `shadow`, and `unusedparams` analyses.
 
 Install the servers you need if they are not already available:
 
 ```bash
 go install golang.org/x/tools/gopls@latest
-npm install --global typescript typescript-language-server intelephense
+npm install --global typescript typescript-language-server intelephense bash-language-server yaml-language-server @vue/language-server vscode-langservers-extracted
 ```
 For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 
