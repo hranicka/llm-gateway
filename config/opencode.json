@@ -137,6 +137,14 @@
             "output": 32768
           }
         },
+        "qwen-3.8-27b": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "limit": {
+            "context": 98304,
+            "output": 32768
+          }
+        },
         "gemma-4-26b": {
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
