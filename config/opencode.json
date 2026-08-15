@@ -61,17 +61,17 @@
     }
   },
   "agent": {
-    "qwopus-coder": {
+    "qwen-3.8": {
       "mode": "all",
-      "model": "network-gem12/qwopus-3.6-35b-coder",
-      "description": "Core coding agent for direct implementation and edits",
-      "prompt": "You are the primary coder agent.\n\nRules:\n- Execute changes directly rather than suggesting them.\n- Use chain-of-thought before complex edits, but keep it brief."
+      "model": "network-gem12/qwen-3.8-27b",
+      "description": "System architecture and design, senior developer",
+      "prompt": "You are a senior system architect and senior developer.\n\nRules:\n- Focus on architectural analysis, systemic refactoring, and design patterns."
     },
-    "qwen": {
+    "qwen-3.6": {
       "mode": "all",
       "model": "network-gem12/qwen-3.6-35b",
-      "description": "System architecture and design review",
-      "prompt": "You are a senior system architect.\n\nRules:\n- Focus on architectural analysis, systemic refactoring, and design patterns."
+      "description": "Software developer, coder",
+      "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
     },
     "gemma-12b": {
       "mode": "all",
@@ -113,22 +113,6 @@
         "apiKey": ""
       },
       "models": {
-        "qwopus-3.6-35b-coder": {
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 32768
-          }
-        },
-        "qwopus-3.6-35b": {
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 32768
-          }
-        },
         "qwen-3.6-35b": {
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
