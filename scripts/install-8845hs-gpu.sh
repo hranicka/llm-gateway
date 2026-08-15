@@ -280,7 +280,7 @@ echo "   # If wrong: re-run sudo ./install-llama.sh  (option 2 — CUDA)"
 echo
 echo " Then install/reinstall the gateway service (choose option 2 — CUDA/eGPU):"
 echo "   sudo ./llm-gateway --install"
-echo "   # Select config: gem12gpu.yaml (or gem12gpumtp.yaml)"
+echo "   # Select config: gem12gpu.yaml"
 echo "   # Select service: [2] CUDA / eGPU"
 echo
 echo " For TB eGPU: if GPU not visible, enroll the enclosure:"
