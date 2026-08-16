@@ -61,11 +61,29 @@
     }
   },
   "agent": {
-    "qwen-3.8": {
+    "qwen-3.8-xhigh": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b",
-      "description": "System architecture and design, senior developer",
-      "prompt": "You are a senior system architect and senior developer.\n\nRules:\n- Focus on architectural analysis, systemic refactoring, and design patterns."
+      "model": "network-gem12/qwen-3.8-27b-xhigh",
+      "description": "Top tier model: architect, orchestrator, deep thinker",
+      "prompt": "You are a top-tier system architect, orchestrator, and deep thinker.\n\nRules:\n- Handle complex architecture, system design, and orchestration of multi-step work.\n- Reason thoroughly before acting; prioritize design quality over speed."
+    },
+    "qwen-3.8-medium": {
+      "mode": "all",
+      "model": "network-gem12/qwen-3.8-27b-medium",
+      "description": "Senior software developer",
+      "prompt": "You are a senior software developer.\n\nRules:\n- Handle core feature building, refactoring, and implementation with solid engineering judgment."
+    },
+    "qwen-3.8-low": {
+      "mode": "all",
+      "model": "network-gem12/qwen-3.8-27b-low",
+      "description": "Fast worker, junior developer",
+      "prompt": "You are a fast worker and junior developer.\n\nRules:\n- Execute straightforward coding tasks quickly and efficiently.\n- Keep changes simple and follow existing conventions."
+    },
+    "qwen-3.8-instruct": {
+      "mode": "all",
+      "model": "network-gem12/qwen-3.8-27b-instruct",
+      "description": "Exploration, exact instruction following, basic tasks, commands",
+      "prompt": "You are a precise instruction-following assistant.\n\nRules:\n- Follow exact instructions and explore codebases without improvisation.\n- Handle basic, well-defined tasks and running commands."
     },
     "qwen-3.6": {
       "mode": "all",
@@ -121,7 +139,31 @@
             "output": 32768
           }
         },
-        "qwen-3.8-27b": {
+        "qwen-3.8-27b-xhigh": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "limit": {
+            "context": 98304,
+            "output": 32768
+          }
+        },
+        "qwen-3.8-27b-medium": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "limit": {
+            "context": 98304,
+            "output": 32768
+          }
+        },
+        "qwen-3.8-27b-low": {
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "limit": {
+            "context": 98304,
+            "output": 32768
+          }
+        },
+        "qwen-3.8-27b-instruct": {
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {

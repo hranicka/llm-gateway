@@ -24,7 +24,7 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  qwen-3.8-27b:
+  qwen-3.8-27b-xhigh:
     command: |
       llama-server
       -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
@@ -35,7 +35,55 @@ models:
       --batch-size 2048 --ubatch-size 512
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
+      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-xhigh
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.8-27b-medium:
+    command: |
+      llama-server
+      -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
+      --cache-type-k q4_0 --cache-type-v q4_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --batch-size 2048 --ubatch-size 512
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --chat-template-kwargs '{"reasoning_effort":"medium"}'
+      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-medium
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.8-27b-low:
+    command: |
+      llama-server
+      -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
+      --cache-type-k q4_0 --cache-type-v q4_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --batch-size 2048 --ubatch-size 512
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --chat-template-kwargs '{"reasoning_effort":"low"}'
+      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-low
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  qwen-3.8-27b-instruct:
+    command: |
+      llama-server
+      -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 98304 --cont-batching
+      --cache-type-k q4_0 --cache-type-v q4_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --batch-size 2048 --ubatch-size 512
+      --spec-type draft-mtp --spec-draft-n-max 2
+      --temp 0.7 --top-p 0.80 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --chat-template-kwargs '{"reasoning_effort":"none"}'
+      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
