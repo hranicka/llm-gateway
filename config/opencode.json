@@ -63,19 +63,22 @@
   "agent": {
     "qwen-3.8-xhigh": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b-xhigh",
+      "model": "network-gem12/qwen-3.8-27b",
+      "variant": "xhigh",
       "description": "Top tier model: architect, orchestrator, deep thinker",
       "prompt": "You are a top-tier system architect, orchestrator, and deep thinker.\n\nRules:\n- Handle complex architecture, system design, and orchestration of multi-step work.\n- Reason thoroughly before acting; prioritize design quality over speed."
     },
     "qwen-3.8-medium": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b-medium",
+      "model": "network-gem12/qwen-3.8-27b",
+      "variant": "medium",
       "description": "Senior software developer",
       "prompt": "You are a senior software developer.\n\nRules:\n- Handle core feature building, refactoring, and implementation with solid engineering judgment."
     },
     "qwen-3.8-low": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b-low",
+      "model": "network-gem12/qwen-3.8-27b",
+      "variant": "low",
       "description": "Fast worker, junior developer",
       "prompt": "You are a fast worker and junior developer.\n\nRules:\n- Execute straightforward coding tasks quickly and efficiently.\n- Keep changes simple and follow existing conventions."
     },
@@ -132,6 +135,7 @@
       },
       "models": {
         "qwen-3.6-35b": {
+          "name": "Qwen 3.6 35B",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
@@ -139,31 +143,26 @@
             "output": 32768
           }
         },
-        "qwen-3.8-27b-xhigh": {
+        "qwen-3.8-27b": {
+          "name": "Qwen 3.8 27B",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 98304,
             "output": 32768
-          }
-        },
-        "qwen-3.8-27b-medium": {
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 98304,
-            "output": 32768
-          }
-        },
-        "qwen-3.8-27b-low": {
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 98304,
-            "output": 32768
+          },
+          "options": {
+            "chat_template_kwargs": {"reasoning_effort": "medium"}
+          },
+          "variants": {
+            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
+            "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
+            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
+            "none": {"chat_template_kwargs": {"reasoning_effort": "none"}}
           }
         },
         "qwen-3.8-27b-instruct": {
+          "name": "Qwen 3.8 27B instruct",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
@@ -172,6 +171,7 @@
           }
         },
         "gemma-4-26b": {
+          "name": "Gemma 4 26B",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
@@ -180,6 +180,7 @@
           }
         },
         "gemma-4-12b": {
+          "name": "Gemma 4 12B",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
@@ -198,12 +199,14 @@
       },
       "models": {
         "qwen-3.5-4b": {
+          "name": "Qwen 3.5 4B",
           "limit": {
             "context": 16384,
             "output": 8192
           }
         },
         "gemma-4-2b": {
+          "name": "Gemma 4 2B",
           "limit": {
             "context": 16384,
             "output": 8192
