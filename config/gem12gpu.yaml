@@ -35,6 +35,7 @@ models:
       --batch-size 2048 --ubatch-size 512
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --chat-template-kwargs '{"reasoning_effort":"medium"}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
     host: 127.0.0.1:1235
     ready_timeout: 2h
