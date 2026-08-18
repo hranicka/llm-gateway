@@ -108,7 +108,7 @@ case "$BACKEND" in
         # the NVIDIA eGPU.
         # All described targets are Blackwell (sm_120); no need to compile
         # Ada (sm_89) kernels — doing so only increases build time.
-        CMAKE_ARGS+=("-DGGML_CUDA=ON" "-DGGML_VULKAN=OFF" "-DCMAKE_CUDA_ARCHITECTURES=120")
+        CMAKE_ARGS+=("-DGGML_CUDA=ON" "-DGGML_VULKAN=OFF" "-DCMAKE_CUDA_ARCHITECTURES=120" "-DGGML_CUDA_FA_ALL_QUANTS=ON")
         CMAKE_ARGS+=("-DCMAKE_CUDA_FLAGS=-Wno-unused-parameter")
         ;;
     vulkan)
