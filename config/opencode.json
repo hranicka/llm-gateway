@@ -148,7 +148,7 @@
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
-            "context": 98304,
+            "context": 87000,
             "output": 32768
           },
           "options": {
@@ -166,7 +166,7 @@
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
-            "context": 98304,
+            "context": 87000,
             "output": 32768
           }
         },
