@@ -103,30 +103,6 @@
       "model": "network-gem12/gemma-4-12b",
       "description": "General-purpose assistant for code review and conversations",
       "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks."
-    },
-    "cloud-glm": {
-      "mode": "all",
-      "model": "opencode-go/glm-5.2",
-      "description": "Senior architect for complex system design and heavy reasoning",
-      "prompt": "You are a senior architect and coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and code design."
-    },
-    "cloud-kimi": {
-      "mode": "all",
-      "model": "opencode-go/kimi-k2.7-code",
-      "description": "Cloud architect and senior coder",
-      "prompt": "You are a cloud architect and senior coder.\n\nRules:\n- Handle complex system tasks, heavy reasoning, and top-tier code design."
-    },
-    "cloud-deepseek": {
-      "mode": "all",
-      "model": "opencode-go/deepseek-v4-pro",
-      "description": "Senior developer for core feature building and implementation",
-      "prompt": "You are a senior developer.\n\nRules:\n- Handle core feature building, implementation design, and heavy programming tasks."
-    },
-    "cloud-instruct": {
-      "mode": "all",
-      "model": "opencode-go/deepseek-v4-flash",
-      "description": "Lightweight subagent for easy tasks, lookups, and file searches",
-      "prompt": "You are a lightweight assistant.\n\nRules:\n- Handle easy tasks, file searching, codebase indexing, and basic lookups."
     }
   },
   "provider": {
