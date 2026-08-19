@@ -45,7 +45,7 @@ models:
       llama-server
       -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 2048 --cont-batching
+      --ctx-size 87000 --cont-batching
       --cache-type-k q8_0 --cache-type-v q4_0
       --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
       --batch-size 4096 --ubatch-size 128
