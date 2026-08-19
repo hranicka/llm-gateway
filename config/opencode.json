@@ -92,10 +92,16 @@
       "description": "Exploration, exact instruction following, basic tasks, commands",
       "prompt": "You are a precise instruction-following assistant.\n\nRules:\n- Follow exact instructions and explore codebases without improvisation.\n- Handle basic, well-defined tasks and running commands."
     },
+    "ornith-1.5-35b-a3b": {
+      "mode": "all",
+      "model": "network-gem12/ornith-1.5-35b-a3b",
+      "description": "General developer, coder, fast interactions, longer context",
+      "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
+    },
     "qwen-3.6": {
       "mode": "all",
       "model": "network-gem12/qwen-3.6-35b",
-      "description": "General developer, coder, fast interactions, longer context",
+      "description": "Base Qwen 3.6 alternative",
       "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
     },
     "gemma-12b": {
@@ -114,6 +120,15 @@
         "apiKey": ""
       },
       "models": {
+        "ornith-1.5-35b-a3b": {
+          "name": "Ornith 1.5 35B A3B",
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          }
+        },
         "qwen-3.6-35b": {
           "name": "Qwen 3.6 35B",
           "attachment": true,
