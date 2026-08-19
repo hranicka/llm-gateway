@@ -70,14 +70,14 @@
       "model": "network-gem12/qwen-3.8-27b",
       "variant": "xhigh",
       "description": "Top tier model: architect, orchestrator, deep thinker",
-      "prompt": "You are a top-tier system architect, orchestrator, and deep thinker.\n\nRules:\n- Handle complex architecture, system design, and orchestration of multi-step work.\n- Reason thoroughly before acting; prioritize design quality over speed."
+      "prompt": "You are a top-tier system architect, orchestrator, and deep thinker.\n\nRules:\n- Handle complex architecture, system design, and orchestration of multi-step work.\n- Reason thoroughly before acting; prioritize design quality over speed.\n- Delegate search to @explore , create a todo list for items needed to be done, orchestrate subagents - one at a time, no concurrency.\n- Run /review once done for verification."
     },
     "qwen-3.8-medium": {
       "mode": "all",
       "model": "network-gem12/qwen-3.8-27b",
       "variant": "medium",
-      "description": "Senior software developer",
-      "prompt": "You are a senior software developer.\n\nRules:\n- Handle core feature building, refactoring, and implementation with solid engineering judgment."
+      "description": "Senior software developer, code reviews",
+      "prompt": "You are a senior software developer.\n\nRules:\n- Handle core feature building, refactoring, and implementation with solid engineering judgment.\n- Delegate search to @explore , create a todo list for items needed to be done, orchestrate subagents - one at a time, no concurrency.\n- Run /review once done for verification."
     },
     "qwen-3.8-low": {
       "mode": "all",
@@ -95,14 +95,14 @@
     "qwen-3.6": {
       "mode": "all",
       "model": "network-gem12/qwen-3.6-35b",
-      "description": "Software developer, coder",
+      "description": "General developer, coder, fast interactions, longer context",
       "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
     },
     "gemma-12b": {
       "mode": "all",
       "model": "network-gem12/gemma-4-12b",
-      "description": "General-purpose assistant for code review and conversations",
-      "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, lightweight code reviews, and straightforward tasks."
+      "description": "General-purpose assistant for easy tasks, documentation",
+      "prompt": "You are a general-purpose assistant.\n\nRules:\n- Handle interactive conversations, documentation, lightweight code reviews, and straightforward tasks."
     }
   },
   "provider": {
