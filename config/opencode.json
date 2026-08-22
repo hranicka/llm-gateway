@@ -153,7 +153,7 @@
             "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
             "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
             "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
-            "none": {"chat_template_kwargs": {"reasoning_effort": "none"}}
+            "none": {"chat_template_kwargs": {"enable_thinking": false}}
           }
         },
         "qwen-3.8-27b-instruct": {
