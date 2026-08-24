@@ -6,7 +6,7 @@ providers:
     models:
       - id: ornith-1.5-35b-a3b
         name: Ornith 1.5 35B A3B
-        contextWindow: 163840
+        contextWindow: 184320
         maxTokens: 16384
         input: [text, image]
       - id: qwen-3.6-35b

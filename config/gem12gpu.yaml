@@ -28,8 +28,8 @@ models:
     command: |
       llama-server
       -hf AtomicChat/Ornith-1.5-35B-A3B-GGUF:IQ4_XS
-      --n-gpu-layers 999 --n-cpu-moe 13 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 163840 --cont-batching
+      --n-gpu-layers 999 --n-cpu-moe 14 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 184320 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
