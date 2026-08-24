@@ -1,0 +1,6 @@
+modelRoles:
+  default: network-gem12/qwen-3.8-27b:medium
+  slow: network-gem12/qwen-3.8-27b:xhigh
+  plan: network-gem12/qwen-3.8-27b:medium
+  task: network-gem12/qwen-3.8-27b:low
+  smol: network-gem12/qwen-3.8-27b-instruct
