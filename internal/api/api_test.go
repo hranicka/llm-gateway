@@ -256,7 +256,7 @@ func TestProxyHandler_SerializesConcurrentRequests(t *testing.T) {
 				return
 			}
 			defer resp.Body.Close()
-			io.Copy(io.Discard, resp.Body)
+			_, _ = io.Copy(io.Discard, resp.Body)
 			statuses[i] = resp.StatusCode
 		}(i)
 	}
