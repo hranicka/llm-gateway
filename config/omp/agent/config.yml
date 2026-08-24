@@ -4,3 +4,6 @@ modelRoles:
   plan: network-gem12/qwen-3.8-27b:medium
   task: network-gem12/qwen-3.8-27b:low
   smol: network-gem12/qwen-3.8-27b-instruct
+providers:
+  maxInFlightRequests:
+    network-gem12: 1
