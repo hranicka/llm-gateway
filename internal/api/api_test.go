@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -192,4 +193,85 @@ func TestNotFoundHandler(t *testing.T) {
 		t.Errorf("status = %d, want 404", w.Code)
 	}
 	assertOpenAICode(t, w, "not_found")
+}
+
+func TestProxyHandler_SerializesConcurrentRequests(t *testing.T) {
+	var mu sync.Mutex
+	inFlight, maxInFlight := 0, 0
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		mu.Lock()
+		inFlight++
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		mu.Unlock()
+		time.Sleep(150 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		fmt.Fprint(w, "{}")
+	}))
+	defer backend.Close()
+
+	cfg := &config.Config{
+		Host:         "127.0.0.1:9999",
+		Debug:        false,
+		AutoUnload:   "1h",
+		DrainTimeout: "5s",
+		Models: map[string]config.ModelConf{
+			"test-model": {
+				Command:      "sleep 60",
+				Host:         backend.Listener.Addr().String(),
+				ReadyTimeout: "5s",
+			},
+		},
+	}
+	config.ConfigApp = cfg
+	config.SortedModelNames = []string{"test-model"}
+	manager.Shutdown(context.Background())
+	defer manager.ShutdownCurrentModel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/chat/completions", ProxyHandler)
+	gateway := httptest.NewServer(mux)
+	defer gateway.Close()
+
+	payload, _ := json.Marshal(map[string]string{"model": "test-model"})
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	statuses := make([]int, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			resp, err := http.Post(gateway.URL+"/v1/chat/completions", "application/json", bytes.NewBuffer(payload))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer resp.Body.Close()
+			io.Copy(io.Discard, resp.Body)
+			statuses[i] = resp.StatusCode
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	mu.Lock()
+	gotMax := maxInFlight
+	mu.Unlock()
+	if gotMax != 1 {
+		t.Errorf("max concurrent backend requests = %d, want 1", gotMax)
+	}
+	for i, status := range statuses {
+		if status != http.StatusOK {
+			t.Errorf("request %d status = %d, want 200", i, status)
+		}
+	}
 }

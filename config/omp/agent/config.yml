@@ -5,5 +5,8 @@ modelRoles:
   task: network-gem12/qwen-3.8-27b:low
   smol: network-gem12/qwen-3.8-27b-instruct
 providers:
+  # Serialize ALL llm-gateway traffic (main agent, task subagents, advisor,
+  # background jobs, retries): cross-process lease held until each streamed
+  # response finishes. gem12 serves one model at a time.
   maxInFlightRequests:
     network-gem12: 1

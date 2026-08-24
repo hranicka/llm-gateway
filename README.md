@@ -13,6 +13,7 @@ Running on consumer hardware typically means only one single quantized model can
 - **On-demand loading**: Automatically starts the configured backend for requested models.
 - **Predictable VRAM**: Kills the previous model before starting a new one.
 - **Fast switching**: Requests for an already-loaded model are proxied immediately.
+- **Sequential execution**: Proxied requests are processed strictly one at a time. Concurrent client sessions (e.g. coding agents spawning parallel subagents) queue at the gateway instead of interleaving on the single loaded backend or triggering model switches that would kill an in-flight stream.
 - **OpenAI-compatible**: Supports `/v1/chat/completions` and `/v1/completions`.
 
 ## How it Works
@@ -61,6 +62,11 @@ For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 | `/v1/completions` | POST | Legacy proxy request (supports model switching) |
 | `/v1/models` | GET | List available configured models |
 | `/health` | GET | Gateway health check |
+
+### Request handling
+
+- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
+- **Transparency**: Request bodies are proxied untouched. The gateway does not rewrite model-specific parameters — clients are expected to send values the backend chat template supports (e.g. Qwen3 GGUF templates only accept `reasoning_effort` of `xhigh`, `medium`, or `low`; see [`config/omp/`](config/omp/) for a client setup that matches).
 
 ## Installation
 

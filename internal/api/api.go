@@ -70,6 +70,12 @@ func writeOpenAIError(w http.ResponseWriter, message, code string, status int) {
 // address is pointing back at the gateway itself, and we abort immediately.
 const loopDetectHeader = "X-Llm-Gateway-Forwarded"
 
+// proxySlots serializes proxied requests. Only one generation runs at a time:
+// clients that fire concurrent sessions (e.g. parallel agent subagents) queue
+// here instead of interleaving on the single loaded backend — and instead of
+// triggering model switches that would kill the in-flight stream.
+var proxySlots = make(chan struct{}, 1)
+
 // ProxyHandler intercepts the request, switches the model, and forwards the stream.
 func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get(loopDetectHeader) != "" {
@@ -108,6 +114,17 @@ func ProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Debug("request received", "model", payload.Model, "method", r.Method, "path", r.URL.Path)
+
+	// Wait for the previous request to finish before touching backend state.
+	select {
+	case proxySlots <- struct{}{}:
+		defer func() { <-proxySlots }()
+	case <-r.Context().Done():
+		slog.Debug("client disconnected while waiting for its turn",
+			"model", payload.Model, "remote_addr", r.RemoteAddr)
+		return
+	}
+
 	backend, release, err := manager.SwitchModel(payload.Model)
 	if err != nil {
 		slog.Error("switch model failed", "model", payload.Model, "error", err)

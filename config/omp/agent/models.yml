@@ -8,27 +8,38 @@ providers:
         name: Ornith 1.5 35B A3B
         contextWindow: 131072
         maxTokens: 16384
+        input: [text, image]
       - id: qwen-3.6-35b
         name: Qwen 3.6 35B
         contextWindow: 131072
         maxTokens: 16384
+        input: [text, image]
       - id: qwen-3.8-27b
         name: Qwen 3.8 27B
         reasoning: true
         contextWindow: 94208
         maxTokens: 16384
+        input: [text, image]
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B instruct
         contextWindow: 94208
         maxTokens: 16384
+        input: [text, image]
+        # Non-thinking: the backend enforces it server-side via
+        # --chat-template-kwargs '{"enable_thinking":false}' (gem12gpu.yaml),
+        # and its template rejects omp's default reasoning_effort injection.
+        compat:
+          qwenTemplateReasoningEffort: false
       - id: gemma-4-26b
         name: Gemma 4 26B
         contextWindow: 131072
         maxTokens: 16384
+        input: [text, image]
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 131072
         maxTokens: 16384
+        input: [text, image]
 
   local-laptop:
     baseUrl: http://127.0.0.1:1234/v1
