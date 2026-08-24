@@ -1,12 +1,15 @@
 modelRoles:
-  default: network-gem12/qwen-3.8-27b:medium
-  slow: network-gem12/qwen-3.8-27b:xhigh
-  plan: network-gem12/qwen-3.8-27b:medium
-  task: network-gem12/qwen-3.8-27b:low
-  smol: network-gem12/qwen-3.8-27b-instruct
+  default: network-gem12/ornith-1.5-35b-a3b
+
 providers:
   # Serialize ALL llm-gateway traffic (main agent, task subagents, advisor,
-  # background jobs, retries): cross-process lease held until each streamed
-  # response finishes. gem12 serves one model at a time.
+  # background jobs, retries): providers.maxInFlightRequests is omp's
+  # documented per-provider limit, shared across local omp processes, lease
+  # held until each streamed response finishes. gem12 serves llama-server
+  # with --parallel 1 (single slot), so anything concurrent re-prefills.
   maxInFlightRequests:
     network-gem12: 1
+
+task:
+  # One subagent at a time, complementing the provider-level limit.
+  maxConcurrency: 1
