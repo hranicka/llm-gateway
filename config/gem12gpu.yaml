@@ -27,9 +27,9 @@ models:
   ornith-1.5-35b-a3b:
     command: |
       llama-server
-      -hf ornith-ai/Ornith-1.5-35B-A3B-GGUF:Q4_K_M
-      --n-gpu-layers 999 --n-cpu-moe 17 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
+      -hf AtomicChat/Ornith-1.5-35B-A3B-GGUF:IQ4_XS
+      --n-gpu-layers 999 --n-cpu-moe 13 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 163840 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
       --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
       --batch-size 4096 --ubatch-size 4096
