@@ -45,7 +45,7 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 94208 --cont-batching
       --cache-type-k q8_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --flash-attn on --load-mode none --no-mmproj --jinja --tools all
       --batch-size 2048 --ubatch-size 128
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -61,7 +61,7 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 94208 --cont-batching
       --cache-type-k q8_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --flash-attn on --load-mode none --no-mmproj --jinja --tools all
       --batch-size 4096 --ubatch-size 128
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.7 --top-p 0.80 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0

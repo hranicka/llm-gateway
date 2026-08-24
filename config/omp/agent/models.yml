@@ -19,15 +19,12 @@ providers:
         reasoning: true
         contextWindow: 94208
         maxTokens: 16384
-        input: [text, image]
+        input: [text]
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B instruct
         contextWindow: 94208
         maxTokens: 16384
-        input: [text, image]
-        # Non-thinking: the backend enforces it server-side via
-        # --chat-template-kwargs '{"enable_thinking":false}' (gem12gpu.yaml),
-        # and its template rejects omp's default reasoning_effort injection.
+        input: [text]
         compat:
           qwenTemplateReasoningEffort: false
       - id: gemma-4-26b

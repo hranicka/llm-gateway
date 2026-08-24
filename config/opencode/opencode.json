@@ -133,8 +133,8 @@
         },
         "qwen-3.8-27b": {
           "name": "Qwen 3.8 27B",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "attachment": false,
+          "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 94208,
             "output": 16384
@@ -151,8 +151,8 @@
         },
         "qwen-3.8-27b-instruct": {
           "name": "Qwen 3.8 27B instruct",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "attachment": false,
+          "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 94208,
             "output": 16384
