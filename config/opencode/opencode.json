@@ -116,7 +116,7 @@
         "ornith-1.5-35b-a3b": {
           "name": "Ornith 1.5 35B A3B",
           "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
+          "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 184320,
             "output": 16384
