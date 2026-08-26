@@ -119,7 +119,7 @@
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 184320,
-            "output": 16384
+            "output": 32768
           }
         },
         "qwen-3.6-35b": {
