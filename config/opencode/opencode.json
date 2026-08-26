@@ -119,7 +119,7 @@
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 184320,
-            "output": 32768
+            "output": 16384
           }
         },
         "qwen-3.6-35b": {
@@ -136,7 +136,7 @@
           "attachment": false,
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
-            "context": 94208,
+            "context": 122880,
             "output": 16384
           },
           "options": {
@@ -154,7 +154,7 @@
           "attachment": false,
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
-            "context": 94208,
+            "context": 122880,
             "output": 16384
           }
         },

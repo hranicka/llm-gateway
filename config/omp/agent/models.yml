@@ -7,7 +7,7 @@ providers:
       - id: ornith-1.5-35b-a3b
         name: Ornith 1.5 35B A3B
         contextWindow: 184320
-        maxTokens: 32768
+        maxTokens: 16384
         input: [text]
       - id: qwen-3.6-35b
         name: Qwen 3.6 35B
@@ -17,12 +17,12 @@ providers:
       - id: qwen-3.8-27b
         name: Qwen 3.8 27B
         reasoning: true
-        contextWindow: 94208
+        contextWindow: 122880
         maxTokens: 16384
         input: [text]
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B instruct
-        contextWindow: 94208
+        contextWindow: 122880
         maxTokens: 16384
         input: [text]
         compat:

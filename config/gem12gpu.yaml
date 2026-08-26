@@ -41,12 +41,12 @@ models:
   qwen-3.8-27b:
     command: |
       llama-server
-      -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
+      -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 94208 --cont-batching
+      --ctx-size 122880 --cont-batching
       --cache-type-k q8_0 --cache-type-v q4_0
       --flash-attn on --load-mode none --no-mmproj --jinja --tools all
-      --batch-size 2048 --ubatch-size 128
+      --batch-size 2048 --ubatch-size 256
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --chat-template-kwargs '{"reasoning_effort":"medium"}'
@@ -57,12 +57,12 @@ models:
   qwen-3.8-27b-instruct:
     command: |
       llama-server
-      -hf unsloth/Qwen3.8-27B-GGUF:UD-Q3_K_XL
+      -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 94208 --cont-batching
+      --ctx-size 122880 --cont-batching
       --cache-type-k q8_0 --cache-type-v q4_0
       --flash-attn on --load-mode none --no-mmproj --jinja --tools all
-      --batch-size 4096 --ubatch-size 128
+      --batch-size 4096 --ubatch-size 256
       --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.7 --top-p 0.80 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --chat-template-kwargs '{"enable_thinking":false}'
