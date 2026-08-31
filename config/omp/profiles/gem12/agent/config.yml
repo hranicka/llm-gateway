@@ -1,4 +1,6 @@
 modelRoles:
+  # Main and automatic subagent roles share one gateway model. Manual model
+  # selection remains available, but role scheduling cannot reload the backend.
   default: network-gem12/ornith-1.5-35b-a3b
 
 providers:
@@ -11,5 +13,11 @@ providers:
     network-gem12: 1
 
 task:
-  # One subagent at a time, complementing the provider-level limit.
+  # Run one task agent at a time; the provider lease also covers the main agent.
   maxConcurrency: 1
+  # Never hand a task to the smol role mid-run; that would start another context.
+  prewalk: false
+
+prewalk:
+  # Never hand the primary agent to smol at its first edit.
+  enabled: false

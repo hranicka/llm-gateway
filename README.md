@@ -54,6 +54,12 @@ npm install --global typescript typescript-language-server intelephense bash-lan
 ```
 For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 
+### Oh My Pi on a single-slot backend
+
+[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) assigns the `default`, `smol`, and `slow` roles to the same `network-gem12` model, limits the provider and task scheduler to one request and subagent respectively, and disables prewalk handoffs. Apply the matching settings to every Oh My Pi profile that uses this gateway. This prevents automatic main-agent/subagent role changes from reloading a different backend; manually selecting another gateway model still switches it deliberately.
+
+[`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) repeats the serialization and prewalk settings for a project overlay.
+
 ## Endpoints
 
 | Path | Method | Purpose |

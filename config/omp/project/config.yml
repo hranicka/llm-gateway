@@ -1,4 +1,0 @@
-providers:
-  # Same as the agent config: one request in flight to gem12 at a time.
-  maxInFlightRequests:
-    network-gem12: 1

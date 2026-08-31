@@ -1,0 +1,12 @@
+providers:
+  # Same as the agent config: one request in flight to gem12 at a time.
+  maxInFlightRequests:
+    network-gem12: 1
+
+task:
+  # The project overlay keeps delegated work serial even if a user config differs.
+  maxConcurrency: 1
+  prewalk: false
+
+prewalk:
+  enabled: false
