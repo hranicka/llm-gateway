@@ -56,9 +56,9 @@ For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 
 ### Oh My Pi on a single-slot backend
 
-[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) assigns the `default`, `smol`, and `slow` roles to the same `network-gem12` model, limits the provider and task scheduler to one request and subagent respectively, and disables prewalk handoffs. Apply the matching settings to every Oh My Pi profile that uses this gateway. This prevents automatic main-agent/subagent role changes from reloading a different backend; manually selecting another gateway model still switches it deliberately.
+Use the same scheduling settings in every Oh My Pi profile: disable asynchronous task agents, limit task concurrency to one, and keep task delegation preferred. This makes the main agent wait for each delegated agent while preserving delegation as the normal workflow.
 
-[`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) repeats the serialization and prewalk settings for a project overlay.
+[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. They additionally cap only the `network-gem12` provider at one in-flight request, including streamed responses; other providers are not request-capped.
 
 ## Endpoints
 

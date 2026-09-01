@@ -12,9 +12,16 @@ providers:
   maxInFlightRequests:
     network-gem12: 1
 
+async:
+  # A task call blocks the main agent until its delegated work is complete.
+  # This prevents the main agent and a task agent from running concurrently.
+  enabled: false
+
 task:
-  # Run one task agent at a time; the provider lease also covers the main agent.
+  # A batched task call still delegates, but runs its task agents sequentially.
   maxConcurrency: 1
+  # Prefer delegating suitable work despite the single-agent execution limit.
+  eager: preferred
   # Never hand a task to the smol role mid-run; that would start another context.
   prewalk: false
 

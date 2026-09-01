@@ -1,12 +1,20 @@
 providers:
-  # Same as the agent config: one request in flight to gem12 at a time.
+  # One streamed or non-streamed request to network-gem12 at a time.
   maxInFlightRequests:
     network-gem12: 1
 
+async:
+  # Keep the main agent paused while delegated task work is active.
+  enabled: false
+
 task:
-  # The project overlay keeps delegated work serial even if a user config differs.
+  # Run batched task agents serially rather than in parallel.
   maxConcurrency: 1
+  # Keep delegation preferred even though each task must finish before the next.
+  eager: preferred
+  # Do not switch to the smol role automatically after the first edit.
   prewalk: false
 
 prewalk:
+  # Disable automatic prewalk handoffs entirely.
   enabled: false
