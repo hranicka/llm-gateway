@@ -8,13 +8,5 @@ async:
   enabled: false
 
 task:
-  # Run batched task agents serially rather than in parallel.
+  # Run at most one agent at a time against the single-slot gem12 backend.
   maxConcurrency: 1
-  # Keep delegation preferred even though each task must finish before the next.
-  eager: preferred
-  # Do not switch to the smol role automatically after the first edit.
-  prewalk: false
-
-prewalk:
-  # Disable automatic prewalk handoffs entirely.
-  enabled: false

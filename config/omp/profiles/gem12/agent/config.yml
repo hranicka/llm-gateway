@@ -18,13 +18,5 @@ async:
   enabled: false
 
 task:
-  # A batched task call still delegates, but runs its task agents sequentially.
+  # At most one agent at a time: gem12 serves llama-server with --parallel 1.
   maxConcurrency: 1
-  # Prefer delegating suitable work despite the single-agent execution limit.
-  eager: preferred
-  # Never hand a task to the smol role mid-run; that would start another context.
-  prewalk: false
-
-prewalk:
-  # Never hand the primary agent to smol at its first edit.
-  enabled: false
