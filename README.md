@@ -60,6 +60,10 @@ Use the same scheduling settings in every Oh My Pi profile: disable asynchronous
 
 [`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. They additionally cap only the `network-gem12` provider at one in-flight request, including streamed responses; other providers are not request-capped.
 
+### Oh My Pi reasoning levels
+
+The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, or `xhigh` (plus thinking fully off via `enable_thinking: false`). The bundled [`config/omp/profiles/gem12/agent/models.yml`](config/omp/profiles/gem12/agent/models.yml) declares exactly those levels for `qwen-3.8-27b` and routes both through `chat_template_kwargs`, which llama-server merges over its startup `--chat-template-kwargs` per request. The `medium` effort baked into the gateway's model command remains the default for non-Oh-My-Pi clients only.
+
 ## Endpoints
 
 | Path | Method | Purpose |

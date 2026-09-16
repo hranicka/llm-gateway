@@ -20,6 +20,25 @@ providers:
         contextWindow: 122880
         maxTokens: 16384
         input: [text]
+        thinking:
+          mode: effort
+          # Qwen3.8 template accepts reasoning_effort low/medium/xhigh only
+          # (high is aliased to xhigh); "minimal" would abort the template.
+          efforts: [low, medium, xhigh]
+          # Resolves the "auto" level; matches the gateway startup default.
+          defaultLevel: medium
+          # Allow full "off" (thinking disabled) in the level cycle.
+          requiresEffort: false
+        compat:
+          # Effort travels as chat_template_kwargs.reasoning_effort, which
+          # llama-server merges over its startup --chat-template-kwargs.
+          qwenTemplateReasoningEffort: true
+          # Thinking off goes into the same dict (enable_thinking: false);
+          # a top-level enable_thinking is ignored by llama-server.
+          reasoningDisableMode: qwen-template-false
+          supportsReasoningEffort: true
+          supportsReasoningParams: true
+          thinkingFormat: qwen
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B instruct
         contextWindow: 122880
