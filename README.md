@@ -56,9 +56,9 @@ For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 
 ### Oh My Pi on a single-slot backend
 
-Use the same scheduling settings in every Oh My Pi profile: disable asynchronous task agents, limit task concurrency to one, and keep task delegation preferred. This makes the main agent wait for each delegated agent while preserving delegation as the normal workflow.
+Use the same scheduling settings in every Oh My Pi profile: disable asynchronous task agents and limit task concurrency to one. This makes the main agent wait for each delegated agent. Cap only the `network-gem12` provider at one in-flight request (including streamed responses); other providers are not request-capped.
 
-[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. They additionally cap only the `network-gem12` provider at one in-flight request, including streamed responses; other providers are not request-capped.
+[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. All roles ride one model and vary only the reasoning effort (`default:medium`, `plan`/`slow:xhigh`, `task`/`smol`/`tiny`/`commit:low`) — switching models would reload llama-server. Tool output spills to a file above 10 KB, compaction waits until ~100K tokens, and stream timeouts are raised to 15 minutes to survive slow cold-cache prefill (following the "tuning a local coding agent" playbook).
 
 ### Oh My Pi reasoning levels
 

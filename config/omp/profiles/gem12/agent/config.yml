@@ -1,7 +1,18 @@
 modelRoles:
-  # Main and automatic subagent roles share one gateway model. Manual model
-  # selection remains available, but role scheduling cannot reload the backend.
-  default: network-gem12/ornith-1.5-35b-a3b
+  # Every role rides the single-slot qwen-3.8-27b and varies only the
+  # reasoning effort (doug.sh "tuning a local coding agent" setup). Picking
+  # a different model would kill and reload llama-server (~2.5 min), so
+  # roles never change the model — only the level.
+  default: network-gem12/qwen-3.8-27b:medium
+  plan: network-gem12/qwen-3.8-27b:xhigh
+  slow: network-gem12/qwen-3.8-27b:xhigh
+  task: network-gem12/qwen-3.8-27b:low
+  smol: network-gem12/qwen-3.8-27b:low
+  tiny: network-gem12/qwen-3.8-27b:low
+  commit: network-gem12/qwen-3.8-27b:low
+  # Vision role: qwen-3.6-35b (mmproj vision, 35B A3B). Loading it swaps
+  # qwen-3.8-27b out of the single slot.
+  vision: network-gem12/qwen-3.6-35b
 
 providers:
   # Serialize ALL llm-gateway traffic (main agent, task subagents, advisor,
@@ -11,6 +22,11 @@ providers:
   # with --parallel 1 (single slot), so anything concurrent re-prefills.
   maxInFlightRequests:
     network-gem12: 1
+  # Slow prefill on the eGPU (ubatch 256): allow 15 min for the first
+  # token and between stream pauses before giving up. Abandoned requests
+  # keep the single slot busy server-side, so never give up early.
+  streamFirstEventTimeoutSeconds: 900
+  streamIdleTimeoutSeconds: 900
 
 async:
   # A task call blocks the main agent until its delegated work is complete.
@@ -20,3 +36,23 @@ async:
 task:
   # At most one agent at a time: gem12 serves llama-server with --parallel 1.
   maxConcurrency: 1
+
+# Requests no role covers run cheap; roles above pin their own levels.
+defaultThinkingLevel: low
+
+tools:
+  # Spill big tool output to a file and inline only head+tail: every inline
+  # token is re-prefilled on every turn against the slow eGPU.
+  artifactSpillThreshold: 10
+  artifactHeadBytes: 10
+  artifactTailBytes: 10
+
+compaction:
+  # Summarize only near the 122880-token window — compaction throws away
+  # the warm KV prefix and forces a full re-prefill.
+  thresholdTokens: 100000
+
+provider:
+  # llama-server caches the prompt prefix in KV; append-only conversations
+  # reuse it, so late compaction + no history rewrites keep turns fast.
+  appendOnlyContext: "on"

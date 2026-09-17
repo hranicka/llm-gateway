@@ -18,8 +18,11 @@ providers:
         name: Qwen 3.8 27B
         reasoning: true
         contextWindow: 122880
-        maxTokens: 16384
+        # Room for thinking (budget-capped) plus large file writes.
+        maxTokens: 32768
         input: [text]
+        # Cold-cache prefill of ~100K tokens can run 10+ min on the eGPU.
+        timeout: 1800
         thinking:
           mode: effort
           # Qwen3.8 template accepts reasoning_effort low/medium/xhigh only
@@ -39,6 +42,11 @@ providers:
           supportsReasoningEffort: true
           supportsReasoningParams: true
           thinkingFormat: qwen
+          extraBody:
+            # Hard cap on thinking tokens per reply (llama-server's native
+            # field; vLLM calls it thinking_token_budget). Keeps effort low
+            # from rambling and xhigh from dominating the single slot.
+            reasoning_budget_tokens: 7500
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B instruct
         contextWindow: 122880
