@@ -8,11 +8,17 @@ providers:
         name: Ornith 1.5 35B A3B
         contextWindow: 184320
         maxTokens: 16384
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
       - id: qwen-3.6-35b
         name: Qwen 3.6 35B
         contextWindow: 131072
         maxTokens: 16384
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
       - id: qwen-3.8-27b
         name: Qwen 3.8 27B
@@ -20,6 +26,9 @@ providers:
         contextWindow: 122880
         # Room for thinking (budget-capped) plus large file writes.
         maxTokens: 32768
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
         # Cold-cache prefill of ~100K tokens can run 10+ min on the eGPU.
         timeout: 1800
@@ -51,6 +60,9 @@ providers:
         name: Qwen 3.8 27B instruct
         contextWindow: 122880
         maxTokens: 16384
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
         compat:
           qwenTemplateReasoningEffort: false
@@ -58,9 +70,15 @@ providers:
         name: Gemma 4 26B
         contextWindow: 131072
         maxTokens: 16384
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 131072
         maxTokens: 16384
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
