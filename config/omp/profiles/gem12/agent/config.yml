@@ -37,8 +37,8 @@ task:
   # At most one agent at a time: gem12 serves llama-server with --parallel 1.
   maxConcurrency: 1
 
-# Requests no role covers run cheap; roles above pin their own levels.
-defaultThinkingLevel: low
+# Requests with no role run "gold middle path"; roles above pin their own levels.
+defaultThinkingLevel: medium
 
 tools:
   # Spill big tool output to a file and inline only head+tail: every inline
