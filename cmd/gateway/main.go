@@ -51,11 +51,11 @@ func main() {
 	manager.StartAutoUnload(config.AutoUnloadDuration())
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", api.HealthHandler)
-	mux.HandleFunc("/v1/models", api.ModelsHandler)
-	mux.HandleFunc("/v1/chat/completions", api.ProxyHandler)
-	mux.HandleFunc("/v1/completions", api.ProxyHandler)
-	mux.HandleFunc("/", api.NotFoundHandler)
+	// /app/<name> pins the browser to a web-app backend; everything else is
+	// dispatched by RootHandler (gateway API routes, index page, or the
+	// selected app's UI when an app cookie is present).
+	mux.HandleFunc("/app/", api.AppLaunchHandler)
+	mux.HandleFunc("/", api.RootHandler)
 
 	server := &http.Server{
 		Addr:    config.ConfigApp.Host,
