@@ -15,6 +15,8 @@ Running on consumer hardware typically means only one single quantized model can
 - **Fast switching**: Requests for an already-loaded model are proxied immediately.
 - **Sequential execution**: Proxied requests are processed strictly one at a time. Concurrent client sessions (e.g. coding agents spawning parallel subagents) queue at the gateway instead of interleaving on the single loaded backend or triggering model switches that would kill an in-flight stream.
 - **OpenAI-compatible**: Supports `/v1/chat/completions` and `/v1/completions`.
+- **Image generation**: Supports OpenAI-style `/v1/images/generations` for image backends (e.g. `sd-server` from stable-diffusion.cpp).
+- **Web apps in the browser**: Backends with `kind: web` (sd-server, ComfyUI, …) get their full web UI proxied through the gateway — open `http://<gateway>/`, click the app, and it loads like llama-server loads for a chat request, including websockets.
 
 ## How it Works
 
@@ -24,6 +26,8 @@ Running on consumer hardware typically means only one single quantized model can
     - If not, the gateway shuts down the current backend process (using `SIGTERM`, falling back to `SIGKILL`), waits for it to exit, and then starts the new one.
 3. **Readiness**: The gateway polls the model's health endpoint (default `/health`) before proxying the request. If the endpoint returns 404, it automatically falls back to `/v1/models` (for backends like vLLM that lack a `/health` route).
 4. **Monitoring**: If a model process exits unexpectedly, the gateway resets its state and will reload it on the next request.
+
+**Web apps** (`kind: web`) work the same way, but the trigger is a browser: opening `/app/<name>` pins the app via cookie and redirects to `/`, from where every request — page, assets, API calls, websocket — is reverse-proxied to the app backend. Loading it kills whatever chat model currently holds the VRAM, exactly like a chat request would.
 
 ## Configuration
 
@@ -37,8 +41,11 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
     - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
+    - **`kind`**: Optional. `api` (default) for OpenAI-style backends reached via `/v1/*`, or `web` for backends with a browser UI that the gateway proxies in full once selected via `/app/<name>`.
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`). Line breaks are collapsed into spaces, so the whole block runs as a single command; quote any argument that contains spaces (e.g. `--chat-template-kwargs '{"enable_thinking": true}'`).
     - **`host`**: The `host:port` address the model will listen on.
+    - **`ready_timeout`**: How long the gateway waits for the backend to become ready before failing the request.
+    - **`health_endpoint`**: Optional readiness probe path; defaults to `/health` (llama-server). vLLM uses `/v1/models`, web apps (sd-server, ComfyUI) use `/` (their UI page).
 
 > **Important**: The model backend port must differ from the gateway port. If they match, the gateway's health-check would hit itself (passing instantly) and the reverse-proxy would loop. The example config uses `:1234` for the gateway and `:1235` for all backends. Ensure the ports are different to avoid this.
 
@@ -68,14 +75,19 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 
 | Path | Method | Purpose |
 |---|---|---|
+| `/` | GET | Landing page (lists apps & models) — or the selected web app's UI when its cookie is present |
+| `/app/<name>` | GET | Pin the browser to a `kind: web` model (sets a cookie, redirects to `/`); `/app/` unpins |
 | `/v1/chat/completions` | POST | Proxy request (supports model switching) |
 | `/v1/completions` | POST | Legacy proxy request (supports model switching) |
+| `/v1/images/generations` | POST | Proxy image-generation request (supports model switching) |
 | `/v1/models` | GET | List available configured models |
-| `/health` | GET | Gateway health check |
+| `/health` | GET | Gateway health check (always answers for the gateway itself, never for an app) |
 
 ### Request handling
 
-- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
+- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`, `/v1/images/generations`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
+- **Web apps bypass the slot**: browser traffic to a `kind: web` backend is not serialized (UI assets and polls are concurrent-safe, and an open websocket must never block API generation). Websocket connections do keep the auto-unload timer reset while open, but they do not block model switches.
+- **Shared single slot**: there is still only one loaded backend at a time. A chat request switches away from a running image app (killing it mid-generation) and vice versa — keep `drain_timeout` in mind.
 - **Transparency**: Request bodies are proxied untouched. The gateway does not rewrite model-specific parameters — clients are expected to send values the backend chat template supports (e.g. Qwen3 GGUF templates only accept `reasoning_effort` of `xhigh`, `medium`, or `low`; see [`config/omp/`](config/omp/) for a client setup that matches).
 
 ## Installation
@@ -101,13 +113,17 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 
 | Backend | Best for | Install |
 |---|---|---|
-| [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
+| [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
 | [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
+| [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/install-qwen-image-sdcpp.sh`](scripts/install-qwen-image-sdcpp.sh) |
+| [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | see example config |
 
 **Choosing a backend:**
 
 - **GGUF (llama-server):** Faster cold-start loads (~10 s), lower VRAM overhead during loading, supports ROCm/Vulkan/iGPU, and has built-in speculative decoding via MTP (`--spec-draft-hf`). Models are downloaded automatically from HuggingFace by `--hf`/`-hf` flag. Uses quantized formats (Q4_K_M, Q8_0, etc.) that fit on smaller GPU VRAM.
 - **vLLM:** True NVFP4 and BF16 precision for safetensors models — no GGUF conversion quality loss. Ships its own CUDA runtime so it works alongside llama.cpp without conflicts. Supports fp8 KV cache with 131K context length even on 16 GB VRAM. Requires NVIDIA GPU with Open Kernel Modules and ≥ 8 GB VRAM for ~12 B parameter models. Cold-start is slower (~60–90 s loading safetensors into VRAM).
+- **sd-server (images):** A single llama.cpp-style C++ binary — no Python, no torch. Serves GGUF diffusion models (Qwen-Image-2.1, and more), loads in seconds, ships an embedded web UI, and exposes both OpenAI-compatible (`/v1/images/generations`) and A1111-style (`/sdapi/v1/`) APIs.
+- **ComfyUI:** The heavyweight option — Python + torch, graph workflows, huge node ecosystem. Use it when you need custom workflows (multi-step pipelines, ControlNet, LoRAs); use sd-server for simple prompt→image with GGUF quantization. For GGUF in ComfyUI install the [`leejet/ComfyUI-GGUF`](https://github.com/leejet/ComfyUI-GGUF) custom node (successor of the unmaintained city96 fork).
 
 > **Running both backends concurrently:** The gateway creates one backend process per model, each listening on its own `host:port`. Different models can use different backends (e.g. llama-server for some models, vllm for others) — they simply share whatever ports you assign in their respective configs.
 
@@ -116,6 +132,45 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 The vLLM installer (`scripts/install-vllm-globally.sh`) creates a uv-managed venv at `/opt/vllm/venv` with torch + vLLM (pinned to CUDA 13.0 wheels for Blackwell support) and symlinks `vllm` into `/usr/local/bin`. PyTorch ships its own CUDA runtime (cu130) — it does not conflict with the system `cuda-toolkit-12`. The `nvidia-cuda-nvcc` package is also installed: NVFP4 models on Blackwell (sm_120) require FlashInfer to JIT-compile FP4 CUTLASS kernels at first run, which needs `nvcc`. The wrapper at `/usr/local/bin/vllm` sets `CUDA_HOME` and `PATH` so FlashInfer finds nvcc automatically. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
 
 > **Model naming:** Use `--served-model-name <gateway-model-name>` in the vLLM command so the `model` field in API requests matches the gateway's model key. This is the vLLM equivalent of llama-server's `--alias` flag. Without it, clients must send the full HuggingFace repo name (e.g. `unsloth/gemma-4-12b-it-NVFP4`) as the model field.
+
+## Image generation & editing: Qwen-Image-2.1 on 16 GB VRAM
+
+llama.cpp cannot run diffusion/image models — but [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) can, and its `sd-server` is the same kind of lean native binary the gateway is built around. [Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1) is a **7B** DiT (its 2025 predecessor was 20B), does both text-to-image **and** image editing (up to 10 reference images), and natively outputs RGBA.
+
+Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
+
+| Component | File | Size |
+|---|---|---|
+| Diffusion model (GGUF Q8_0) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 7.7 GB |
+| Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~4.9 GB |
+| Vision projector mmproj (BF16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~2.5 GB |
+| VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
+| **Total** | | **~15.5 GB** |
+
+That is too tight for 16 GB VRAM once activations and reference-image latents join, so the bundled config runs sd-server with `--offload-to-cpu`: the weights stay in **system RAM (~16 GB of the 32 GB — far below the ~30 GB ceiling)** and stream to the GPU as needed. No OOM kills at 2048 px, with editing, or with many references. Dropping `--offload-to-cpu` squeezes everything back into VRAM for maximum speed at small resolutions.
+
+Smaller diffusion quants exist (Q6_K 6.0 GB, Q5_0 5.1 GB, Q4_0 4.2 GB, Q2_K 2.6 GB) — override with `DIFFUSION_QUANT=Q6_K` in the installer.
+
+### Install & use
+
+```bash
+sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~16 GB of models into /opt/sdcpp
+```
+
+Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway.
+
+- **Browser**: open `http://<gem12>:1234/` — the landing page lists web apps and API models; click **qwen-image-2.1**. The gateway starts sd-server (first load takes a few seconds) and proxies its embedded web UI, including websockets.
+- **API**: `POST /v1/images/generations` with `{"model": "qwen-image-2.1", "prompt": "..."}` — same on-demand loading as chat models.
+- **Image editing**: enabled by default — the config ships with `--llm_vision` (mmproj), so reference images work out of the box, in the UI or via the API.
+
+> **Note:** Make sure the sd-server port differs from the gateway port (`--listen-port 1235` vs gateway `1234` in the bundled configs) — the loop protection applies to image backends too.
+
+### Caveats
+
+- One backend at a time: opening the image app kills the loaded chat model, and a coding-agent request kills the image app — even mid-generation (`drain_timeout` bounds the wait for in-flight requests; browser websockets do not block switches).
+- If the tab sits idle past `auto_unload`, sd-server is unloaded and the app needs a refresh (an open websocket counts as activity, so a live tab keeps it loaded).
+- ComfyUI is a drop-in alternative for graph workflows: install it with the [`leejet/ComfyUI-GGUF`](https://github.com/leejet/ComfyUI-GGUF) node plus the same GGUF/encoder/VAE files and use the commented `comfyui` entry in [`config/example.yaml`](config/example.yaml).
+- Qwen-Image-2.1 weights are released under the Qwen Research License — non-commercial use only.
 
 #### Using Makefile (recommended)
 

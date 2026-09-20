@@ -9,14 +9,15 @@ LLM Gateway — a Go single-port proxy that manages model-serving backends on de
 ```
 cmd/gateway/main.go    — entry point, HTTP server setup, signal/shutdown handling
 tools.go               — external tool dependencies (golangci-lint)
-internal/config/config.go — YAML loading, validation, model config
+internal/config/config.go — YAML loading, validation, model config (kind: api|web)
 internal/manager/manager.go — process lifecycle: start, monitor (Wait goroutine), shutdown
 internal/manager/install.go — install/uninstall commands
-internal/api/api.go   — HTTP handlers: proxy, models list, health check
+internal/api/api.go   — RootHandler dispatcher: gateway API routes, index page, web-app cookie proxy; /app/<name> launcher
 config/example.yaml   — example configuration file
 config/systemd.service — systemd service unit file
 compose.yml           — local development with Docker
 Makefile              — build, test, lint targets
+scripts/install-qwen-image-sdcpp.sh — sd-server + Qwen-Image-2.1 models installer
 .github/workflows/ci.yml — CI: lint, vet, test, build
 .github/workflows/release.yml — release: lint, test, build, create GitHub release
 ```
