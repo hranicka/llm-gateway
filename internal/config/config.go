@@ -19,11 +19,22 @@ type Config struct {
 	Models       map[string]ModelConf `yaml:"models"`
 }
 
+// Model kinds. KindAPI models serve OpenAI-style endpoints and are proxied
+// via /v1/chat/completions, /v1/completions and /v1/images/generations.
+// KindWeb models serve a browser UI (e.g. sd-server, ComfyUI) that the
+// gateway reverse-proxies in full — including websockets — once selected
+// via /app/<name>.
+const (
+	KindAPI = "api"
+	KindWeb = "web"
+)
+
 type ModelConf struct {
+	Kind           string `yaml:"kind"` // optional; "api" (default) or "web"
 	Command        string `yaml:"command"`
 	Host           string `yaml:"host"`
 	ReadyTimeout   string `yaml:"ready_timeout"`
-	HealthEndpoint string `yaml:"health_endpoint"` // optional; defaults to "/health" (used by llama-server)
+	HealthEndpoint string `yaml:"health_endpoint"` // optional; defaults to "/health" (used by llama-server); web apps typically "/"
 }
 
 // Default config search paths.
@@ -95,6 +106,11 @@ func Load(filename string) error {
 		if _, err := time.ParseDuration(m.ReadyTimeout); err != nil {
 			return fmt.Errorf("model %q ready_timeout: %w", name, err)
 		}
+		switch m.Kind {
+		case "", KindAPI, KindWeb:
+		default:
+			return fmt.Errorf("model %q has unknown kind %q (expected %q or %q)", name, m.Kind, KindAPI, KindWeb)
+		}
 	}
 
 	if len(ConfigApp.Models) == 0 {
@@ -153,4 +169,14 @@ func HealthEndpoint(modelName string) string {
 		return "/health"
 	}
 	return m.HealthEndpoint
+}
+
+// ModelKind returns the resolved kind ("api" or "web") of the given model.
+// Unknown and unconfigured models resolve to "api".
+func ModelKind(modelName string) string {
+	m, ok := ConfigApp.Models[modelName]
+	if !ok || m.Kind == "" {
+		return KindAPI
+	}
+	return m.Kind
 }

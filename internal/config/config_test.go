@@ -74,6 +74,7 @@ func TestLoad_Errors(t *testing.T) {
 		{"model missing host", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    ready_timeout: 1m\n"},
 		{"model missing ready_timeout", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n"},
 		{"model invalid ready_timeout", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: banana\n"},
+		{"model invalid kind", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    kind: banana\n    command: c\n    host: h\n    ready_timeout: 1m\n"},
 		{"no models", "auto_unload: 2h\ndrain_timeout: 30s\nmodels: {}\n"},
 	}
 	for _, tt := range tests {
@@ -200,5 +201,50 @@ func TestLoad_HealthEndpoint(t *testing.T) {
 	}
 	if ConfigApp.Models["vllm-test"].ReadyTimeout != "4h" {
 		t.Errorf("ReadyTimeout = %q, want 4h", ConfigApp.Models["vllm-test"].ReadyTimeout)
+	}
+}
+
+const kindConfig = `host: 0.0.0.0:1234
+debug: false
+auto_unload: 1h
+drain_timeout: 30s
+
+models:
+  api-model:
+    command: |
+      llama-server --host 127.0.0.1 --port 1235
+    host: 127.0.0.1:1235
+    ready_timeout: 1m
+  web-model:
+    kind: web
+    command: |
+      sd-server --listen-port 1236
+    host: 127.0.0.1:1236
+    health_endpoint: /
+    ready_timeout: 15m
+  explicit-api:
+    kind: api
+    command: |
+      llama-server --host 127.0.0.1 --port 1237
+    host: 127.0.0.1:1237
+    ready_timeout: 1m
+`
+
+func TestLoad_Kind(t *testing.T) {
+	if err := Load(writeConfig(t, kindConfig)); err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	// Missing kind defaults to api; explicit kinds pass through.
+	if k := ModelKind("api-model"); k != KindAPI {
+		t.Errorf("ModelKind(api-model) = %q, want %q", k, KindAPI)
+	}
+	if k := ModelKind("web-model"); k != KindWeb {
+		t.Errorf("ModelKind(web-model) = %q, want %q", k, KindWeb)
+	}
+	if k := ModelKind("explicit-api"); k != KindAPI {
+		t.Errorf("ModelKind(explicit-api) = %q, want %q", k, KindAPI)
+	}
+	if k := ModelKind("missing"); k != KindAPI {
+		t.Errorf("ModelKind(missing) = %q, want %q", k, KindAPI)
 	}
 }
