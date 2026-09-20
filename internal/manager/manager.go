@@ -88,6 +88,30 @@ func ReleaseModel() {
 	activeRequests.Add(-1)
 }
 
+// TouchModel records activity for the auto-unload timer. Used for web-app
+// backends whose only sign of life is an open websocket (which produces no
+// proxied HTTP requests): while a browser tab is connected, the app counts
+// as in use and is not idle-unloaded.
+func TouchModel() {
+	mu.RLock()
+	loaded := activeCmd != nil
+	mu.RUnlock()
+	if loaded {
+		resetAutoUnload()
+	}
+}
+
+// CurrentModel returns the name of the currently loaded, live model,
+// or an empty string when nothing is loaded.
+func CurrentModel() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	if processAlive(activeCmd) {
+		return currentModel
+	}
+	return ""
+}
+
 // resetAutoUnload records activity and reschedules the auto-unload timer so
 // it fires exactly autoUnloadD after the last request.
 func resetAutoUnload() {
