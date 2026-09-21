@@ -51,18 +51,36 @@ echo " UI:     http://<host>:${PORT}"
 echo "======================================================"
 echo
 
+# ── uv (pinned, checksum-verified — never curl|sh as root) ───────────────────
+UV_VERSION="0.12.17"
+UV_SHA256="fa82fd8dde8e8eefdecada6aa0889666556cfceb690d06e0c3bca49eb3070a63" # uv-x86_64-unknown-linux-gnu.tar.gz
+install_uv() {
+	if command -v uv &>/dev/null; then
+		echo "uv found: $(uv --version)"
+		return 0
+	fi
+	echo "Installing pinned uv ${UV_VERSION}..."
+	local tmp
+	tmp="$(mktemp -d)"
+	if ! curl -fsSL --retry 3 -o "${tmp}/uv.tar.gz" \
+		"https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+		|| ! echo "${UV_SHA256}  ${tmp}/uv.tar.gz" | sha256sum -c --status -; then
+		echo "ERROR: uv download or checksum failed."
+		rm -rf "$tmp"
+		exit 1
+	fi
+	tar -xzf "${tmp}/uv.tar.gz" -C "$tmp"
+	install -m 0755 "${tmp}/uv-x86_64-unknown-linux-gnu/uv" "${tmp}/uv-x86_64-unknown-linux-gnu/uvx" /usr/local/bin
+	rm -rf "$tmp"
+}
+
 # ── 1. uv ─────────────────────────────────────────────────────────────────────
-if ! command -v uv &>/dev/null; then
-	echo "[1/4] Installing uv..."
-	curl -LsSf https://astral.sh/uv/install.sh | sh -s --
-	export UV_NO_MODIFY_PATH=1
-	export PATH="$HOME/.local/bin:$PATH"
-else
-	echo "[1/4] uv found: $(uv --version)"
-fi
+install_uv
 
 # ── 2. venv + package ─────────────────────────────────────────────────────────
-echo "[2/4] Installing Open WebUI into ${VENV_DIR}/venv (CPU torch, ~2 GB)..."
+# Pinned open-webui version (supply chain): upgrades are a deliberate bump.
+OPEN_WEBUI_VERSION="${OPEN_WEBUI_VERSION:-0.11.3}"
+echo "[2/4] Installing open-webui ${OPEN_WEBUI_VERSION} into ${VENV_DIR}/venv (CPU torch, ~2 GB)..."
 mkdir -p "${VENV_DIR}/venv" "${VENV_DIR}/data" "${VENV_DIR}/python"
 # Keep the uv-managed interpreter INSIDE ${VENV_DIR}: uv otherwise installs it
 # under the invoking user's home (root, when run via sudo), and the service
@@ -91,7 +109,7 @@ fi
 source "${VENV_DIR}/venv/bin/activate"
 # CPU torch is enough: the GPU work happens in the gateway's backends, and
 # Open WebUI only uses torch for local RAG embeddings.
-uv pip install -U open-webui --torch-backend=cpu
+uv pip install "open-webui==${OPEN_WEBUI_VERSION}" --torch-backend=cpu
 
 [ -x "${VENV_DIR}/venv/bin/open-webui" ] || { echo "ERROR: open-webui not found in venv."; exit 1; }
 chown -R "$RUN_USER" "$VENV_DIR"
@@ -107,18 +125,38 @@ echo "  Verified: ${RUN_USER} can run the venv's open-webui."
 
 # ── 3. systemd service ────────────────────────────────────────────────────────
 echo "[3/4] Installing systemd service (runs as ${RUN_USER})..."
-# WEBUI_SECRET_KEY is a hard requirement once auth is enabled; without it some
-# versions fall back to writing /.webui_secret_key and crash with
-# PermissionError when running as a non-root service user. Generate once and
-# persist across upgrades.
-SECRET_FILE="${VENV_DIR}/data/.webui_secret_key"
-if [ ! -s "${SECRET_FILE}" ]; then
-	umask 077
-	head -c 48 /dev/urandom | base64 | tr -d '\n' > "${SECRET_FILE}"
-	umask 022
+
+# Secrets go into a 0600 EnvironmentFile, never into the unit file itself:
+# unit files are world-readable, and WEBUI_SECRET_KEY signs Open WebUI's
+# session tokens — any local user reading it could forge admin sessions.
+# Values persist across upgrades; only the gateway API keys are refreshed
+# (they track auth_token in /etc/llm-gateway/config.yaml).
+ENV_FILE="${VENV_DIR}/data/gateway.env"
+gateway_auth_token() {
+	local cfg="/etc/llm-gateway/config.yaml"
+	[ -r "$cfg" ] || return 0
+	awk '/^auth_token:/ {sub(/^auth_token:[[:space:]]*/, ""); gsub(/^"|"$/, ""); print; exit}' "$cfg"
+}
+GATEWAY_TOKEN="$(gateway_auth_token)"
+[ -n "$GATEWAY_TOKEN" ] || GATEWAY_TOKEN="sk-llm-gateway"
+
+OLD_SECRET="$(grep -s '^WEBUI_SECRET_KEY=' "$ENV_FILE" | cut -d= -f2-)"
+if [ -z "$OLD_SECRET" ] && [ -s "${VENV_DIR}/data/.webui_secret_key" ]; then
+	# Migration from the pre-EnvironmentFile layout.
+	OLD_SECRET="$(cat "${VENV_DIR}/data/.webui_secret_key")"
 fi
-WEBUI_SECRET="$(cat "${SECRET_FILE}")"
-chmod 600 "${SECRET_FILE}"
+if [ -z "$OLD_SECRET" ]; then
+	OLD_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')"
+fi
+umask 077
+cat > "$ENV_FILE" <<EOF
+WEBUI_SECRET_KEY=${OLD_SECRET}
+OPENAI_API_KEY=${GATEWAY_TOKEN}
+IMAGE_GENERATION_API_KEY=${GATEWAY_TOKEN}
+EOF
+umask 022
+chmod 600 "$ENV_FILE"
+chown "$RUN_USER" "$ENV_FILE"
 
 # Wait indefinitely for local models: the gateway may spend minutes loading
 # weights before the first token arrives. AIOHTTP_CLIENT_TIMEOUT=0 disables
@@ -143,19 +181,26 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=${RUN_USER}
+# Secrets (WEBUI_SECRET_KEY, API keys) live in the 0600 file below — not in
+# this world-readable unit.
+EnvironmentFile=${VENV_DIR}/data/gateway.env
 Environment=DATA_DIR=${VENV_DIR}/data
 Environment=HF_HOME=${RUN_HOME}/.cache/huggingface
 Environment=OPENAI_API_BASE_URL=${GATEWAY_API}
-Environment=OPENAI_API_KEY=sk-llm-gateway
-Environment=WEBUI_SECRET_KEY=${WEBUI_SECRET}
 Environment=ENABLE_OLLAMA_API=false
 Environment=ENABLE_IMAGE_GENERATION=true
 Environment=IMAGE_GENERATION_ENGINE=openai
 Environment=IMAGE_GENERATION_API_BASE_URL=${GATEWAY_API}
-Environment=IMAGE_GENERATION_API_KEY=sk-llm-gateway
 Environment=IMAGE_GENERATION_MODEL=${IMAGE_MODEL}
 ${HTTP_TIMEOUT_ENV}
+# The gateway API key is the gateway's auth_token; re-run this installer
+# (or edit ${ENV_FILE}) after changing auth_token.
 ExecStart=${VENV_DIR}/venv/bin/open-webui serve --host 0.0.0.0 --port ${PORT}
+# Hardening: chat data lives in ${VENV_DIR}/data and caches in the home
+# directory — both stay writable under ProtectSystem=full.
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
 Restart=on-failure
 RestartSec=5
 

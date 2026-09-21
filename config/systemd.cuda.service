@@ -26,6 +26,32 @@ ExecStart=/usr/local/bin/llm-gateway
 SupplementaryGroups=render video
 LimitMEMLOCK=infinity
 
+# Restrict to explicitly listed devices only.
+DevicePolicy=closed
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+
+# --- Hardening ---
+# Same set as the generic unit. MemoryDenyWriteExecute is deliberately
+# absent — it breaks CUDA JIT (FlashInfer/nvcc compile kernels at runtime).
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# -----------------
+
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

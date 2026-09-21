@@ -149,9 +149,14 @@ func promptConfig(configPath string) bool {
 	}
 
 	fmt.Printf("Installing config %s to %s\n", selected, configPath)
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	// 0600: model commands may embed tokens (HF_TOKEN=..., --api-key ...).
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		slog.Error("failed to write config", "error", err)
 		os.Exit(1)
+	}
+	// WriteFile keeps the mode of a pre-existing file — enforce 0600.
+	if err := os.Chmod(configPath, 0600); err != nil {
+		slog.Warn("failed to tighten config permissions", "error", err)
 	}
 	if fi, err := os.Stat(configPath); err == nil {
 		fmt.Printf("Config installed (%d bytes)\n", fi.Size())

@@ -34,6 +34,28 @@ DeviceAllow=/dev/nvidia-uvm rw
 DeviceAllow=/dev/nvidia-uvm-tools rw
 # --------------------------------
 
+# --- Hardening ---
+# Contain a compromised backend: it runs as a regular user with the network
+# and GPU device access above, but no privileges, no write access to system
+# paths (ProtectSystem=full keeps /usr, /etc, /boot read-only), and no
+# kernel interfaces. MemoryDenyWriteExecute is deliberately absent — it
+# breaks CUDA JIT (FlashInfer/nvcc compile kernels at runtime).
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# -----------------
+
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
