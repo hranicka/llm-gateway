@@ -19,6 +19,11 @@ func writeConfig(t *testing.T, content string) string {
 
 const validConfig = `host: 0.0.0.0:1234
 debug: true
+auth_token: "secret-token"
+allowed_hosts:
+  - localhost:1234
+  - gem12.lan
+max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 30s
 
@@ -59,6 +64,38 @@ func TestLoad_Valid(t *testing.T) {
 	}
 }
 
+func TestLoad_SecurityFields(t *testing.T) {
+	if err := Load(writeConfig(t, validConfig)); err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !AuthEnabled() || AuthToken() != "secret-token" {
+		t.Errorf("auth = %q, enabled = %v; want secret-token/enabled", AuthToken(), AuthEnabled())
+	}
+	// Hosts are lowercased and stripped of ports for matching.
+	wantHosts := []string{"localhost", "gem12.lan"}
+	gotHosts := AllowedHosts()
+	if len(gotHosts) != len(wantHosts) {
+		t.Fatalf("AllowedHosts = %v, want %v", gotHosts, wantHosts)
+	}
+	for i := range wantHosts {
+		if gotHosts[i] != wantHosts[i] {
+			t.Errorf("AllowedHosts[%d] = %q, want %q", i, gotHosts[i], wantHosts[i])
+		}
+	}
+	if MaxBodyBytes() != 64<<20 {
+		t.Errorf("MaxBodyBytes = %d, want %d", MaxBodyBytes(), int64(64<<20))
+	}
+
+	// Empty auth_token explicitly disables auth.
+	emptyAuth := strings.Replace(validConfig, `auth_token: "secret-token"`, `auth_token: ""`, 1)
+	if err := Load(writeConfig(t, emptyAuth)); err != nil {
+		t.Fatalf("Load(empty auth_token) returned error: %v", err)
+	}
+	if AuthEnabled() || AuthToken() != "" {
+		t.Errorf("empty auth_token: enabled = %v, token = %q; want disabled", AuthEnabled(), AuthToken())
+	}
+}
+
 func TestLoad_Errors(t *testing.T) {
 	model := "models:\n  m:\n"
 	tests := []struct {
@@ -70,6 +107,11 @@ func TestLoad_Errors(t *testing.T) {
 		{"missing drain_timeout", "auto_unload: 2h\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
 		{"invalid drain_timeout", "auto_unload: 2h\ndrain_timeout: banana\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
 		{"zero drain_timeout", "auto_unload: 2h\ndrain_timeout: 0s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
+		{"missing auth_token", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
+		{"missing allowed_hosts", "auth_token: \"\"\nauto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
+		{"missing max_body_size", "auth_token: \"\"\nallowed_hosts: []\nauto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
+		{"invalid max_body_size", "auth_token: \"\"\nallowed_hosts: []\nmax_body_size: banana\nauto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
+		{"zero max_body_size", "auth_token: \"\"\nallowed_hosts: []\nmax_body_size: 0\nauto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n    ready_timeout: 1m\n"},
 		{"model missing command", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    host: h\n    ready_timeout: 1m\n"},
 		{"model missing host", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    ready_timeout: 1m\n"},
 		{"model missing ready_timeout", "auto_unload: 2h\ndrain_timeout: 30s\n" + model + "    command: c\n    host: h\n"},
@@ -83,6 +125,48 @@ func TestLoad_Errors(t *testing.T) {
 				t.Error("Load returned nil error, want error")
 			}
 		})
+	}
+}
+
+func TestParseByteSize(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int64
+		ok   bool
+	}{
+		{"64MB", 64 << 20, true},
+		{"512KB", 512 << 10, true},
+		{"1GB", 1 << 30, true},
+		{"65536", 65536, true},
+		{"64 mb", 64 << 20, true},
+		{"", 0, false},
+		{"banana", 0, false},
+		{"64TB", 0, false},
+		{"0MB", 0, false},
+		{"-5MB", 0, false},
+	}
+	for _, tt := range tests {
+		got, err := parseByteSize(tt.in)
+		if tt.ok && (err != nil || got != tt.want) {
+			t.Errorf("parseByteSize(%q) = %d, %v; want %d, nil", tt.in, got, err, tt.want)
+		}
+		if !tt.ok && err == nil {
+			t.Errorf("parseByteSize(%q) = %d, nil error; want error", tt.in, got)
+		}
+	}
+}
+
+func TestNormalizeHost(t *testing.T) {
+	tests := map[string]string{
+		"gem12.lan:1234": "gem12.lan",
+		"gem12.lan":      "gem12.lan",
+		"[::1]:1234":     "::1",
+		"localhost":      "localhost",
+	}
+	for in, want := range tests {
+		if got := NormalizeHost(in); got != want {
+			t.Errorf("NormalizeHost(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
@@ -179,6 +263,9 @@ func TestHealthEndpoint(t *testing.T) {
 
 const healthConfig = `host: 0.0.0.0:1234
 debug: false
+auth_token: ""
+allowed_hosts: []
+max_body_size: 64MB
 auto_unload: 1h
 drain_timeout: 30s
 
@@ -206,6 +293,9 @@ func TestLoad_HealthEndpoint(t *testing.T) {
 
 const kindConfig = `host: 0.0.0.0:1234
 debug: false
+auth_token: ""
+allowed_hosts: []
+max_body_size: 64MB
 auto_unload: 1h
 drain_timeout: 30s
 

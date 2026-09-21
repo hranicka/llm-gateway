@@ -1,5 +1,12 @@
 host: 0.0.0.0:1234
 debug: true
+# Bearer token for API clients; browsers use /app/<name>?token=<value> once.
+# Empty disables auth — trusted-LAN only (see README "Security").
+auth_token: ""
+allowed_hosts:
+  - localhost
+  - 127.0.0.1
+max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 5m
 

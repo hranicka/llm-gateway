@@ -1,5 +1,18 @@
 host: 0.0.0.0:1234
 debug: true
+# Bearer token for API clients (Authorization: Bearer <token>). Browsers
+# exchange it once via /app/<name>?token=<auth_token>. Empty disables auth —
+# acceptable only on a trusted LAN; see README "Security".
+auth_token: ""
+# Host headers the gateway answers as (ports ignored when matching).
+# Requests with a different Host are rejected — this defeats DNS rebinding.
+# Add your LAN hostname/IP here, e.g. gem12.lan or 192.168.1.10. An empty
+# list disables the check (warns at startup).
+allowed_hosts:
+  - localhost
+  - 127.0.0.1
+# Request body limit (image-edit uploads carry base64 images).
+max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 30s
 

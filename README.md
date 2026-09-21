@@ -37,6 +37,9 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 
 - **`host`**: The address the gateway listens on.
 - **`debug`**: Enables detailed request logging.
+- **`auth_token`**: Required. Bearer token for every route except `/health`. Set it to a long random string; `""` explicitly disables auth (trusted-LAN only). API clients send `Authorization: Bearer <token>`; browsers authenticate once via `/app/<name>?token=<token>`. See [Security](#security).
+- **`allowed_hosts`**: Required. Host headers the gateway answers as (case-insensitive, ports ignored when matching). Requests with any other `Host` get 403 — this defeats DNS rebinding. `[]` disables the check (warns at startup on non-loopback binds).
+- **`max_body_size`**: Required. Request-body limit, e.g. `64MB` (units B/KB/MB/GB, binary). Oversized bodies get 413.
 - **`auto_unload`**: Idle duration after which the active model is shut down to free VRAM (e.g. `2h`). The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
@@ -89,6 +92,49 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 - **Web apps bypass the slot**: browser traffic to a `kind: web` backend is not serialized (UI assets and polls are concurrent-safe, and an open websocket must never block API generation). Websocket connections do keep the auto-unload timer reset while open, but they do not block model switches.
 - **Shared single slot**: there is still only one loaded backend at a time. A chat request switches away from a running image app (killing it mid-generation) and vice versa — keep `drain_timeout` in mind.
 - **Transparency**: Request bodies are proxied untouched. The gateway does not rewrite model-specific parameters — clients are expected to send values the backend chat template supports (e.g. Qwen3 GGUF templates only accept `reasoning_effort` of `xhigh`, `medium`, or `low`; see [`config/omp/`](config/omp/) for a client setup that matches).
+
+## Security
+
+The gateway is built for a **trusted home LAN** behind a router firewall. There are no user accounts — one shared token gates everything, and three config fields control the posture.
+
+- **`auth_token`** — when set, every request needs `Authorization: Bearer <token>` (curl, opencode, Open WebUI's server-side client) or the browser auth cookie. `/health` is exempt: it answers with static JSON only, which is what uptime monitors and tunnel health probes expect. Browsers authenticate once — open `http://<host>:1234/app/<name>?token=<auth_token>`; the gateway sets an `HttpOnly` cookie (plus `Secure` behind HTTPS) and redirects, and the web apps then work with no per-request headers. `/app/` clears both cookies. The `?token=` URL lands in browser history — prefer a bookmark with the token, or re-launch after clearing it. Cross-site app launches (`Sec-Fetch-Site: cross-site`) are rejected, so random web pages can't trigger model loads.
+- **`allowed_hosts`** — requests whose `Host` header doesn't match the list get 403. Without this, a malicious page can use [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding) to rebind its own domain to the gateway's IP and gain same-origin access to everything, including the proxied web-app UIs. List the names and IPs you actually use: `localhost`, the LAN hostname (`gem12`), the LAN IP (`192.168.1.10`), and the public hostname when proxied/tunneled.
+- **`max_body_size`** — request-body cap so a single huge upload can't exhaust memory. Applies to the API routes and to proxied web-app uploads alike.
+
+With `auth_token: ""` anyone who can reach the port can run models and open the apps — a deliberate choice for the LAN, but it also means any page open in your browser can fire cross-site requests at the gateway (spend GPU, switch models). The startup log warns about both disabled checks when the bind address isn't loopback-only.
+
+Enabling the token means every API client needs it: opencode/omp provider configs (`api_key`), and Open WebUI — its installer reads `auth_token` from `/etc/llm-gateway/config.yaml` automatically; re-run the installer after changing the token.
+
+Other hardening in the box: the systemd units run the gateway as a regular user under `NoNewPrivileges`, `ProtectSystem=full`, `PrivateTmp`, an empty capability set, and a device allowlist; the installer writes the config and Open WebUI's secret key with `0600` permissions (secrets live in a 0600 `EnvironmentFile`, never in the world-readable unit file); the installer scripts pin and checksum the binaries they download. Deliberate non-goals: per-user identity, rate limiting, IP allowlists (they break behind proxies and introduce `X-Forwarded-For` trust — which is why that header is never used for auth decisions), and built-in TLS.
+
+### Behind a reverse proxy or tunnel
+
+The gateway speaks plain HTTP; TLS terminates at the proxy. For hostname or tunnel exposure: set a strong `auth_token`, add the public hostname to `allowed_hosts`, and proxy as usual — keep the `Host` header, don't buffer SSE, and raise read timeouts for long model loads:
+
+Caddy:
+
+```
+gem12.example.com {
+	reverse_proxy 127.0.0.1:1234
+}
+```
+
+nginx:
+
+```nginx
+location / {
+	proxy_pass http://127.0.0.1:1234;
+	proxy_set_header Host $host;
+	proxy_http_version 1.1;
+	proxy_set_header Upgrade $http_upgrade;    # websockets
+	proxy_set_header Connection "upgrade";
+	proxy_set_header X-Forwarded-Proto https;  # enables Secure cookies
+	proxy_buffering off;                       # SSE streaming
+	proxy_read_timeout 2h;                     # long model loads
+}
+```
+
+Cloudflare Tunnel and Tailscale Funnel work the same way — add the public hostname (`machine.tailnet.ts.net`, `gem12.example.com`, …) to `allowed_hosts`. Behind a tunnel the token is effectively mandatory: the tunnel is the public internet.
 
 ## Installation
 

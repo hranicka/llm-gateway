@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"maps"
+	"net"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,8 +14,13 @@ import (
 )
 
 type Config struct {
-	Host         string               `yaml:"host"`
-	Debug        bool                 `yaml:"debug"`
+	Host  string `yaml:"host"`
+	Debug bool   `yaml:"debug"`
+	// AuthToken is required; an empty string disables auth explicitly.
+	// Pointer so a missing field can be distinguished from an empty one.
+	AuthToken    *string              `yaml:"auth_token"`
+	AllowedHosts []string             `yaml:"allowed_hosts"`
+	MaxBodySize  string               `yaml:"max_body_size"`
 	AutoUnload   string               `yaml:"auto_unload"`
 	DrainTimeout string               `yaml:"drain_timeout"`
 	Models       map[string]ModelConf `yaml:"models"`
@@ -47,6 +54,82 @@ var ConfigApp *Config
 
 // sortedModelNames is the config.Models keys, sorted once after loadConfig.
 var SortedModelNames []string
+
+// normalizedAllowedHosts is allowed_hosts lowercased and stripped of ports,
+// set once after Load. Host-header matching compares against these.
+var normalizedAllowedHosts []string
+
+// maxBodyBytes is the parsed max_body_size, set once after Load.
+var maxBodyBytes int64
+
+// defaultMaxBodyBytes backs MaxBodyBytes for Configs built without Load
+// (tests), so direct struct construction stays functional.
+const defaultMaxBodyBytes = 64 << 20
+
+// AuthEnabled reports whether auth_token is set to a non-empty value.
+func AuthEnabled() bool {
+	return AuthToken() != ""
+}
+
+// AuthToken returns the configured bearer token ("" when auth is disabled).
+func AuthToken() string {
+	if ConfigApp == nil || ConfigApp.AuthToken == nil {
+		return ""
+	}
+	return *ConfigApp.AuthToken
+}
+
+// AllowedHosts returns the normalized Host allowlist (lowercased, ports
+// stripped). Empty means the Host check is disabled.
+func AllowedHosts() []string {
+	return normalizedAllowedHosts
+}
+
+// MaxBodyBytes returns the configured request-body limit.
+func MaxBodyBytes() int64 {
+	if maxBodyBytes > 0 {
+		return maxBodyBytes
+	}
+	return defaultMaxBodyBytes
+}
+
+// NormalizeHost strips the port from a host or Host-header value
+// ("gem12.lan:1234" → "gem12.lan", "[::1]:1234" → "::1").
+func NormalizeHost(h string) string {
+	h = strings.TrimSpace(h)
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return host
+	}
+	return h
+}
+
+// parseByteSize parses a size like "64MB", "512KB", "1GB" or a bare byte
+// count. Units are binary (KB = 1024).
+func parseByteSize(s string) (int64, error) {
+	s = strings.TrimSpace(s)
+	i := 0
+	for i < len(s) && (s[i] >= '0' && s[i] <= '9' || s[i] == '.') {
+		i++
+	}
+	num, err := strconv.ParseFloat(s[:i], 64)
+	if err != nil || num <= 0 {
+		return 0, fmt.Errorf("invalid size %q", s)
+	}
+	var mult float64
+	switch strings.ToUpper(strings.TrimSpace(s[i:])) {
+	case "", "B":
+		mult = 1
+	case "KB":
+		mult = 1 << 10
+	case "MB":
+		mult = 1 << 20
+	case "GB":
+		mult = 1 << 30
+	default:
+		return 0, fmt.Errorf("unknown unit in %q (use B, KB, MB or GB)", s)
+	}
+	return int64(num * mult), nil
+}
 
 // FindConfigPath returns the first existing config path from the search order.
 func FindConfigPath() string {
@@ -92,6 +175,27 @@ func Load(filename string) error {
 	if drainTimeout <= 0 {
 		return fmt.Errorf("drain_timeout must be greater than zero")
 	}
+
+	if ConfigApp.AuthToken == nil {
+		return fmt.Errorf("auth_token is required (a long random string; \"\" explicitly disables auth)")
+	}
+	if ConfigApp.AllowedHosts == nil {
+		return fmt.Errorf("allowed_hosts is required (Host headers to answer as, or [] to disable the check)")
+	}
+	normalizedAllowedHosts = make([]string, 0, len(ConfigApp.AllowedHosts))
+	for _, h := range ConfigApp.AllowedHosts {
+		if host := strings.ToLower(NormalizeHost(h)); host != "" {
+			normalizedAllowedHosts = append(normalizedAllowedHosts, host)
+		}
+	}
+	if ConfigApp.MaxBodySize == "" {
+		return fmt.Errorf("max_body_size is required (e.g. 64MB)")
+	}
+	size, err := parseByteSize(ConfigApp.MaxBodySize)
+	if err != nil {
+		return fmt.Errorf("max_body_size: %w", err)
+	}
+	maxBodyBytes = size
 
 	for name, m := range ConfigApp.Models {
 		if m.Command == "" {

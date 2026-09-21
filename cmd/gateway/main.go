@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,6 +50,17 @@ func main() {
 
 	slog.Info("config loaded", "version", manager.Version, "models", len(config.ConfigApp.Models), "debug", config.ConfigApp.Debug)
 
+	if !bindsLoopback(config.ConfigApp.Host) {
+		if !config.AuthEnabled() {
+			slog.Warn("auth is disabled while listening on a non-loopback address — " +
+				"anyone on the network can run models and open web apps")
+		}
+		if len(config.AllowedHosts()) == 0 {
+			slog.Warn("allowed_hosts is empty — the Host header is not validated, " +
+				"which leaves the gateway open to DNS-rebinding from web pages")
+		}
+	}
+
 	manager.StartAutoUnload(config.AutoUnloadDuration())
 
 	mux := http.NewServeMux()
@@ -59,7 +72,11 @@ func main() {
 
 	server := &http.Server{
 		Addr:    config.ConfigApp.Host,
-		Handler: api.LoggingMiddleware(mux),
+		Handler: api.LoggingMiddleware(api.SecurityMiddleware(mux)),
+		// No WriteTimeout: SSE streams and slow model loads legitimately run
+		// for hours. The header timeout alone defeats slowloris.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	done := make(chan struct{})
@@ -99,4 +116,17 @@ func main() {
 
 	<-done
 	slog.Info("shutdown complete")
+}
+
+// bindsLoopback reports whether the listen address is loopback-only.
+// 0.0.0.0, :: and empty hosts mean all interfaces.
+func bindsLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return strings.EqualFold(host, "localhost")
 }

@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -140,10 +142,14 @@ func appModelFromRequest(r *http.Request) (string, bool) {
 // AppLaunchHandler serves /app/<name>: it pins the browser to a web-app
 // backend via cookie and redirects to /, where all requests are then
 // reverse-proxied to the app (including websockets). /app/ clears the
-// selection and returns to the index page.
+// selection (and the auth cookie) and returns to the index page. With auth
+// enabled, /app/<name>?token=<auth_token> exchanges the token for a
+// long-lived auth cookie — the one-time browser entry point.
 func AppLaunchHandler(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/app/")
 	name = strings.Trim(name, "/")
+
+	secure := requestIsHTTPS(r)
 
 	if name == "" {
 		http.SetCookie(w, &http.Cookie{
@@ -152,7 +158,23 @@ func AppLaunchHandler(w http.ResponseWriter, r *http.Request) {
 			Path:   "/",
 			MaxAge: -1,
 		})
+		http.SetCookie(w, &http.Cookie{
+			Name:   authCookieName,
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1,
+		})
 		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	// A cross-site launch (a random page embedding <img src=…/app/<name>>)
+	// would load or switch models on the visitor's gateway — refuse it.
+	// Modern browsers send Sec-Fetch-Site on navigations; its absence means
+	// a non-browser client or an old browser.
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		slog.Warn("cross-site app launch rejected", "model", name, "remote_addr", r.RemoteAddr)
+		http.Error(w, "Cross-site app launches are not allowed", http.StatusForbidden)
 		return
 	}
 
@@ -168,6 +190,15 @@ func AppLaunchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Exchange a valid ?token= for the auth cookie so the browser never needs
+	// per-request headers. (The middleware only lets valid tokens through.)
+	if config.AuthEnabled() {
+		if token := r.URL.Query().Get("token"); token != "" &&
+			subtle.ConstantTimeCompare([]byte(token), []byte(config.AuthToken())) == 1 {
+			setAuthCookie(w, r)
+		}
+	}
+
 	slog.Info("browser selected web app", "model", name, "remote_addr", r.RemoteAddr)
 	http.SetCookie(w, &http.Cookie{
 		Name:     appCookieName,
@@ -176,6 +207,7 @@ func AppLaunchHandler(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   31536000, // one year; /app/ clears it earlier
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -226,7 +258,9 @@ func proxyWebApp(w http.ResponseWriter, r *http.Request, name string) {
 	backend, release, err := manager.SwitchModel(name)
 	if err != nil {
 		slog.Error("switch model failed", "model", name, "error", err)
-		http.Error(w, fmt.Sprintf("Failed to load app %s: %v", name, err), http.StatusBadGateway)
+		// Keep the backend's own error text out of the response — it can
+		// contain command and path details; the log has the full error.
+		http.Error(w, fmt.Sprintf("Failed to load app %s — check the gateway logs", name), http.StatusBadGateway)
 		return
 	}
 
@@ -251,6 +285,9 @@ func proxyWebApp(w http.ResponseWriter, r *http.Request, name string) {
 	} else {
 		defer release()
 	}
+
+	// Cap proxied uploads (e.g. ComfyUI image uploads) too.
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxBodyBytes())
 
 	proxy, perr := newProxy(backend)
 	if perr != nil {
@@ -302,8 +339,16 @@ func parseModelRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxBodyBytes())
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeOpenAIError(w,
+				fmt.Sprintf("Request body too large (limit %d bytes)", maxErr.Limit),
+				"body_too_large", http.StatusRequestEntityTooLarge)
+			return "", false
+		}
 		writeOpenAIError(w, "Failed to read request body", "invalid_body", http.StatusBadRequest)
 		return "", false
 	}
@@ -347,7 +392,7 @@ func switchAndProxy(w http.ResponseWriter, r *http.Request, name string) {
 	backend, release, err := manager.SwitchModel(name)
 	if err != nil {
 		slog.Error("switch model failed", "model", name, "error", err)
-		writeOpenAIError(w, fmt.Sprintf("Failed to load model %s: %v", name, err), "model_load_failed", http.StatusInternalServerError)
+		writeOpenAIError(w, fmt.Sprintf("Failed to load model %s — check the gateway logs", name), "model_load_failed", http.StatusInternalServerError)
 		return
 	}
 	defer release()
