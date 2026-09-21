@@ -159,6 +159,8 @@ sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~14 GB of models into /o
 
 Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway.
 
+> The browser UI is compiled **into** the sd-server binary (`SD_SERVER_BUILD_FRONTEND=ON`, needs Node ≥ 20 + pnpm ≥ 10, installed automatically). If you ever see a plain *"Stable Diffusion Server is running"* text instead of the UI, the binary was built without the frontend — re-run the installer and it will rebuild with it.
+
 - **Browser**: open `http://<gem12>:1234/` — the landing page lists web apps and API models; click **qwen-image-2.1**. The gateway starts sd-server (first load takes a few seconds) and proxies its embedded web UI, including websockets.
 - **API**: `POST /v1/images/generations` with `{"model": "qwen-image-2.1", "prompt": "..."}` — same on-demand loading as chat models.
 - **Image editing**: enabled by default — the config ships with `--llm_vision` (mmproj), so reference images work out of the box, in the UI or via the API.

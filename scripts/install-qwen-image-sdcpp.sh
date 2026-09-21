@@ -88,11 +88,32 @@ scan_nvcc() {
 
 mkdir -p "$BIN_DIR" "$MODEL_DIR"
 
+# The browser UI is compiled INTO the binary (-DSD_SERVER_BUILD_FRONTEND=ON,
+# needs Node >= 20 + pnpm >= 10 at build time). Without it the server works
+# but / answers with a plain "Stable Diffusion Server is running" text.
+# The marker file lets re-runs detect and rebuild such a frontend-less binary.
+FRONTEND_MARKER="${BIN_DIR}/.embedded-webui"
+ensure_frontend_toolchain() {
+	command -v node >/dev/null 2>&1 || return 1
+	[ "$(node --version | sed -n 's/^v\([0-9]*\).*/\1/p')" -ge 20 ] || return 1
+	command -v pnpm >/dev/null 2>&1 && return 0
+	if command -v corepack >/dev/null 2>&1; then
+		corepack enable >/dev/null 2>&1 && corepack prepare pnpm@10 --activate >/dev/null 2>&1 || true
+	fi
+	command -v pnpm >/dev/null 2>&1 && return 0
+	npm install -g pnpm@10 >/dev/null 2>&1 || return 1
+	command -v pnpm >/dev/null 2>&1
+}
+
 # ── 1. Get sd-server: prebuilt CUDA release, else build from source ───────────
-if [ -x "${BIN_DIR}/sd-server" ]; then
+if [ -x "${BIN_DIR}/sd-server" ] && [ -f "${FRONTEND_MARKER}" ]; then
 	echo "[1/3] sd-server already installed at ${BIN_DIR}/sd-server — skipping."
 else
-	echo "[1/3] Fetching sd-server..."
+	if [ -x "${BIN_DIR}/sd-server" ]; then
+		echo "[1/3] sd-server exists but was built without the embedded web UI — rebuilding."
+	else
+		echo "[1/3] Fetching sd-server..."
+	fi
 	API_JSON=$(curl -sSf https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest)
 	ASSET_URL=$(echo "$API_JSON" \
 		| grep -oE '"browser_download_url": *"[^"]+"' \
@@ -107,6 +128,7 @@ else
 		unzip -q -o "$TMP_ZIP" -d "$TMP_UNZIP"
 		find "$TMP_UNZIP" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
 		rm -rf "$TMP_ZIP" "$TMP_UNZIP"
+		touch "${FRONTEND_MARKER}"   # official releases ship the embedded web UI
 	else
 		echo "  No prebuilt Linux CUDA asset found — building from source (~5-10 min)."
 		echo "  Linux assets in the release (for reference):"
@@ -116,6 +138,24 @@ else
 			git clone --recursive https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
 		else
 			git -C "$SRC_DIR" pull --ff-only && git -C "$SRC_DIR" submodule update --init --recursive
+		fi
+
+		# The embedded web UI needs Node >= 20 + pnpm >= 10; try to provision
+		# them, but degrade gracefully (gateway + Open WebUI work without it).
+		if ! ensure_frontend_toolchain && command -v apt-get >/dev/null 2>&1; then
+			echo "  Node.js >= 20 not found — installing Node 22 from NodeSource (needed for the embedded web UI)..."
+			curl -fsSL https://deb.nodesource.com/setup_22.x | bash - || true
+			apt-get install -y nodejs || true
+		fi
+		HAS_FRONTEND=no
+		if ensure_frontend_toolchain; then
+			HAS_FRONTEND=yes
+			echo "  Web UI toolchain ready: Node $(node --version), pnpm $(pnpm --version)."
+		else
+			echo "  WARN: Node.js >= 20 / pnpm unavailable — building WITHOUT the embedded web UI."
+			echo "        sd-server will still serve images (gateway API + Open WebUI), but its own"
+			echo "        browser page stays a plain-text placeholder. Install nodejs 20+ and"
+			echo "        pnpm 10+, then re-run to embed the UI."
 		fi
 
 		# sm_120 (Blackwell, e.g. RTX 5060 Ti) needs nvcc >= 12.8; distro
@@ -164,10 +204,17 @@ else
 		# poisons the CMake cache and would fail again even with a fixed
 		# toolchain.
 		rm -rf "${SRC_DIR}/build"
+		if [ "$HAS_FRONTEND" = yes ]; then
+			CMAKE_ARGS+=(-DSD_SERVER_BUILD_FRONTEND=ON)
+		fi
 		cmake -B "${SRC_DIR}/build" -S "$SRC_DIR" "${CMAKE_ARGS[@]}" \
 			-DCMAKE_BUILD_TYPE=Release
 		cmake --build "${SRC_DIR}/build" --config Release -j"$(nproc)"
 		find "${SRC_DIR}/build" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
+		if [ "$HAS_FRONTEND" = yes ]; then
+			touch "${FRONTEND_MARKER}"
+			echo "  Embedded web UI compiled in."
+		fi
 	fi
 	[ -x "${BIN_DIR}/sd-server" ] || { echo "ERROR: sd-server binary not found after install."; exit 1; }
 	echo "  Installed: ${BIN_DIR}/sd-server"
