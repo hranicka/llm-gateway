@@ -80,7 +80,7 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 | `/v1/chat/completions` | POST | Proxy request (supports model switching) |
 | `/v1/completions` | POST | Legacy proxy request (supports model switching) |
 | `/v1/images/generations` | POST | Proxy image-generation request (supports model switching) |
-| `/v1/models` | GET | List available configured models |
+| `/v1/models` | GET | List available **API** models (web apps are excluded — they are browser-only via `/app/<name>`) |
 | `/health` | GET | Gateway health check (always answers for the gateway itself, never for an app) |
 
 ### Request handling
@@ -179,7 +179,7 @@ Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/ge
 [`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
 - **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `gemma-4-26b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
-- **Images**: inside a chat, the image button (or `/image <prompt>`) generates through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048).
+- **Images**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) and send with a **regular chat model selected** — never pick `qwen-image-2.1` in the model picker; it is not a chat model (and since it's a web app, the gateway doesn't even list it). The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048).
 - **Editing** (reference images) stays in sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1`.
 
 ```bash

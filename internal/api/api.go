@@ -425,10 +425,16 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ModelsHandler exposes available models to UI clients.
+// ModelsHandler exposes available API models to OpenAI clients. Web apps
+// (kind: web) are omitted: they are not addressable through chat or image
+// model fields (their UIs live under /app/<name>), and listing them only
+// invites clients to select something unusable.
 func ModelsHandler(w http.ResponseWriter, r *http.Request) {
 	models := make([]openaiModel, 0, len(config.SortedModelNames))
 	for _, name := range config.SortedModelNames {
+		if config.ModelKind(name) != config.KindAPI {
+			continue
+		}
 		models = append(models, openaiModel{
 			ID:      name,
 			Object:  "model",

@@ -249,8 +249,9 @@ func TestRootHandler_DispatchWithoutCookie(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
 		t.Fatalf("decode models list: %v", err)
 	}
-	if len(list.Data) != 2 {
-		t.Errorf("models listed = %d, want 2", len(list.Data))
+	// Web apps are not API-addressable — only api-kind models are listed.
+	if len(list.Data) != 1 || list.Data[0].ID != "test-model" {
+		t.Errorf("models listed = %+v, want only test-model (web apps excluded)", list.Data)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -258,6 +259,26 @@ func TestRootHandler_DispatchWithoutCookie(t *testing.T) {
 	RootHandler(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("/health status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelsHandler_ExcludesWebModels(t *testing.T) {
+	setupWebConfig(t, "", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	w := httptest.NewRecorder()
+	ModelsHandler(w, req)
+	var list modelList
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode models list: %v", err)
+	}
+	for _, m := range list.Data {
+		if m.ID == "web-app" {
+			t.Errorf("web model %q must not be listed via /v1/models", m.ID)
+		}
+	}
+	if len(list.Data) != 1 {
+		t.Errorf("models listed = %d, want 1", len(list.Data))
 	}
 }
 
