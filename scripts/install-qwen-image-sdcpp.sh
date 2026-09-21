@@ -9,10 +9,9 @@
 # proxies its web UI at /app/qwen-image-2.1.
 #
 # Quant override: DIFFUSION_QUANT=Q8_0 sudo -E ./scripts/install-qwen-image-sdcpp.sh
-# (default Q6_K; the default repo also has Q4_0 4.1 GB, Q4_K_M 4.6 GB,
-# Q5_K_M 5.2 GB, Q8_0 7.6 GB)
-# Repo override: DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF (official re-quants,
-# underscore naming, adds Q2_K 2.6 GB)
+# (default Q6_K; also available: Q2_K 2.6 GB, Q4_0 4.2 GB, Q5_0 5.1 GB, Q8_0 7.7 GB)
+# Repo override: DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF
+# (community re-quants of the same weights, dash naming, adds Q4_K_M/Q5_K_M)
 
 set -euo pipefail
 
@@ -21,7 +20,7 @@ BIN_DIR="${INSTALL_DIR}/bin"
 MODEL_DIR="${INSTALL_DIR}/models"
 SRC_DIR="${INSTALL_DIR}/src"
 CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
-DIFFUSION_REPO="${DIFFUSION_REPO:-abenzerps/Qwen-Image-2.1-Uncensored-GGUF}"
+DIFFUSION_REPO="${DIFFUSION_REPO:-leejet/Qwen-Image-2.1-GGUF}"
 DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K}"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -316,7 +315,7 @@ echo "[2/3] Downloading models to ${MODEL_DIR} (resumable)..."
 
 DIFFUSION_NAME="$(hf_resolve "${DIFFUSION_REPO}" \
 	'qwen[-_]image[-_]2\.1-[^"]*'"${DIFFUSION_QUANT}"'\.gguf' \
-	"qwen-image-2.1-${DIFFUSION_QUANT}.gguf")"
+	"qwen_image_2.1-${DIFFUSION_QUANT}.gguf")"
 fetch_model \
 	"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
 	"${MODEL_DIR}/${DIFFUSION_NAME}"

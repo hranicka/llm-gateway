@@ -104,9 +104,9 @@ models:
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
   # Qwen-Image-2.1: 7B DiT, text-to-image + image editing (up to 10 refs).
-  # Diffusion weights: abenzerps/Qwen-Image-2.1-Uncensored-GGUF (re-quant of
-  # the official base weights, sd.cpp format). Q6_K 5.9 GB + Qwen3-VL-8B TE
-  # Q4_K_M 4.9 GB + mmproj ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB. Default mode is --offload-to-cpu: the
+  # Diffusion weights: leejet/Qwen-Image-2.1-GGUF (canonical re-quants by the
+  # sd.cpp author). Q6_K 6.0 GB + Qwen3-VL-8B TE Q4_K_M 4.9 GB + mmproj
+  # ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB. Default mode is --offload-to-cpu: the
   # weights stay in system RAM (~14 GB of 32 GB, far below the ~30 GB
   # ceiling) and stream to the GPU — no OOM at 2048 px or with many
   # references, and Q6_K streams ~22% less weight traffic per step than
@@ -120,7 +120,7 @@ models:
     kind: web
     command: |
       /opt/sdcpp/bin/sd-server
-      --diffusion-model /opt/sdcpp/models/qwen-image-2.1-Q6_K.gguf
+      --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q6_K.gguf
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors

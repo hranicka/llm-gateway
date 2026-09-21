@@ -141,7 +141,7 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 | Component | File | Size |
 |---|---|---|
-| Diffusion model (GGUF Q6_K) | [`abenzerps/Qwen-Image-2.1-Uncensored-GGUF`](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF) — re-quant of the official base weights | 5.9 GB |
+| Diffusion model (GGUF Q6_K) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 6.0 GB |
 | Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~4.9 GB |
 | Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~2.5 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
@@ -149,7 +149,7 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 That leaves little headroom on 16 GB VRAM for activations and reference-image latents at high resolutions, so the bundled config runs sd-server with `--offload-to-cpu`: the weights stay in **system RAM (~14 GB of the 32 GB — far below the ~30 GB ceiling)** and stream to the GPU as needed. No OOM kills at 2048 px, with editing, or with many references. Q6_K (the default) streams ~22% less weight traffic per step than Q8_0. With Q6_K the weights also fit entirely in VRAM at ≤1024 px — dropping `--offload-to-cpu` is the max-speed option for small sizes.
 
-Other diffusion quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.6 GB, more RAM traffic under offload), or Q5_K_M/Q4_K_M/Q4_0 for lighter footprints. `DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF` switches back to the official re-quants (adds Q2_K 2.6 GB).
+Other diffusion quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB, more RAM traffic under offload), or down to Q5_0/Q4_0/Q2_K for even lighter footprints. `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
 ### Install & use
 
