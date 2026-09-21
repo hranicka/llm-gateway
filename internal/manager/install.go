@@ -164,6 +164,30 @@ func promptConfig(configPath string) bool {
 	return true
 }
 
+// alignConfigPerms makes the config readable by the service user while
+// staying closed to everyone else: 0600 owned by that user. The installer
+// writes the file as root — without the chown, the service (which runs as a
+// regular user) cannot read its own config.
+func alignConfigPerms(configPath, username string) {
+	if err := os.Chmod(configPath, 0600); err != nil {
+		slog.Warn("failed to set config mode", "error", err)
+	}
+	u, err := user.Lookup(username)
+	if err != nil {
+		slog.Warn("failed to look up service user", "user", username, "error", err)
+		return
+	}
+	uid, uerr := strconv.Atoi(u.Uid)
+	gid, gerr := strconv.Atoi(u.Gid)
+	if uerr != nil || gerr != nil {
+		slog.Warn("failed to resolve service user ids", "user", username)
+		return
+	}
+	if err := os.Chown(configPath, uid, gid); err != nil {
+		slog.Warn("failed to set config owner", "error", err)
+	}
+}
+
 func DoInstall() {
 	RequireRoot()
 
@@ -208,6 +232,7 @@ func DoInstall() {
 
 	serviceTemplate := promptServiceType()
 	username, homeDir := detectInstallUser()
+	alignConfigPerms(configPath, username)
 	fmt.Printf("Configuring service to run as user %q (home: %s)\n", username, homeDir)
 	fmt.Println("Installing systemd service to", serviceFile)
 	if err := os.WriteFile(serviceFile, buildServiceFile(serviceTemplate, username, homeDir), 0644); err != nil {
