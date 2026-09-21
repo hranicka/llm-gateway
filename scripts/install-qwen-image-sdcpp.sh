@@ -195,22 +195,48 @@ fetch_model() {
 	fi
 }
 
+# hf_resolve <repo> <grep -E pattern> <fallback> prints the exact filename of
+# the first file in the repo listing matching the pattern, so renames on
+# HuggingFace don't 404 the install. Falls back to the last verified name
+# when the API is unreachable or nothing matches.
+hf_resolve() {
+	local repo="$1" pattern="$2" fallback="$3" resolved=""
+	resolved="$(curl -fsSL "https://huggingface.co/api/models/${repo}" 2>/dev/null \
+		| grep -oE '"rfilename": *"[^"]+"' \
+		| cut -d'"' -f4 \
+		| grep -E "${pattern}" | head -n1 || true)"
+	echo "${resolved:-${fallback}}"
+}
+
 echo "[2/3] Downloading models to ${MODEL_DIR} (resumable)..."
-fetch_model \
-	"https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-${DIFFUSION_QUANT}.gguf" \
-	"${MODEL_DIR}/qwen_image_2.1-${DIFFUSION_QUANT}.gguf"
 
+DIFFUSION_NAME="$(hf_resolve 'leejet/Qwen-Image-2.1-GGUF' \
+	'qwen_image_2\.1-[^"]*'"${DIFFUSION_QUANT}"'\.gguf' \
+	"qwen_image_2.1-${DIFFUSION_QUANT}.gguf")"
 fetch_model \
-	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/Qwen3VL-8B-Instruct-Q4_K_M.gguf" \
-	"${MODEL_DIR}/Qwen3VL-8B-Instruct-Q4_K_M.gguf"
+	"https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/${DIFFUSION_NAME}" \
+	"${MODEL_DIR}/${DIFFUSION_NAME}"
 
+TE_NAME="$(hf_resolve 'Qwen/Qwen3-VL-8B-Instruct-GGUF' \
+	'Qwen3VL-8B-Instruct-Q4_K_M\.gguf' \
+	'Qwen3VL-8B-Instruct-Q4_K_M.gguf')"
 fetch_model \
-	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/Qwen3VL-8B-Instruct-mmproj-BF16.gguf" \
-	"${MODEL_DIR}/Qwen3VL-8B-Instruct-mmproj-BF16.gguf"
+	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/${TE_NAME}" \
+	"${MODEL_DIR}/${TE_NAME}"
 
+MMPROJ_NAME="$(hf_resolve 'Qwen/Qwen3-VL-8B-Instruct-GGUF' \
+	'mmproj-[^"]*F16\.gguf' \
+	'mmproj-Qwen3VL-8B-Instruct-F16.gguf')"
 fetch_model \
-	"https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors" \
-	"${MODEL_DIR}/qwen_image_2.1_vae_bf16.safetensors"
+	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/${MMPROJ_NAME}" \
+	"${MODEL_DIR}/${MMPROJ_NAME}"
+
+VAE_NAME="$(hf_resolve 'Comfy-Org/Qwen-Image-2.1' \
+	'vae/qwen_image_2\.1_vae_bf16\.safetensors' \
+	'vae/qwen_image_2.1_vae_bf16.safetensors')"
+fetch_model \
+	"https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/${VAE_NAME}" \
+	"${MODEL_DIR}/$(basename "${VAE_NAME}")"
 echo
 
 # ── 3. Done — print the gateway config snippet ────────────────────────────────
@@ -225,7 +251,7 @@ echo "    command: |"
 echo "      ${BIN_DIR}/sd-server"
 echo "      --diffusion-model ${MODEL_DIR}/qwen_image_2.1-${DIFFUSION_QUANT}.gguf"
 echo "      --llm ${MODEL_DIR}/Qwen3VL-8B-Instruct-Q4_K_M.gguf"
-echo "      --llm_vision ${MODEL_DIR}/Qwen3VL-8B-Instruct-mmproj-BF16.gguf"
+echo "      --llm_vision ${MODEL_DIR}/${MMPROJ_NAME}"
 echo "      --vae ${MODEL_DIR}/qwen_image_2.1_vae_bf16.safetensors"
 echo "      --diffusion-fa --cfg-scale 6.0 --offload-to-cpu"
 echo "      --listen-ip 127.0.0.1 --listen-port 1235"
