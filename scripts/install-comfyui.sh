@@ -80,16 +80,48 @@ fi
 
 # ── 2. ComfyUI + GGUF custom node ─────────────────────────────────────────────
 echo "[2/6] Fetching ComfyUI + leejet/ComfyUI-GGUF custom node..."
-if [ ! -d "${INSTALL_DIR}/ComfyUI/.git" ]; then
-	git clone --depth 1 "$COMFY_REPO" "${INSTALL_DIR}/ComfyUI"
+COMFY_DIR="${INSTALL_DIR}/ComfyUI"
+PATCH_FILE="${INSTALL_DIR}/patches/qwen21-nvfp4-conditioning.patch"
+PATCH_URL="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4/resolve/main/runtime/qwen21-nvfp4-conditioning.patch"
+
+# Native NVFP4 text conditioning: one-file ComfyUI patch (GPL-3.0, same as
+# ComfyUI). Detects NVFP4 checkpoints by metadata at runtime, falls back to
+# the original path on other checkpoints/GPUs, reversible via git apply -R.
+apply_nvfp4_patch() {
+	if [ ! -s "${PATCH_FILE}" ]; then
+		mkdir -p "$(dirname "${PATCH_FILE}")"
+		curl -fL --retry 3 -o "${PATCH_FILE}" "${PATCH_URL}"
+	fi
+	if git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
+		echo "  NVFP4 conditioning patch: already applied."
+	elif git -C "${COMFY_DIR}" apply --check "${PATCH_FILE}" 2>/dev/null; then
+		git -C "${COMFY_DIR}" apply "${PATCH_FILE}"
+		echo "  NVFP4 conditioning patch applied — native FP4 text encoding."
+	else
+		echo "  WARN: NVFP4 conditioning patch does not apply to this ComfyUI"
+		echo "        revision — skipping (encoding runs slower, generation works)."
+	fi
+}
+
+if [ ! -d "${COMFY_DIR}/.git" ]; then
+	git clone --depth 1 "$COMFY_REPO" "${COMFY_DIR}"
 else
-	git -C "${INSTALL_DIR}/ComfyUI" pull --ff-only
+	# Unapply the patch first so it can never block the update pull.
+	if [ -s "${PATCH_FILE}" ] && git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
+		git -C "${COMFY_DIR}" apply --reverse "${PATCH_FILE}"
+	fi
+	if ! git -C "${COMFY_DIR}" pull --ff-only; then
+		echo "  Pull failed — resetting ComfyUI to origin/master (script-managed tree)."
+		git -C "${COMFY_DIR}" fetch origin
+		git -C "${COMFY_DIR}" reset --hard origin/master
+	fi
 fi
-if [ ! -d "${INSTALL_DIR}/ComfyUI/custom_nodes/ComfyUI-GGUF/.git" ]; then
-	git clone --depth 1 "$GGUF_NODE_REPO" "${INSTALL_DIR}/ComfyUI/custom_nodes/ComfyUI-GGUF"
+if [ ! -d "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF/.git" ]; then
+	git clone --depth 1 "$GGUF_NODE_REPO" "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF"
 else
-	git -C "${INSTALL_DIR}/ComfyUI/custom_nodes/ComfyUI-GGUF" pull --ff-only
+	git -C "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF" pull --ff-only
 fi
+apply_nvfp4_patch
 
 # ── 3. Dependencies (CUDA torch for Blackwell via uv's torch backend) ────────
 echo "[3/6] Installing dependencies (CUDA torch, ~5 GB)..."
