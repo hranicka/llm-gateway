@@ -5,12 +5,13 @@ debug: true
 auth_token: ""
 # Host headers the gateway answers as: exact names (ports ignored), or CIDR
 # ranges that allow any address in the range as the Host — e.g. browsing via
-# any LAN IP. Empty list disables the check (not recommended).
+# any LAN IP. Keep the range(s) matching the home VLAN. Empty list disables
+# the check (not recommended).
 allowed_hosts:
   - localhost
   - 127.0.0.1
-  - gem12
   - 192.168.50.0/24
+  # - 192.168.0.0/24
 max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 5m
