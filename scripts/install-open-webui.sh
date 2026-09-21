@@ -51,7 +51,7 @@ echo " UI:     http://<host>:${PORT}"
 echo "======================================================"
 echo
 
-# ── 1. uv + Python ────────────────────────────────────────────────────────────
+# ── 1. uv ─────────────────────────────────────────────────────────────────────
 if ! command -v uv &>/dev/null; then
 	echo "[1/4] Installing uv..."
 	curl -LsSf https://astral.sh/uv/install.sh | sh -s --
@@ -60,13 +60,31 @@ if ! command -v uv &>/dev/null; then
 else
 	echo "[1/4] uv found: $(uv --version)"
 fi
+
+# ── 2. venv + package ─────────────────────────────────────────────────────────
+echo "[2/4] Installing Open WebUI into ${VENV_DIR}/venv (CPU torch, ~2 GB)..."
+mkdir -p "${VENV_DIR}/venv" "${VENV_DIR}/data" "${VENV_DIR}/python"
+# Keep the uv-managed interpreter INSIDE ${VENV_DIR}: uv otherwise installs it
+# under the invoking user's home (root, when run via sudo), and the service
+# runs as a normal user who cannot traverse /root — the venv's interpreter
+# symlink then breaks and systemd reports an opaque 203/EXEC loop.
+export UV_PYTHON_INSTALL_DIR="${VENV_DIR}/python"
 if ! uv python list 2>/dev/null | grep -q "$PYVER"; then
 	uv python install "$PYVER"
 fi
 
-# ── 2. venv + package ─────────────────────────────────────────────────────────
-echo "[2/4] Installing Open WebUI into ${VENV_DIR}/venv (CPU torch, ~2 GB)..."
-mkdir -p "${VENV_DIR}/venv" "${VENV_DIR}/data"
+# Repair path: an older run may have linked the venv into a home directory.
+VENV_PY="${VENV_DIR}/venv/bin/python3"
+if [ -L "$VENV_PY" ]; then
+	case "$(readlink -f "$VENV_PY")" in
+		"${VENV_DIR}"/*) ;;
+		*)
+			echo "  Existing venv links outside ${VENV_DIR} ($(readlink -f "$VENV_PY")) — recreating it."
+			rm -rf "${VENV_DIR:?}/venv"
+			;;
+	esac
+fi
+
 if [ ! -e "${VENV_DIR}/venv/bin/activate" ]; then
 	uv venv "${VENV_DIR}/venv" --python "$PYVER"
 fi
@@ -77,6 +95,15 @@ uv pip install -U open-webui --torch-backend=cpu
 
 [ -x "${VENV_DIR}/venv/bin/open-webui" ] || { echo "ERROR: open-webui not found in venv."; exit 1; }
 chown -R "$RUN_USER" "$VENV_DIR"
+
+# Prove the service user can actually run it — catches inaccessible
+# interpreters here instead of as an opaque systemd 203/EXEC restart loop.
+OWUI_VER="$(sudo -u "$RUN_USER" "${VENV_DIR}/venv/bin/open-webui" --help 2>&1)" || {
+	echo "$OWUI_VER"
+	echo "ERROR: ${RUN_USER} cannot execute ${VENV_DIR}/venv/bin/open-webui — check interpreter links and permissions."
+	exit 1
+}
+echo "  Verified: ${RUN_USER} can run the venv's open-webui."
 
 # ── 3. systemd service ────────────────────────────────────────────────────────
 echo "[3/4] Installing systemd service (runs as ${RUN_USER})..."
