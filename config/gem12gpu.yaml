@@ -3,12 +3,14 @@ debug: true
 # Bearer token for API clients; browsers use /app/<name>?token=<value> once.
 # Empty disables auth — trusted-LAN only (see README "Security").
 auth_token: ""
-# Host headers the gateway answers as; add the LAN hostname/IP you actually
-# browse to. Empty list disables the Host check (not recommended).
+# Host headers the gateway answers as: exact names (ports ignored), or CIDR
+# ranges that allow any address in the range as the Host — e.g. browsing via
+# any LAN IP. Empty list disables the check (not recommended).
 allowed_hosts:
   - localhost
   - 127.0.0.1
   - gem12
+  - 192.168.50.0/24
 max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 5m

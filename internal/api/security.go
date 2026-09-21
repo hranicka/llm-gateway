@@ -30,7 +30,7 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if !hostAllowed(r.Host) {
+		if !config.HostAllowed(r.Host) {
 			slog.Warn("request rejected — Host not allowed", "host", r.Host, "remote_addr", r.RemoteAddr)
 			http.Error(w, "Host not allowed", http.StatusForbidden)
 			return
@@ -51,22 +51,6 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// hostAllowed matches the request's Host header (port stripped, lowercased)
-// against the configured allowlist. An empty allowlist disables the check.
-func hostAllowed(hostHeader string) bool {
-	allowed := config.AllowedHosts()
-	if len(allowed) == 0 {
-		return true
-	}
-	host := strings.ToLower(config.NormalizeHost(hostHeader))
-	for _, a := range allowed {
-		if host == a {
-			return true
-		}
-	}
-	return false
 }
 
 // requestAuthorized checks the Authorization header first; a present but

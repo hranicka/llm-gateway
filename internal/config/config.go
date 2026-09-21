@@ -55,9 +55,15 @@ var ConfigApp *Config
 // sortedModelNames is the config.Models keys, sorted once after loadConfig.
 var SortedModelNames []string
 
-// normalizedAllowedHosts is allowed_hosts lowercased and stripped of ports,
-// set once after Load. Host-header matching compares against these.
-var normalizedAllowedHosts []string
+// hostRule is one allowed_hosts entry: either an exact hostname (port
+// stripped, lowercased) or a CIDR range matched against IP-literal hosts.
+type hostRule struct {
+	host string
+	net  *net.IPNet
+}
+
+// allowedHostRules is the parsed allowed_hosts, set once after Load.
+var allowedHostRules []hostRule
 
 // maxBodyBytes is the parsed max_body_size, set once after Load.
 var maxBodyBytes int64
@@ -79,10 +85,36 @@ func AuthToken() string {
 	return *ConfigApp.AuthToken
 }
 
-// AllowedHosts returns the normalized Host allowlist (lowercased, ports
-// stripped). Empty means the Host check is disabled.
-func AllowedHosts() []string {
-	return normalizedAllowedHosts
+// HostCheckEnabled reports whether the Host-header allowlist is active.
+func HostCheckEnabled() bool {
+	return len(allowedHostRules) > 0
+}
+
+// HostAllowed reports whether the request's Host header (port stripped,
+// lowercased) matches allowed_hosts: exact entries match by name, CIDR
+// entries ("192.168.50.0/24") match any IP-literal host in the range — so a
+// whole home VLAN can be allowed without enumerating addresses. An empty
+// list disables the check.
+func HostAllowed(hostHeader string) bool {
+	if len(allowedHostRules) == 0 {
+		return true
+	}
+	host, _, err := net.SplitHostPort(hostHeader)
+	if err != nil {
+		host = hostHeader
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	for _, rule := range allowedHostRules {
+		if rule.host != "" && host == rule.host {
+			return true
+		}
+		if rule.net != nil {
+			if ip := net.ParseIP(host); ip != nil && rule.net.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MaxBodyBytes returns the configured request-body limit.
@@ -180,12 +212,24 @@ func Load(filename string) error {
 		return fmt.Errorf("auth_token is required (a long random string; \"\" explicitly disables auth)")
 	}
 	if ConfigApp.AllowedHosts == nil {
-		return fmt.Errorf("allowed_hosts is required (Host headers to answer as, or [] to disable the check)")
+		return fmt.Errorf("allowed_hosts is required (Host headers or CIDR ranges to answer as, or [] to disable the check)")
 	}
-	normalizedAllowedHosts = make([]string, 0, len(ConfigApp.AllowedHosts))
+	allowedHostRules = nil
 	for _, h := range ConfigApp.AllowedHosts {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		if strings.Contains(h, "/") {
+			_, ipnet, err := net.ParseCIDR(h)
+			if err != nil {
+				return fmt.Errorf("allowed_hosts: invalid CIDR %q", h)
+			}
+			allowedHostRules = append(allowedHostRules, hostRule{net: ipnet})
+			continue
+		}
 		if host := strings.ToLower(NormalizeHost(h)); host != "" {
-			normalizedAllowedHosts = append(normalizedAllowedHosts, host)
+			allowedHostRules = append(allowedHostRules, hostRule{host: host})
 		}
 	}
 	if ConfigApp.MaxBodySize == "" {

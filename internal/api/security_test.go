@@ -26,6 +26,7 @@ auth_token: "` + testToken + `"
 allowed_hosts:
   - localhost:9999
   - gem12.lan
+  - 192.168.50.0/24
 max_body_size: 1KB
 auto_unload: 1h
 drain_timeout: 5s
@@ -94,13 +95,20 @@ func TestSecurityMiddleware_HostCheck(t *testing.T) {
 		t.Errorf("rebind-style Host status = %d, want 403", w.Code)
 	}
 
-	for _, host := range []string{"gem12.lan", "localhost:9999", "LOCALHOST:9999", "gem12.lan:1"} {
+	for _, host := range []string{"gem12.lan", "localhost:9999", "LOCALHOST:9999", "gem12.lan:1", "192.168.50.77:1234"} {
 		req.Host = host
 		w = httptest.NewRecorder()
 		securityHandler().ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
 			t.Errorf("allowed Host %q status = %d, want 200", host, w.Code)
 		}
+	}
+	// A VLAN IP outside the CIDR range stays rejected.
+	req.Host = "192.168.77.7:1234"
+	w = httptest.NewRecorder()
+	securityHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("out-of-range Host status = %d, want 403", w.Code)
 	}
 }
 

@@ -4,13 +4,15 @@ debug: true
 # exchange it once via /app/<name>?token=<auth_token>. Empty disables auth —
 # acceptable only on a trusted LAN; see README "Security".
 auth_token: ""
-# Host headers the gateway answers as (ports ignored when matching).
-# Requests with a different Host are rejected — this defeats DNS rebinding.
-# Add your LAN hostname/IP here, e.g. gem12.lan or 192.168.1.10. An empty
-# list disables the check (warns at startup).
+# Host headers the gateway answers as: exact names (ports ignored when
+# matching) or CIDR ranges that allow any address in the range as the Host —
+# e.g. 192.168.50.0/24 allows browsing via any IP in that home VLAN without
+# enumerating addresses. Requests with a different Host are rejected — this
+# defeats DNS rebinding. An empty list disables the check (warns at startup).
 allowed_hosts:
   - localhost
   - 127.0.0.1
+  # - 192.168.50.0/24
 # Request body limit (image-edit uploads carry base64 images).
 max_body_size: 64MB
 auto_unload: 2h

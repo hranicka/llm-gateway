@@ -55,7 +55,7 @@ func main() {
 			slog.Warn("auth is disabled while listening on a non-loopback address — " +
 				"anyone on the network can run models and open web apps")
 		}
-		if len(config.AllowedHosts()) == 0 {
+		if !config.HostCheckEnabled() {
 			slog.Warn("allowed_hosts is empty — the Host header is not validated, " +
 				"which leaves the gateway open to DNS-rebinding from web pages")
 		}

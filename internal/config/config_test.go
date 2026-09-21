@@ -23,6 +23,7 @@ auth_token: "secret-token"
 allowed_hosts:
   - localhost:1234
   - gem12.lan
+  - 192.168.50.0/24
 max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 30s
@@ -71,15 +72,24 @@ func TestLoad_SecurityFields(t *testing.T) {
 	if !AuthEnabled() || AuthToken() != "secret-token" {
 		t.Errorf("auth = %q, enabled = %v; want secret-token/enabled", AuthToken(), AuthEnabled())
 	}
-	// Hosts are lowercased and stripped of ports for matching.
-	wantHosts := []string{"localhost", "gem12.lan"}
-	gotHosts := AllowedHosts()
-	if len(gotHosts) != len(wantHosts) {
-		t.Fatalf("AllowedHosts = %v, want %v", gotHosts, wantHosts)
+	// Exact entries match names (ports stripped, case-insensitive); CIDR
+	// entries match any IP-literal host in the range.
+	for _, h := range []string{
+		"localhost", "localhost:9999", "LOCALHOST:1234",
+		"gem12.lan", "gem12.lan:1",
+		"192.168.50.37", "192.168.50.37:1234", // in-range IPs
+	} {
+		if !HostAllowed(h) {
+			t.Errorf("HostAllowed(%q) = false, want true", h)
+		}
 	}
-	for i := range wantHosts {
-		if gotHosts[i] != wantHosts[i] {
-			t.Errorf("AllowedHosts[%d] = %q, want %q", i, gotHosts[i], wantHosts[i])
+	for _, h := range []string{
+		"evil.example.com",
+		"192.168.51.1", "10.0.0.5:1234",
+		"",
+	} {
+		if HostAllowed(h) {
+			t.Errorf("HostAllowed(%q) = true, want false", h)
 		}
 	}
 	if MaxBodyBytes() != 64<<20 {
@@ -125,6 +135,13 @@ func TestLoad_Errors(t *testing.T) {
 				t.Error("Load returned nil error, want error")
 			}
 		})
+	}
+}
+
+func TestLoad_InvalidCIDR(t *testing.T) {
+	content := strings.Replace(validConfig, "192.168.50.0/24", "192.168.50.0/34", 1)
+	if err := Load(writeConfig(t, content)); err == nil {
+		t.Error("Load accepted an invalid CIDR in allowed_hosts, want error")
 	}
 }
 

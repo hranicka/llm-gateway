@@ -3,10 +3,12 @@ debug: true
 # Bearer token for API clients; browsers use /app/<name>?token=<value> once.
 # Empty disables auth — trusted-LAN only (see README "Security").
 auth_token: ""
+# Exact Host names or CIDR ranges (whole-VLAN, e.g. any LAN IP as the Host).
 allowed_hosts:
   - localhost
   - 127.0.0.1
   - gem12
+  - 192.168.50.0/24
 max_body_size: 64MB
 auto_unload: 2h
 drain_timeout: 5m

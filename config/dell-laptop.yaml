@@ -3,6 +3,7 @@ debug: true
 # Bearer token for API clients; browsers use /app/<name>?token=<value> once.
 # Empty disables auth — trusted-LAN only (see README "Security").
 auth_token: ""
+# Exact Host names or CIDR ranges (whole-VLAN, e.g. any LAN IP as the Host).
 allowed_hosts:
   - localhost
   - 127.0.0.1
