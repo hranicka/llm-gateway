@@ -98,6 +98,25 @@ FRONTEND_MARKER="${BIN_DIR}/.from-release"
 binary_has_ui() {
 	[ -f "$1" ] && ! grep -aqF 'Stable Diffusion Server is running' "$1"
 }
+# Replace the binary. A running sd-server holds its own executable (ETXTBSY,
+# "Text file busy") — and that instance is supervised by the gateway, which
+# reloads on the next request — so stop it and retry the copy.
+install_new_binary() {
+	local src="$1" dst="${BIN_DIR}/sd-server" i
+	if cp -f "${src}" "${dst}" 2>/dev/null; then
+		return 0
+	fi
+	echo "  sd-server is currently running (its executable is busy) — stopping it; the gateway reloads it on the next request."
+	pkill -f "^${dst}( |$)" 2>/dev/null || true
+	for i in $(seq 1 20); do
+		if cp -f "${src}" "${dst}" 2>/dev/null; then
+			return 0
+		fi
+		sleep 0.5
+	done
+	echo "ERROR: could not replace ${dst} — switch away from the image model (or restart the gateway) and re-run."
+	return 1
+}
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 ensure_frontend_toolchain() {
 	command -v node >/dev/null 2>&1 || return 1
@@ -135,7 +154,9 @@ else
 		curl -fL --retry 3 -o "$TMP_ZIP" "$ASSET_URL"
 		TMP_UNZIP=$(mktemp -d)
 		unzip -q -o "$TMP_ZIP" -d "$TMP_UNZIP"
-		find "$TMP_UNZIP" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
+		NEW_BIN="$(find "$TMP_UNZIP" -name 'sd-server' -type f | head -n1)"
+		[ -n "$NEW_BIN" ] || { echo "ERROR: sd-server not found in the release zip."; exit 1; }
+		install_new_binary "$NEW_BIN" || exit 1
 		rm -rf "$TMP_ZIP" "$TMP_UNZIP"
 		if binary_has_ui "${BIN_DIR}/sd-server"; then
 			touch "${FRONTEND_MARKER}"
@@ -223,7 +244,11 @@ else
 		cmake -B "${SRC_DIR}/build" -S "$SRC_DIR" "${CMAKE_ARGS[@]}" \
 			-DCMAKE_BUILD_TYPE=Release
 		cmake --build "${SRC_DIR}/build" --config Release -j"$(nproc)"
-		find "${SRC_DIR}/build" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
+		# NB: `find -exec cp` would silently swallow a failed cp (e.g. ETXTBSY
+		# when the old binary is running) — capture the path and copy loudly.
+		NEW_BIN="$(find "${SRC_DIR}/build" -name 'sd-server' -type f | head -n1)"
+		[ -n "$NEW_BIN" ] || { echo "ERROR: built sd-server binary not found."; exit 1; }
+		install_new_binary "$NEW_BIN" || exit 1
 		# Ground truth: the placeholder fallback string must NOT be in the
 		# binary. CMake only WARNS ("pnpm not found; frontend build disabled")
 		# and happily produces a UI-less binary otherwise.
