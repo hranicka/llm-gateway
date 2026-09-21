@@ -30,7 +30,7 @@ echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
 echo " Installs to ${INSTALL_DIR} (binary + ~14 GB of models)."
-echo " Weights ≈ 13.7 GB (Q${DIFFUSION_QUANT} DiT + Qwen3-VL-8B"
+echo " Weights ≈ 13.7 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B"
 echo " Q4_K_M + mmproj + VAE) → with --offload-to-cpu they live"
 echo " in RAM (~14 GB of 32 GB), so no OOM kills on 16 GB VRAM."
 echo "======================================================"
@@ -57,6 +57,35 @@ for dep in curl git cmake unzip; do
 	fi
 done
 
+# nvcc_version <path> prints e.g. "12.4"; ver_ge <a> <b> returns 0 when a >= b.
+nvcc_version() { "$1" --version 2>/dev/null | sed -n 's/.*release \([0-9.]*\).*/\1/p' | head -n1; }
+ver_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
+
+# scan_nvcc fills NVCC/NVCC_VER with the best nvcc >= 12.8 (sm_120 / Blackwell
+# requires CUDA 12.8+) and PTX_NVCC/PTX_VER with the best older one, which can
+# still produce an sm_89 SASS+PTX build that the Blackwell driver JITs.
+# Deliberately skips pip-layout nvcc copies (e.g. the vllm venv) — CMake's
+# toolkit detection cannot use them.
+scan_nvcc() {
+	local cands=() c v
+	command -v nvcc >/dev/null 2>&1 && cands+=("$(command -v nvcc)")
+	for c in /usr/local/cuda*/bin/nvcc; do
+		[ -x "$c" ] && cands+=("$c")
+	done
+	NVCC=""; NVCC_VER=""; PTX_NVCC=""; PTX_VER=""
+	for c in "${cands[@]}"; do
+		v="$(nvcc_version "$c")"
+		[ -z "$v" ] && continue
+		if ver_ge "$v" 12.8; then
+			if [ -z "$NVCC_VER" ] || ver_ge "$v" "$NVCC_VER"; then
+				NVCC="$c"; NVCC_VER="$v"
+			fi
+		elif [ -z "$PTX_VER" ] || ver_ge "$v" "$PTX_VER"; then
+			PTX_NVCC="$c"; PTX_VER="$v"
+		fi
+	done
+}
+
 mkdir -p "$BIN_DIR" "$MODEL_DIR"
 
 # ── 1. Get sd-server: prebuilt CUDA release, else build from source ───────────
@@ -68,7 +97,7 @@ else
 	ASSET_URL=$(echo "$API_JSON" \
 		| grep -oE '"browser_download_url": *"[^"]+"' \
 		| cut -d'"' -f4 \
-		| grep -i 'linux' | grep -i 'cuda' | grep -i 'x64' | head -1 || true)
+		| grep -i 'linux' | grep -i 'cuda' | head -n1 || true)
 
 	if [ -n "$ASSET_URL" ]; then
 		echo "  Downloading prebuilt CUDA release: $(basename "$ASSET_URL")"
@@ -80,31 +109,61 @@ else
 		rm -rf "$TMP_ZIP" "$TMP_UNZIP"
 	else
 		echo "  No prebuilt Linux CUDA asset found — building from source (~5-10 min)."
+		echo "  Linux assets in the release (for reference):"
+		echo "$API_JSON" | grep -oE '"browser_download_url": *"[^"]+"' \
+			| cut -d'"' -f4 | grep -i linux | head -n5 | sed 's/^/    /' || true
 		if [ ! -d "$SRC_DIR/.git" ]; then
 			git clone --recursive https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
 		else
 			git -C "$SRC_DIR" pull --ff-only && git -C "$SRC_DIR" submodule update --init --recursive
 		fi
-		# The build needs nvcc. Prefer PATH; fall back to the CUDA toolkit and
-		# to the nvcc shipped inside the vllm venv (install-vllm-globally.sh
-		# installs it there, off the default PATH).
-		NVCC="$(command -v nvcc || true)"
-		if [ -z "$NVCC" ]; then
-			for c in /usr/local/cuda/bin/nvcc \
-				/opt/vllm/venv/lib/python*/site-packages/nvidia/cuda_nvcc/bin/nvcc; do
-				if [ -x "$c" ]; then NVCC="$c"; break; fi
-			done
+
+		# sm_120 (Blackwell, e.g. RTX 5060 Ti) needs nvcc >= 12.8; distro
+		# toolchains are often older (Ubuntu 26.04 ships 12.0). Use the best
+		# available, bootstrap CUDA 13 from NVIDIA's apt repo if needed, and
+		# fall back to an sm_89 SASS+PTX build (the driver JITs it).
+		scan_nvcc
+
+		if [ -z "$NVCC" ] && command -v apt-get >/dev/null 2>&1; then
+			# shellcheck disable=SC1091
+			. /etc/os-release
+			if [ "${ID:-}" = "ubuntu" ] && [ -n "${VERSION_ID:-}" ]; then
+				DISTRO="${ID}${VERSION_ID//./}"   # e.g. ubuntu2604
+				echo "  No nvcc >= 12.8 found (required for sm_120) — installing CUDA 13 toolkit bits from NVIDIA's ${DISTRO} repo..."
+				KEYRING_URL="https://developer.download.nvidia.com/compute/cuda/repos/${DISTRO}/x86_64/cuda-keyring_1.1-1_all.deb"
+				if curl -fsSL -o /tmp/cuda-keyring.deb "$KEYRING_URL" \
+					&& dpkg -i /tmp/cuda-keyring.deb \
+					&& apt-get update -qq; then
+					apt-get install -y cuda-nvcc-13-0 cuda-cudart-dev-13-0 libcublas-dev-13-0 || true
+				else
+					echo "  WARN: NVIDIA CUDA repo unreachable for ${DISTRO} — falling back."
+				fi
+				scan_nvcc
+			fi
 		fi
-		# SD_CUDA / SD_CUBLAS cover old and new build option names; extras are
-		# harmless unused cache entries on whichever naming applies.
-		CMAKE_ARGS=(-DSD_CUDA=ON -DSD_CUBLAS=ON -DGGML_CUDA=ON \
-			-DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH}")
+
+		CMAKE_ARGS=(-DSD_CUDA=ON -DSD_CUBLAS=ON -DGGML_CUDA=ON)
 		if [ -n "$NVCC" ]; then
-			echo "  Using nvcc: ${NVCC}"
-			CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER="${NVCC}")
+			echo "  Using nvcc ${NVCC_VER} (${NVCC}) — native sm_${CUDA_ARCH} build."
+			CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER="${NVCC}" -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCH}")
+			export PATH="$(dirname "${NVCC}"):$PATH"
+		elif [ -n "$PTX_NVCC" ]; then
+			echo "  WARN: best nvcc is ${PTX_VER} (< 12.8) — building sm_89 SASS+PTX instead of native sm_${CUDA_ARCH}."
+			echo "        The Blackwell driver JIT-compiles the PTX on first run (works, slightly slower start)."
+			echo "        For a native build, install CUDA >= 12.8 (NVIDIA repo: cuda-nvcc-13-0) and re-run."
+			CMAKE_ARGS+=(-DCMAKE_CUDA_COMPILER="${PTX_NVCC}" -DCMAKE_CUDA_ARCHITECTURES="89")
+			export PATH="$(dirname "${PTX_NVCC}"):$PATH"
 		else
-			echo "  WARN: nvcc not found — cmake may fail; install cuda toolkit first."
+			echo "ERROR: no nvcc found on the system. Install CUDA toolkit >= 12.8 and re-run."
+			exit 1
 		fi
+
+		# SD_CUDA / SD_CUBLAS cover old and new build option names; extras are
+		# harmless unused cache entries on whichever naming applies. Wipe any
+		# stale build dir first — a failed configure (e.g. unsupported arch)
+		# poisons the CMake cache and would fail again even with a fixed
+		# toolchain.
+		rm -rf "${SRC_DIR}/build"
 		cmake -B "${SRC_DIR}/build" -S "$SRC_DIR" "${CMAKE_ARGS[@]}" \
 			-DCMAKE_BUILD_TYPE=Release
 		cmake --build "${SRC_DIR}/build" --config Release -j"$(nproc)"
