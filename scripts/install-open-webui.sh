@@ -174,3 +174,13 @@ echo " Logs:    journalctl -u open-webui -f"
 echo " Upgrade: sudo $(basename "$0")   (re-run)"
 echo " Remove:  sudo systemctl disable --now open-webui &&"
 echo "          sudo rm -f ${SERVICE_FILE} && sudo rm -rf ${VENV_DIR} && sudo systemctl daemon-reload"
+
+# Common gotcha: ufw active but the UI port closed — the browser just times
+# out while the service is perfectly healthy on the host.
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+	if ! ufw status 2>/dev/null | grep -qE "^${PORT}/tcp +ALLOW"; then
+		echo
+		echo " NOTE: ufw is active but port ${PORT} is not open — the UI will time out from other"
+		echo "       machines until you run:  sudo ufw allow ${PORT}/tcp"
+	fi
+fi
