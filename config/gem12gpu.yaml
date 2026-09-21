@@ -106,13 +106,12 @@ models:
   # Qwen-Image-2.1: 7B DiT, text-to-image + image editing (up to 10 refs).
   # Diffusion weights: leejet/Qwen-Image-2.1-GGUF (canonical re-quants by the
   # sd.cpp author). Q6_K 6.0 GB + Qwen3-VL-8B TE Q4_K_M 4.9 GB + mmproj
-  # ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB. Default mode is --offload-to-cpu: the
-  # weights stay in system RAM (~14 GB of 32 GB, far below the ~30 GB
-  # ceiling) and stream to the GPU — no OOM at 2048 px or with many
-  # references, and Q6_K streams ~22% less weight traffic per step than
-  # Q8_0. Max speed at ≤1024 px: drop --offload-to-cpu, the weights then
-  # fit entirely in VRAM. (Q8_0 via DIFFUSION_QUANT=Q8_0 in the installer
-  # for maximum quality at the cost of more RAM traffic.)
+  # ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB — everything stays resident in the
+  # 16 GB VRAM (that's the whole point of Q6_K: no PCIe streaming), so
+  # 40 steps @ 1024² runs in well under a minute. Defaults: 1024x1024,
+  # 40 steps (official quality recommendation). If 2048 px or many reference
+  # images ever OOM, re-add --offload-to-cpu (weights then stream from RAM:
+  # ~14 GB of 32 GB, but roughly 5x slower per step).
   # Browser: open http://<host>:1234/ and click the app below.
   # API:     POST /v1/images/generations  {"model": "qwen-image-2.1", ...}
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
@@ -124,7 +123,7 @@ models:
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --diffusion-fa --cfg-scale 6.0 --offload-to-cpu
+      --diffusion-fa --cfg-scale 6.0 --steps 40 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235
     host: 127.0.0.1:1235
     health_endpoint: /
