@@ -120,6 +120,18 @@ fi
 WEBUI_SECRET="$(cat "${SECRET_FILE}")"
 chmod 600 "${SECRET_FILE}"
 
+# Wait indefinitely for local models: the gateway may spend minutes loading
+# weights before the first token arrives. AIOHTTP_CLIENT_TIMEOUT=0 disables
+# the total request timeout (and future Open WebUI versions default it to
+# 300s), the stream idle cap is disabled so a slow-loading model can't kill
+# a pending stream, and the model-list probe gets a generous minute.
+HTTP_TIMEOUT_ENV=$(cat <<'EOF'
+Environment=AIOHTTP_CLIENT_TIMEOUT=0
+Environment=AIOHTTP_CLIENT_STREAM_IDLE_TIMEOUT=0
+Environment=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=60
+EOF
+)
+
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Open WebUI — ChatGPT-style front-end for llm-gateway
@@ -142,6 +154,7 @@ Environment=IMAGE_GENERATION_ENGINE=openai
 Environment=IMAGE_GENERATION_API_BASE_URL=${GATEWAY_API}
 Environment=IMAGE_GENERATION_API_KEY=sk-llm-gateway
 Environment=IMAGE_GENERATION_MODEL=${IMAGE_MODEL}
+${HTTP_TIMEOUT_ENV}
 ExecStart=${VENV_DIR}/venv/bin/open-webui serve --host 0.0.0.0 --port ${PORT}
 Restart=on-failure
 RestartSec=5

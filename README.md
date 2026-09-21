@@ -141,13 +141,13 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 | Component | File | Size |
 |---|---|---|
-| Diffusion model (GGUF Q6_K) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 6.0 GB |
+| Diffusion model (GGUF Q4_0) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 4.2 GB |
 | Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~4.9 GB |
 | Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~2.5 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
 | **Total** | | **~13.7 GB** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.7 GB — fits entirely in the 16 GB VRAM, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti. The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. If 2048×2048 or many reference images ever hit CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM (~14 GB of the 32 GB — far below the ~30 GB ceiling), roughly 5× slower per step but OOM-proof.
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 12 GB — fits entirely in the 16 GB VRAM with ~4 GB headroom, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti. The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. `DIFFUSION_QUANT=Q6_K` (6.0 GB) upgrades to the higher-fidelity quant if Q4_0 ever looks soft. If 2048×2048 or many reference images ever hit CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
 
 Other diffusion quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — with that, `--offload-to-cpu` becomes necessary), or down to Q5_0/Q4_0/Q2_K for even lighter footprints. `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
@@ -179,7 +179,7 @@ Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/ge
 [`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
 - **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `gemma-4-26b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
-- **Images**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) and send with a **regular chat model selected** — never pick `qwen-image-2.1` in the model picker; it is not a chat model (and since it's a web app, the gateway doesn't even list it). The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048).
+- **Images**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) and send with a **regular chat model selected** — never pick `qwen-image-2.1` in the model picker; it is not a chat model (and since it's a web app, the gateway doesn't even list it). The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
 - **Editing** (reference images) stays in sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1`.
 
 ```bash
