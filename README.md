@@ -187,15 +187,15 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 | Component | File | Size |
 |---|---|---|
-| Diffusion model (INT8 convrot) | [`Comfy-Org/Qwen-Image-2.1`](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/tree/main/diffusion_models) — sd.cpp's native accelerated format | 6.8 GB |
+| Diffusion model (GGUF Q4_0) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 4.2 GB |
 | Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~4.9 GB |
 | Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~2.5 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
 | **Total** | | **~13.7 GB** |
 
-The diffusion weights use **INT8 convrot safetensors** — sd.cpp's native accelerated format (INT8 weights + Hadamard rotation, executed directly on INT8 tensor cores without dequantization; near-lossless quality). The stack — diffusion + text encoder + VAE ≈ 12 GB — fits entirely in the 16 GB VRAM, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti. The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Image editing with reference images lives in ComfyUI (see below); to edit in sd-server instead, add `--llm_vision` with the mmproj file (+2.5 GB VRAM). If 2048×2048 ever hits CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 12 GB — fits entirely in the 16 GB VRAM with ~4 GB headroom, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB, sd.cpp's native INT8 tensor-core format) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it and drop `--llm_vision` to stay in VRAM. If 2048×2048 ever hits CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
 
-Lighter/faster GGUF alternatives: `DIFFUSION_QUANT=Q4_0` (4.2 GB — point `--diffusion-model` at `qwen_image_2.1-Q4_0.gguf`), plus Q8_0/Q5_0/Q2_K; `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
+Other GGUF quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — with that, `--offload-to-cpu` becomes necessary), or down to Q5_0/Q2_K for lighter footprints; `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
 ### Install & use
 
