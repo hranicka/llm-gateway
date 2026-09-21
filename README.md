@@ -116,7 +116,7 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 | [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
 | [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
 | [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/install-qwen-image-sdcpp.sh`](scripts/install-qwen-image-sdcpp.sh) |
-| [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | see example config |
+| [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) |
 
 **Choosing a backend:**
 
@@ -167,11 +167,19 @@ Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/ge
 
 > **Note:** Make sure the sd-server port differs from the gateway port (`--listen-port 1235` vs gateway `1234` in the bundled configs) — the loop protection applies to image backends too.
 
+### ComfyUI for advanced workflows (composition, masked 1:1 edits)
+
+[`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) installs ComfyUI as another gateway-managed web app (`comfyui`, port 8188, bound to loopback — no extra firewall rules). It reuses the Qwen-Image-2.1 models already downloaded for sd-server via symlinks (no extra disk for weights; the venv with CUDA torch adds ~5 GB), and the gateway starts/kills it exactly like sd-server, so the single VRAM slot stays automatic. In the UI, use *Workflow → Browse Templates* and search "qwen" for the official T2I/Edit templates — swap the model loader for **UnetLoader (GGUF)** to pick the Q4_0 file, set the CLIP loader to type `qwen_image` with the Qwen3VL GGUF, and select the linked VAE. Composition = the Edit template with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical.
+
+```bash
+sudo ./scripts/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
+```
+
 ### Caveats
 
 - One backend at a time: opening the image app kills the loaded chat model, and a coding-agent request kills the image app — even mid-generation (`drain_timeout` bounds the wait for in-flight requests; browser websockets do not block switches).
 - If the tab sits idle past `auto_unload`, sd-server is unloaded and the app needs a refresh (an open websocket counts as activity, so a live tab keeps it loaded).
-- ComfyUI is a drop-in alternative for graph workflows: install it with the [`leejet/ComfyUI-GGUF`](https://github.com/leejet/ComfyUI-GGUF) node plus the same GGUF/encoder/VAE files and use the commented `comfyui` entry in [`config/example.yaml`](config/example.yaml).
+- ComfyUI is a drop-in alternative for graph workflows: install it with [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) (uses the leejet/ComfyUI-GGUF node plus the same GGUF/encoder/VAE files).
 - Qwen-Image-2.1 weights are released under the Qwen Research License — non-commercial use only.
 
 ## ChatGPT-style UI: Open WebUI (chat + image generation)

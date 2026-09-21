@@ -19,6 +19,7 @@ compose.yml           — local development with Docker
 Makefile              — build, test, lint targets
 scripts/install-qwen-image-sdcpp.sh — sd-server + Qwen-Image-2.1 models installer
 scripts/install-open-webui.sh — Open WebUI front-end (own systemd service, gateway API client)
+scripts/install-comfyui.sh — ComfyUI graph-workflow app (gateway-managed kind: web, symlinked models)
 .github/workflows/ci.yml — CI: lint, vet, test, build
 .github/workflows/release.yml — release: lint, test, build, create GitHub release
 ```
