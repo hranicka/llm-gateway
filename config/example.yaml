@@ -35,7 +35,7 @@ models:
   #   kind: web
   #   command: |
   #     /opt/sdcpp/bin/sd-server
-  #     --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q8_0.gguf
+  #     --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q6_K.gguf
   #     --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
   #     --llm_vision /opt/sdcpp/models/Qwen3VL-8B-Instruct-mmproj-BF16.gguf
   #     --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors

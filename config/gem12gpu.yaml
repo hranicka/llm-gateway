@@ -104,13 +104,14 @@ models:
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
   # Qwen-Image-2.1: 7B DiT, text-to-image + image editing (up to 10 refs).
-  # Weights: Q8_0 diffusion 7.7 GB + Qwen3-VL-8B TE Q4_K_M 4.9 GB + mmproj
-  # ~2.5 GB + VAE 0.4 GB ≈ 15.5 GB — too tight for 16 GB VRAM once
-  # activations and reference-image latents join, so --offload-to-cpu keeps
-  # the weights in system RAM (~16 GB of 32 GB, far below the ~30 GB ceiling)
-  # and streams them to the GPU: no OOM at 2048 px or with many references.
-  # Max speed at small resolutions: drop --offload-to-cpu (then weights fit
-  # in VRAM entirely).
+  # Weights: Q6_K diffusion 6.0 GB + Qwen3-VL-8B TE Q4_K_M 4.9 GB + mmproj
+  # ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB. Default mode is --offload-to-cpu: the
+  # weights stay in system RAM (~14 GB of 32 GB, far below the ~30 GB
+  # ceiling) and stream to the GPU — no OOM at 2048 px or with many
+  # references, and Q6_K streams ~22% less weight traffic per step than
+  # Q8_0. Max speed at ≤1024 px: drop --offload-to-cpu, the weights then
+  # fit entirely in VRAM. (Q8_0 via DIFFUSION_QUANT=Q8_0 in the installer
+  # for maximum quality at the cost of more RAM traffic.)
   # Browser: open http://<host>:1234/ and click the app below.
   # API:     POST /v1/images/generations  {"model": "qwen-image-2.1", ...}
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
@@ -118,7 +119,7 @@ models:
     kind: web
     command: |
       /opt/sdcpp/bin/sd-server
-      --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q8_0.gguf
+      --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q6_K.gguf
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/Qwen3VL-8B-Instruct-mmproj-BF16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors

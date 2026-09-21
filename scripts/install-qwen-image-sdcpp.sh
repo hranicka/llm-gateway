@@ -8,8 +8,8 @@
 # gateway config — the gateway launches/kills sd-server like llama-server and
 # proxies its web UI at /app/qwen-image-2.1.
 #
-# Quant override: DIFFUSION_QUANT=Q6_K sudo -E ./scripts/install-qwen-image-sdcpp.sh
-# (Q2_K 2.6 GB, Q4_0 4.2 GB, Q5_0 5.1 GB, Q6_K 6.0 GB, Q8_0 7.7 GB)
+# Quant override: DIFFUSION_QUANT=Q8_0 sudo -E ./scripts/install-qwen-image-sdcpp.sh
+# (default Q6_K; also available: Q2_K 2.6 GB, Q4_0 4.2 GB, Q5_0 5.1 GB, Q8_0 7.7 GB)
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ BIN_DIR="${INSTALL_DIR}/bin"
 MODEL_DIR="${INSTALL_DIR}/models"
 SRC_DIR="${INSTALL_DIR}/src"
 CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
-DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q8_0}"
+DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K}"
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "ERROR: this script must be run as root."
@@ -29,10 +29,10 @@ fi
 echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
-echo " Installs to ${INSTALL_DIR} (binary + ~16 GB of models)."
-echo " Weights ≈ 15.5 GB (Q${DIFFUSION_QUANT} DiT + Qwen3-VL-8B"
+echo " Installs to ${INSTALL_DIR} (binary + ~14 GB of models)."
+echo " Weights ≈ 13.7 GB (Q${DIFFUSION_QUANT} DiT + Qwen3-VL-8B"
 echo " Q4_K_M + mmproj + VAE) → with --offload-to-cpu they live"
-echo " in RAM (~16 GB of 32 GB), so no OOM kills on 16 GB VRAM."
+echo " in RAM (~14 GB of 32 GB), so no OOM kills on 16 GB VRAM."
 echo "======================================================"
 echo
 
@@ -179,5 +179,6 @@ echo "  Web UI: http://<gateway-host>:1234/  → click 'qwen-image-2.1'"
 echo "  API:    POST /v1/images/generations  {\"model\": \"qwen-image-2.1\", \"prompt\": \"...\"}"
 echo
 echo "Editing and OOM protection are on by default: --llm_vision enables image"
-echo "editing, --offload-to-cpu keeps the ~15.5 GB of weights in RAM instead of"
-echo "the 16 GB VRAM. Speed over safety at ≤1024 px: drop --offload-to-cpu."
+echo "editing, --offload-to-cpu keeps the ~13.7 GB of weights in RAM instead of"
+echo "the 16 GB VRAM. Max speed at ≤1024 px: drop --offload-to-cpu — with Q6_K"
+echo "the weights then fit entirely in VRAM."
