@@ -172,6 +172,22 @@ Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/ge
 - ComfyUI is a drop-in alternative for graph workflows: install it with the [`leejet/ComfyUI-GGUF`](https://github.com/leejet/ComfyUI-GGUF) node plus the same GGUF/encoder/VAE files and use the commented `comfyui` entry in [`config/example.yaml`](config/example.yaml).
 - Qwen-Image-2.1 weights are released under the Qwen Research License — non-commercial use only.
 
+## ChatGPT-style UI: Open WebUI (chat + image generation)
+
+[`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
+
+- **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `gemma-4-26b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
+- **Images**: inside a chat, the image button (or `/image <prompt>`) generates through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048).
+- **Editing** (reference images) stays in sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1`.
+
+```bash
+sudo ./scripts/install-open-webui.sh          # OPEN_WEBUI_PORT=8081 to override the port
+```
+
+Open `http://<host>:8080`; the first account created becomes admin. Mixed chat-and-image conversations work, but remember there is still one backend slot: each switch between a chat model and sd-server reloads a model (~10–30 s). The same caveat applies as with any client — an incoming image request kills a loaded chat model mid-stream only after `drain_timeout`.
+
+Manage with `systemctl {status|restart|stop} open-webui`, logs via `journalctl -u open-webui -f`; re-run the installer to upgrade.
+
 #### Using Makefile (recommended)
 
 ```bash
