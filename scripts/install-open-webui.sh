@@ -107,6 +107,19 @@ echo "  Verified: ${RUN_USER} can run the venv's open-webui."
 
 # ── 3. systemd service ────────────────────────────────────────────────────────
 echo "[3/4] Installing systemd service (runs as ${RUN_USER})..."
+# WEBUI_SECRET_KEY is a hard requirement once auth is enabled; without it some
+# versions fall back to writing /.webui_secret_key and crash with
+# PermissionError when running as a non-root service user. Generate once and
+# persist across upgrades.
+SECRET_FILE="${VENV_DIR}/data/.webui_secret_key"
+if [ ! -s "${SECRET_FILE}" ]; then
+	umask 077
+	head -c 48 /dev/urandom | base64 | tr -d '\n' > "${SECRET_FILE}"
+	umask 022
+fi
+WEBUI_SECRET="$(cat "${SECRET_FILE}")"
+chmod 600 "${SECRET_FILE}"
+
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Open WebUI — ChatGPT-style front-end for llm-gateway
@@ -122,6 +135,7 @@ Environment=DATA_DIR=${VENV_DIR}/data
 Environment=HF_HOME=${RUN_HOME}/.cache/huggingface
 Environment=OPENAI_API_BASE_URL=${GATEWAY_API}
 Environment=OPENAI_API_KEY=sk-llm-gateway
+Environment=WEBUI_SECRET_KEY=${WEBUI_SECRET}
 Environment=ENABLE_OLLAMA_API=false
 Environment=ENABLE_IMAGE_GENERATION=true
 Environment=IMAGE_GENERATION_ENGINE=openai
