@@ -113,20 +113,22 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
-  # Qwen-Image-2.1: 7B DiT, text-to-image + image editing (up to 10 refs).
-  # Diffusion weights: leejet/Qwen-Image-2.1-GGUF, Q4_0 quant (canonical
-  # re-quants by the sd.cpp author). Q4_0 4.2 GB + Qwen3-VL-8B TE Q4_K_M
-  # 4.9 GB + mmproj ~2.5 GB + VAE 0.4 GB ≈ 12 GB — everything stays
-  # resident in the 16 GB VRAM (no PCIe streaming) with ~4 GB headroom for
-  # big resolutions and reference images, so 40 steps @ 1024² runs in well
+  # Qwen-Image-2.1: 7B DiT, text-to-image. Diffusion weights:
+  # qwen_image_2.1_int8_convrot.safetensors — sd.cpp's native accelerated
+  # format: INT8 weights + Hadamard rotation executed directly on INT8
+  # tensor cores (no dequantization), near-lossless quality. Stack: 6.8 GiB
+  # diffusion + Qwen3-VL-8B TE Q4_K_M 4.9 GB + VAE 0.4 GB ≈ 12 GiB resident
+  # in the 16 GB VRAM (no PCIe streaming), so 40 steps @ 1024² runs in well
   # under a minute. Defaults: 1024x1024, 40 steps, euler sampling.
   # Quality knobs: --cfg-scale is the guidance strength — the sd.cpp doc
   # value is 6.0; 1.0 (current) skips the guidance pass entirely, ~2x
   # faster but with weaker prompt adherence and small-text rendering.
-  # Q6_K (qwen_image_2.1-Q6_K.gguf, ~6 GB) is the higher-fidelity quant if
-  # Q4_0 ever looks soft. If the 12 GB stack ever OOMs, re-add
-  # --offload-to-cpu (weights then stream from RAM: ~12 GB of 32 GB, but
-  # roughly 5x slower per step).
+  # Lighter/faster alternative: GGUF Q4_0 (qwen_image_2.1-Q4_0.gguf).
+  # Image editing with reference images: use ComfyUI — its MaskEditor keeps
+  # untouched pixels 1:1. To edit here instead, add:
+  #   --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
+  # (+2.5 GB VRAM). If the stack ever OOMs, re-add --offload-to-cpu
+  # (weights then stream from RAM: ~12 GB of 32 GB, ~5x slower per step).
   # Browser: open http://<host>:1234/ and click the app below.
   # API:     POST /v1/images/generations  {"model": "qwen-image-2.1", ...}
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
@@ -134,9 +136,8 @@ models:
     kind: web
     command: |
       /opt/sdcpp/bin/sd-server
-      --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q4_0.gguf
+      --diffusion-model /opt/sdcpp/models/qwen_image_2.1_int8_convrot.safetensors
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
-      --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
       --diffusion-fa --cfg-scale 1.0 --sampling-method euler
       --steps 40 --width 1024 --height 1024

@@ -352,6 +352,14 @@ fetch_model \
 	"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
 	"${MODEL_DIR}/${DIFFUSION_NAME}"
 
+# INT8 convrot safetensors — sd.cpp's native accelerated format: INT8
+# weights + Hadamard rotation executed directly on INT8 tensor cores
+# (no dequantization at load time), near-lossless quality. Referenced by
+# the gateway config in place of the GGUF diffusion files.
+fetch_model \
+	"https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors" \
+	"${MODEL_DIR}/qwen_image_2.1_int8_convrot.safetensors"
+
 # Flag diffusion files left over from a previous repo/naming (e.g. after
 # switching leejet → abenzerps) so the user can reclaim the disk.
 for f in "${MODEL_DIR}"/qwen*image*2.1-*.gguf; do
