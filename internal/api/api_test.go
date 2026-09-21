@@ -360,10 +360,14 @@ func TestChatProxyHandler_RejectsWebModel(t *testing.T) {
 func TestRootHandler_AppLoadingAndErrorPages(t *testing.T) {
 	var mu2 sync.Mutex
 	sawPaths := map[string]bool{}
+	var sawOrigin string
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu2.Lock()
 		sawPaths[r.URL.Path] = true
+		if o := r.Header.Get("Origin"); o != "" {
+			sawOrigin = o
+		}
 		mu2.Unlock()
 		fmt.Fprintf(w, "APP-OK %s", r.URL.Path)
 	}))
@@ -412,6 +416,22 @@ func TestRootHandler_AppLoadingAndErrorPages(t *testing.T) {
 	body, _ = io.ReadAll(resp.Body)
 	if got := string(body); got != "APP-OK /" {
 		t.Errorf("after ready, proxied body = %q, want APP-OK /", got)
+	}
+
+	// 3. A browser-originated request (Origin = the gateway's own origin)
+	// must reach the backend with Origin rewritten to the backend's origin —
+	// ComfyUI's anti-rebinding middleware 403s Host/Origin mismatches.
+	originReq := httptest.NewRequest(http.MethodPost, "/prompt", strings.NewReader("{}"))
+	originReq.Header.Set("Origin", "http://192.168.50.103:1234")
+	originReq.AddCookie(&http.Cookie{Name: appCookieName, Value: "web-app"})
+	w := httptest.NewRecorder()
+	RootHandler(w, originReq)
+	mu2.Lock()
+	gotOrigin := sawOrigin
+	mu2.Unlock()
+	wantOrigin := "http://" + backend.Listener.Addr().String()
+	if gotOrigin != wantOrigin {
+		t.Errorf("backend saw Origin %q, want %q", gotOrigin, wantOrigin)
 	}
 
 	// 3. Break the backend, force a switch away and back → failure page.

@@ -374,6 +374,12 @@ func newProxy(backend string) (*httputil.ReverseProxy, error) {
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.SetURL(target)
 			req.Out.Header.Set(loopDetectHeader, "1")
+			// Some backends (e.g. ComfyUI's anti-rebinding middleware) reject
+			// requests whose Origin differs from the Host they see. The
+			// gateway is the serving origin, so present its own origin.
+			if req.Out.Header.Get("Origin") != "" {
+				req.Out.Header.Set("Origin", target.Scheme+"://"+target.Host)
+			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			if resp.StatusCode >= 400 {
