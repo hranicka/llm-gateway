@@ -123,7 +123,7 @@ models:
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --diffusion-fa --cfg-scale 6.0 --steps 40 --width 1024 --height 1024
+      --diffusion-fa --cfg-scale 1.0 --steps 40 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235
     host: 127.0.0.1:1235
     health_endpoint: /
