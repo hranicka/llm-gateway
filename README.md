@@ -169,11 +169,13 @@ Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/ge
 
 ### ComfyUI for advanced workflows (composition, masked 1:1 edits)
 
-[`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) installs ComfyUI as another gateway-managed web app (`comfyui`, port 8188, bound to loopback — no extra firewall rules). It reuses the Qwen-Image-2.1 models already downloaded for sd-server via symlinks (no extra disk for weights; the venv with CUDA torch adds ~5 GB), and the gateway starts/kills it exactly like sd-server, so the single VRAM slot stays automatic. In the UI, use *Workflow → Browse Templates* and search "qwen" for the official T2I/Edit templates — swap the model loader for **UnetLoader (GGUF)** to pick the Q4_0 file, set the CLIP loader to type `qwen_image` with the Qwen3VL GGUF, and select the linked VAE. Composition = the Edit template with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical.
+[`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) installs ComfyUI as another gateway-managed web app (`comfyui`, port 8188, bound to loopback — no extra firewall rules). It reuses the Qwen-Image-2.1 models already downloaded for sd-server via symlinks, and downloads the **[NVFP4 package](https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4)** — attention/MLP matrices in native Blackwell FP4 (sensitive layers BF16), loaded by core ComfyUI nodes and noticeably faster than GGUF on the RTX 5060 Ti. Four ready-made workflows (Text-to-Image, Image Editing, Transparent RGBA, 2K Typography) come preloaded in the UI's Workflows panel. The gateway starts/kills ComfyUI exactly like sd-server, so the single VRAM slot stays automatic.
 
 ```bash
 sudo ./scripts/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
 ```
+
+Composition = the Editing workflow with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical. GGUF remains available as the fallback loader ( leejet/ComfyUI-GGUF node + the symlinked Q4_0/Q6_K files).
 
 ### Caveats
 
