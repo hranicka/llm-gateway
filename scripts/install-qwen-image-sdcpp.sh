@@ -89,10 +89,15 @@ scan_nvcc() {
 mkdir -p "$BIN_DIR" "$MODEL_DIR"
 
 # The browser UI is compiled INTO the binary (-DSD_SERVER_BUILD_FRONTEND=ON,
-# needs Node >= 20 + pnpm >= 10 at build time). Without it the server works
-# but / answers with a plain "Stable Diffusion Server is running" text.
-# The marker file lets re-runs detect and rebuild such a frontend-less binary.
-FRONTEND_MARKER="${BIN_DIR}/.embedded-webui"
+# needs Node >= 20 + pnpm >= 10 at build time). The plain-text fallback
+# ("Stable Diffusion Server is running") is compiled in ONLY when the build
+# lacked the UI, so searching the binary for that string is the ground truth
+# for "UI embedded" — more reliable than marker files or generated headers.
+# The marker exists only to remember that a prebuilt release asset ships a UI.
+FRONTEND_MARKER="${BIN_DIR}/.from-release"
+binary_has_ui() {
+	[ -f "$1" ] && ! grep -aqF 'Stable Diffusion Server is running' "$1"
+}
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 ensure_frontend_toolchain() {
 	command -v node >/dev/null 2>&1 || return 1
@@ -109,11 +114,12 @@ ensure_frontend_toolchain() {
 }
 
 # ── 1. Get sd-server: prebuilt CUDA release, else build from source ───────────
-if [ -x "${BIN_DIR}/sd-server" ] && [ -f "${FRONTEND_MARKER}" ]; then
-	echo "[1/3] sd-server already installed at ${BIN_DIR}/sd-server — skipping."
+if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server"; then
+	echo "[1/3] sd-server already installed at ${BIN_DIR}/sd-server (web UI embedded) — skipping."
 else
 	if [ -x "${BIN_DIR}/sd-server" ]; then
-		echo "[1/3] sd-server exists but was built without the embedded web UI — rebuilding."
+		echo "[1/3] Existing sd-server has no embedded web UI — rebuilding."
+		rm -f "${FRONTEND_MARKER}"
 	else
 		echo "[1/3] Fetching sd-server..."
 	fi
@@ -131,7 +137,11 @@ else
 		unzip -q -o "$TMP_ZIP" -d "$TMP_UNZIP"
 		find "$TMP_UNZIP" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
 		rm -rf "$TMP_ZIP" "$TMP_UNZIP"
-		touch "${FRONTEND_MARKER}"   # official releases ship the embedded web UI
+		if binary_has_ui "${BIN_DIR}/sd-server"; then
+			touch "${FRONTEND_MARKER}"
+		else
+			echo "  WARN: prebuilt release asset lacks the web UI — / will show a placeholder."
+		fi
 	else
 		echo "  No prebuilt Linux CUDA asset found — building from source (~5-10 min)."
 		echo "  Linux assets in the release (for reference):"
@@ -214,21 +224,23 @@ else
 			-DCMAKE_BUILD_TYPE=Release
 		cmake --build "${SRC_DIR}/build" --config Release -j"$(nproc)"
 		find "${SRC_DIR}/build" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
-		# Ground truth for "UI embedded": the generated header from the
-		# frontend build. CMake only WARNS ("pnpm not found; frontend build
-		# disabled") and happily produces a UI-less binary otherwise.
-		if [ "$HAS_FRONTEND" = yes ] \
-			&& [ -f "${SRC_DIR}/examples/server/frontend/dist/gen_index_html.h" ]; then
+		# Ground truth: the placeholder fallback string must NOT be in the
+		# binary. CMake only WARNS ("pnpm not found; frontend build disabled")
+		# and happily produces a UI-less binary otherwise.
+		if binary_has_ui "${BIN_DIR}/sd-server"; then
 			touch "${FRONTEND_MARKER}"
-			echo "  Embedded web UI compiled in."
+			echo "  Embedded web UI verified in the binary."
 		else
 			rm -f "${FRONTEND_MARKER}"
-			echo "  WARN: this binary has NO embedded web UI — / will show a plain placeholder."
+			echo "  WARN: built binary has NO embedded web UI — / will show a plain placeholder."
 			if [ "$HAS_FRONTEND" != yes ]; then
 				echo "        Reason: Node.js >= 20 / pnpm unavailable during the build."
-			else
-				echo "        Reason: frontend build did not produce dist/gen_index_html.h —"
+			elif [ ! -f "${SRC_DIR}/examples/server/frontend/dist/gen_index_html.h" ]; then
+				echo "        Reason: frontend build produced no dist/gen_index_html.h —"
 				echo "                check the cmake output above for 'pnpm not found'."
+			else
+				echo "        Reason: header was generated but HAVE_INDEX_HTML did not reach the"
+				echo "                compile — search the cmake output above for 'HAVE_INDEX_HTML'."
 			fi
 		fi
 	fi
