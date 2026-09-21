@@ -93,15 +93,18 @@ mkdir -p "$BIN_DIR" "$MODEL_DIR"
 # but / answers with a plain "Stable Diffusion Server is running" text.
 # The marker file lets re-runs detect and rebuild such a frontend-less binary.
 FRONTEND_MARKER="${BIN_DIR}/.embedded-webui"
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 ensure_frontend_toolchain() {
 	command -v node >/dev/null 2>&1 || return 1
 	[ "$(node --version | sed -n 's/^v\([0-9]*\).*/\1/p')" -ge 20 ] || return 1
 	command -v pnpm >/dev/null 2>&1 && return 0
+	# Prefer a real pnpm binary over corepack shims: CMake must find pnpm at
+	# configure time, and a missing one only produces a soft warning plus a
+	# UI-less binary.
+	npm install -g pnpm@10 >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1 && return 0
 	if command -v corepack >/dev/null 2>&1; then
 		corepack enable >/dev/null 2>&1 && corepack prepare pnpm@10 --activate >/dev/null 2>&1 || true
 	fi
-	command -v pnpm >/dev/null 2>&1 && return 0
-	npm install -g pnpm@10 >/dev/null 2>&1 || return 1
 	command -v pnpm >/dev/null 2>&1
 }
 
@@ -211,9 +214,22 @@ else
 			-DCMAKE_BUILD_TYPE=Release
 		cmake --build "${SRC_DIR}/build" --config Release -j"$(nproc)"
 		find "${SRC_DIR}/build" -name 'sd-server' -type f -exec cp {} "${BIN_DIR}/sd-server" \;
-		if [ "$HAS_FRONTEND" = yes ]; then
+		# Ground truth for "UI embedded": the generated header from the
+		# frontend build. CMake only WARNS ("pnpm not found; frontend build
+		# disabled") and happily produces a UI-less binary otherwise.
+		if [ "$HAS_FRONTEND" = yes ] \
+			&& [ -f "${SRC_DIR}/examples/server/frontend/dist/gen_index_html.h" ]; then
 			touch "${FRONTEND_MARKER}"
 			echo "  Embedded web UI compiled in."
+		else
+			rm -f "${FRONTEND_MARKER}"
+			echo "  WARN: this binary has NO embedded web UI — / will show a plain placeholder."
+			if [ "$HAS_FRONTEND" != yes ]; then
+				echo "        Reason: Node.js >= 20 / pnpm unavailable during the build."
+			else
+				echo "        Reason: frontend build did not produce dist/gen_index_html.h —"
+				echo "                check the cmake output above for 'pnpm not found'."
+			fi
 		fi
 	fi
 	[ -x "${BIN_DIR}/sd-server" ] || { echo "ERROR: sd-server binary not found after install."; exit 1; }
