@@ -109,9 +109,13 @@ models:
   # ~2.5 GB + VAE 0.4 GB ≈ 13.7 GB — everything stays resident in the
   # 16 GB VRAM (that's the whole point of Q6_K: no PCIe streaming), so
   # 40 steps @ 1024² runs in well under a minute. Defaults: 1024x1024,
-  # 40 steps (official quality recommendation). If 2048 px or many reference
-  # images ever OOM, re-add --offload-to-cpu (weights then stream from RAM:
-  # ~14 GB of 32 GB, but roughly 5x slower per step).
+  # 40 steps, euler sampling. Quality knobs: --cfg-scale is the guidance
+  # strength — the sd.cpp doc value is 6.0; 1.0 (current) skips the
+  # guidance pass entirely, ~2x faster but with weaker prompt adherence
+  # and small-text rendering. A lighter quant (qwen_image_2.1-Q4_0.gguf,
+  # ~4.2 GB) cuts step time further while keeping guidance. If 2048 px or
+  # many reference images ever OOM, re-add --offload-to-cpu (weights then
+  # stream from RAM: ~14 GB of 32 GB, but roughly 5x slower per step).
   # Browser: open http://<host>:1234/ and click the app below.
   # API:     POST /v1/images/generations  {"model": "qwen-image-2.1", ...}
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
@@ -123,7 +127,8 @@ models:
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --diffusion-fa --cfg-scale 1.0 --steps 40 --width 1024 --height 1024
+      --diffusion-fa --cfg-scale 1.0 --sampling-method euler
+      --steps 40 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235
     host: 127.0.0.1:1235
     health_endpoint: /

@@ -147,7 +147,7 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
 | **Total** | | **~13.7 GB** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.7 GB — fits entirely in the 16 GB VRAM, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps** — the official quality recommendation) generation runs in well under a minute on the RTX 5060 Ti. If 2048×2048 or many reference images ever hit CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM (~14 GB of the 32 GB — far below the ~30 GB ceiling), roughly 5× slower per step but OOM-proof.
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.7 GB — fits entirely in the 16 GB VRAM, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti. The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. If 2048×2048 or many reference images ever hit CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM (~14 GB of the 32 GB — far below the ~30 GB ceiling), roughly 5× slower per step but OOM-proof.
 
 Other diffusion quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — with that, `--offload-to-cpu` becomes necessary), or down to Q5_0/Q4_0/Q2_K for even lighter footprints. `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
