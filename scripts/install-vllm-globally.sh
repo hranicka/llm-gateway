@@ -39,12 +39,24 @@ echo "NVIDIA driver: ${DRIVER}"
 echo "GPU:           ${GPU_NAME}"
 echo
 
-# ── 1. Install uv if missing ───────────────────────────────────────────────────
+# ── 1. Install uv if missing (pinned, checksum-verified — never curl|sh) ─────
+UV_VERSION="0.12.17"
+UV_SHA256="fa82fd8dde8e8eefdecada6aa0889666556cfceb690d06e0c3bca49eb3070a63" # uv-x86_64-unknown-linux-gnu.tar.gz
 if ! command -v uv &>/dev/null; then
-	echo "[1/5] Installing uv..."
-	curl -LsSf https://astral.sh/uv/install.sh | sh -s --
-	export UV_NO_MODIFY_PATH=1
-	export PATH="$HOME/.local/bin:$PATH"
+	echo "[1/5] Installing pinned uv ${UV_VERSION}..."
+	tmp="$(mktemp -d)"
+	if ! curl -fsSL --retry 3 -o "${tmp}/uv.tar.gz" \
+		"https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+		|| ! echo "${UV_SHA256}  ${tmp}/uv.tar.gz" | sha256sum -c --status -; then
+		echo "ERROR: uv download or checksum failed."
+		rm -rf "$tmp"
+		exit 1
+	fi
+	tar -xzf "${tmp}/uv.tar.gz" -C "$tmp"
+	install -m 0755 "${tmp}/uv-x86_64-unknown-linux-gnu/uv" "${tmp}/uv-x86_64-unknown-linux-gnu/uvx" /usr/local/bin
+	rm -rf "$tmp"
+else
+	echo "[1/5] uv found: $(uv --version)"
 fi
 
 # ── 2. Ensure Python ${PYVER} is available (managed by uv) ────────────────────

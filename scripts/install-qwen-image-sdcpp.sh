@@ -23,6 +23,15 @@ CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
 DIFFUSION_REPO="${DIFFUSION_REPO:-leejet/Qwen-Image-2.1-GGUF}"
 DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K}"
 
+# Pinned upstream release (supply chain): both the prebuilt download and the
+# source build use this revision. Set SDCPP_RELEASE=latest to track master,
+# or bump deliberately, e.g.:
+#   SDCPP_RELEASE=master-890-<sha> sudo -E ./scripts/install-qwen-image-sdcpp.sh
+SDCPP_RELEASE="${SDCPP_RELEASE:-master-889-c678dfe}"
+# Optional sha256 the downloaded release zip must match (published per asset
+# on the GitHub release page / API "digest" field).
+SDCPP_SHA256="${SDCPP_SHA256:-}"
+
 if [ "$(id -u)" -ne 0 ]; then
 	echo "ERROR: this script must be run as root."
 	echo "       Usage: sudo $(basename "$0")"
@@ -145,7 +154,12 @@ else
 	else
 		echo "[1/3] Fetching sd-server..."
 	fi
-	API_JSON=$(curl -sSf https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest)
+	if [ "$SDCPP_RELEASE" = "latest" ]; then
+		RELEASE_API="https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest"
+	else
+		RELEASE_API="https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/tags/${SDCPP_RELEASE}"
+	fi
+	API_JSON=$(curl -sSf "$RELEASE_API")
 	ASSET_URL=$(echo "$API_JSON" \
 		| grep -oE '"browser_download_url": *"[^"]+"' \
 		| cut -d'"' -f4 \
@@ -155,6 +169,14 @@ else
 		echo "  Downloading prebuilt CUDA release: $(basename "$ASSET_URL")"
 		TMP_ZIP=$(mktemp --suffix=.zip)
 		curl -fL --retry 3 -o "$TMP_ZIP" "$ASSET_URL"
+		if [ -n "$SDCPP_SHA256" ]; then
+			if ! echo "${SDCPP_SHA256}  ${TMP_ZIP}" | sha256sum -c --status -; then
+				echo "ERROR: release zip sha256 mismatch (expected ${SDCPP_SHA256})."
+				rm -f "$TMP_ZIP"
+				exit 1
+			fi
+			echo "  sha256 verified."
+		fi
 		TMP_UNZIP=$(mktemp -d)
 		unzip -q -o "$TMP_ZIP" -d "$TMP_UNZIP"
 		NEW_BIN="$(find "$TMP_UNZIP" -name 'sd-server' -type f | head -n1)"
@@ -172,9 +194,19 @@ else
 		echo "$API_JSON" | grep -oE '"browser_download_url": *"[^"]+"' \
 			| cut -d'"' -f4 | grep -i linux | head -n5 | sed 's/^/    /' || true
 		if [ ! -d "$SRC_DIR/.git" ]; then
-			git clone --recursive https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
-		else
+			git clone https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
+		fi
+		# Build exactly the pinned revision (the release tag embeds its
+		# commit, e.g. master-889-c678dfe). SDCPP_RELEASE=latest tracks master.
+		if [ "$SDCPP_RELEASE" = "latest" ]; then
 			git -C "$SRC_DIR" pull --ff-only && git -C "$SRC_DIR" submodule update --init --recursive
+		else
+			if ! git -C "$SRC_DIR" fetch --depth 1 origin "refs/tags/${SDCPP_RELEASE}" \
+				|| ! git -C "$SRC_DIR" checkout --detach FETCH_HEAD; then
+				echo "ERROR: cannot fetch pinned release ${SDCPP_RELEASE} — check the tag exists."
+				exit 1
+			fi
+			git -C "$SRC_DIR" submodule update --init --recursive
 		fi
 
 		# The embedded web UI needs Node >= 20 + pnpm >= 10; try to provision

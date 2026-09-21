@@ -21,4 +21,4 @@ docker-down:
 all: vet lint test build
 
 tools:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8

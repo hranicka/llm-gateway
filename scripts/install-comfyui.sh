@@ -9,16 +9,23 @@
 #
 # Reuses the Qwen-Image-2.1 models already downloaded by
 # install-qwen-image-sdcpp.sh via symlinks (no extra disk for weights).
-# Upgrade: re-run the script (git pull + dependency refresh).
+# Upgrade: bump COMFY_REF / GGUF_NODE_REF at the top, then re-run.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/comfyui"
 PYVER="3.12"
 COMFY_REPO="https://github.com/comfyanonymous/ComfyUI.git"
 GGUF_NODE_REPO="https://github.com/leejet/ComfyUI-GGUF.git"
 SDCPP_MODELS="/opt/sdcpp/models"
 PORT="${COMFYUI_PORT:-8188}"
+
+# Pinned upstream revisions: re-running the installer must not silently
+# deploy new upstream code. Bump deliberately, e.g.:
+#   COMFY_REF=<sha> GGUF_NODE_REF=<sha> sudo -E ./scripts/install-comfyui.sh
+COMFY_REF="${COMFY_REF:-b0f4b7b294ce482a2e071d9d762c133d38c7aa07}"
+GGUF_NODE_REF="${GGUF_NODE_REF:-edd981b10e107d3b8f58e16c498f2d08f631bc47}"
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "ERROR: this script must be run as root."
@@ -57,14 +64,29 @@ done
 mkdir -p "${INSTALL_DIR}/python"
 
 # ── 1. uv + Python (kept inside ${INSTALL_DIR} — see install-open-webui.sh) ──
-if ! command -v uv &>/dev/null; then
-	echo "[1/6] Installing uv..."
-	curl -LsSf https://astral.sh/uv/install.sh | sh -s --
-	export UV_NO_MODIFY_PATH=1
-	export PATH="$HOME/.local/bin:$PATH"
-else
-	echo "[1/5] uv found: $(uv --version)"
-fi
+# uv is pinned and checksum-verified (same constants as the other installers).
+UV_VERSION="0.12.17"
+UV_SHA256="fa82fd8dde8e8eefdecada6aa0889666556cfceb690d06e0c3bca49eb3070a63" # uv-x86_64-unknown-linux-gnu.tar.gz
+install_uv() {
+	if command -v uv &>/dev/null; then
+		echo "[1/5] uv found: $(uv --version)"
+		return 0
+	fi
+	echo "[1/6] Installing pinned uv ${UV_VERSION}..."
+	local tmp
+	tmp="$(mktemp -d)"
+	if ! curl -fsSL --retry 3 -o "${tmp}/uv.tar.gz" \
+		"https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+		|| ! echo "${UV_SHA256}  ${tmp}/uv.tar.gz" | sha256sum -c --status -; then
+		echo "ERROR: uv download or checksum failed."
+		rm -rf "$tmp"
+		exit 1
+	fi
+	tar -xzf "${tmp}/uv.tar.gz" -C "$tmp"
+	install -m 0755 "${tmp}/uv-x86_64-unknown-linux-gnu/uv" "${tmp}/uv-x86_64-unknown-linux-gnu/uvx" /usr/local/bin
+	rm -rf "$tmp"
+}
+install_uv
 export UV_PYTHON_INSTALL_DIR="${INSTALL_DIR}/python"
 if ! uv python list 2>/dev/null | grep -q "$PYVER"; then
 	uv python install "$PYVER"
@@ -83,6 +105,9 @@ echo "[2/6] Fetching ComfyUI + leejet/ComfyUI-GGUF custom node..."
 COMFY_DIR="${INSTALL_DIR}/ComfyUI"
 PATCH_FILE="${INSTALL_DIR}/patches/qwen21-nvfp4-conditioning.patch"
 PATCH_URL="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4/resolve/main/runtime/qwen21-nvfp4-conditioning.patch"
+# The patch is bundled in the repo (patches/) and reviewed there; the HF
+# URL is only a fallback for extracted release zips without the file.
+REPO_PATCH="${SCRIPT_DIR}/../patches/qwen21-nvfp4-conditioning.patch"
 
 # Native NVFP4 text conditioning: one-file ComfyUI patch (GPL-3.0, same as
 # ComfyUI). Detects NVFP4 checkpoints by metadata at runtime, falls back to
@@ -90,7 +115,12 @@ PATCH_URL="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4/resolve/main/
 apply_nvfp4_patch() {
 	if [ ! -s "${PATCH_FILE}" ]; then
 		mkdir -p "$(dirname "${PATCH_FILE}")"
-		curl -fL --retry 3 -o "${PATCH_FILE}" "${PATCH_URL}"
+		if [ -s "${REPO_PATCH}" ]; then
+			cp "${REPO_PATCH}" "${PATCH_FILE}"
+		else
+			echo "  Fetching patch from upstream (not bundled in this checkout)..."
+			curl -fL --retry 3 -o "${PATCH_FILE}" "${PATCH_URL}"
+		fi
 	fi
 	if git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
 		echo "  NVFP4 conditioning patch: already applied."
@@ -103,24 +133,28 @@ apply_nvfp4_patch() {
 	fi
 }
 
-if [ ! -d "${COMFY_DIR}/.git" ]; then
-	git clone --depth 1 "$COMFY_REPO" "${COMFY_DIR}"
-else
-	# Unapply the patch first so it can never block the update pull.
-	if [ -s "${PATCH_FILE}" ] && git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
-		git -C "${COMFY_DIR}" apply --reverse "${PATCH_FILE}"
+# checkout_ref fetches the pinned revision into an existing-or-new clone and
+# checks it out (detached). No silent drift to a moving branch head.
+checkout_ref() {
+	local repo="$1" dir="$2" ref="$3"
+	if [ ! -d "${dir}/.git" ]; then
+		git clone "$repo" "$dir"
 	fi
-	if ! git -C "${COMFY_DIR}" pull --ff-only; then
-		echo "  Pull failed — resetting ComfyUI to origin/master (script-managed tree)."
-		git -C "${COMFY_DIR}" fetch origin
-		git -C "${COMFY_DIR}" reset --hard origin/master
+	if ! git -C "$dir" fetch --depth 1 origin "$ref" 2>/dev/null \
+		|| ! git -C "$dir" checkout --detach FETCH_HEAD; then
+		echo "ERROR: cannot checkout ${ref} in ${dir}."
+		echo "       If the pinned revision was removed upstream, re-run with e.g. ${repo##*/} ref override."
+		exit 1
 	fi
+}
+
+# Unapply the patch first so it can never block the checkout.
+if [ -s "${PATCH_FILE}" ] && git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
+	git -C "${COMFY_DIR}" apply --reverse "${PATCH_FILE}"
 fi
-if [ ! -d "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF/.git" ]; then
-	git clone --depth 1 "$GGUF_NODE_REPO" "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF"
-else
-	git -C "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF" pull --ff-only
-fi
+checkout_ref "$COMFY_REPO" "${COMFY_DIR}" "$COMFY_REF"
+checkout_ref "$GGUF_NODE_REPO" "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF" "$GGUF_NODE_REF"
+echo "  ComfyUI at ${COMFY_REF:0:12}, GGUF node at ${GGUF_NODE_REF:0:12} (pin via COMFY_REF / GGUF_NODE_REF)."
 apply_nvfp4_patch
 
 # ── 3. Dependencies (CUDA torch for Blackwell via uv's torch backend) ────────
