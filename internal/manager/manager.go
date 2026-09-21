@@ -29,6 +29,12 @@ var (
 	currentModel   string
 	currentBackend string
 
+	// switchTarget/switchErr track the most recent load for status pages.
+	// switchTarget stays set with switchErr != nil after a failed load so
+	// clients can show the failure. Guarded by mu.
+	switchTarget string
+	switchErr    error
+
 	// lastAccess is the Unix nanosecond timestamp of the last successful
 	// SwitchModel call; 0 means no model is loaded.
 	lastAccess atomic.Int64
@@ -110,6 +116,56 @@ func CurrentModel() string {
 		return currentModel
 	}
 	return ""
+}
+
+// ModelState classifies a model for status pages: "ready" (loaded and
+// alive), "starting" (a load is in progress), "failed" (the most recent
+// load of this model failed) or "" (idle — nothing attempted or loaded).
+func ModelState(modelName string) string {
+	mu.RLock()
+	defer mu.RUnlock()
+	if currentModel == modelName && processAlive(activeCmd) {
+		return "ready"
+	}
+	if switchTarget == modelName {
+		if switchErr != nil {
+			return "failed"
+		}
+		return "starting"
+	}
+	return ""
+}
+
+// ModelSwitchError returns the error message of the most recent failed
+// load, or an empty string.
+func ModelSwitchError() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	if switchErr != nil {
+		return switchErr.Error()
+	}
+	return ""
+}
+
+// LoadModelAsync loads the model in the background unless it is already
+// loaded or being loaded. Callers poll ModelState for the outcome instead
+// of blocking.
+func LoadModelAsync(modelName string) {
+	if shutdownCtx != nil && shutdownCtx.Err() != nil {
+		return
+	}
+	mu.RLock()
+	inFlight := (currentModel == modelName && processAlive(activeCmd)) ||
+		(switchTarget == modelName && switchErr == nil)
+	mu.RUnlock()
+	if inFlight {
+		return
+	}
+	go func() {
+		if _, release, err := SwitchModel(modelName); err == nil {
+			release()
+		}
+	}()
 }
 
 // resetAutoUnload records activity and reschedules the auto-unload timer so
@@ -207,11 +263,20 @@ func SwitchModel(modelName string) (string, func(), error) {
 
 // startModelLocked shuts down any current model and starts modelName.
 // Caller must hold mu (write lock).
-func startModelLocked(modelName string) error {
+func startModelLocked(modelName string) (retErr error) {
 	cmdStr, backendURL, err := config.BuildCommand(modelName)
 	if err != nil {
 		return err
 	}
+	switchTarget = modelName
+	switchErr = nil
+	// Report the failure on the status page instead of leaving the load
+	// looking "in progress" forever.
+	defer func() {
+		if retErr != nil {
+			switchErr = retErr
+		}
+	}()
 
 	shutdownCurrentModelLocked()
 
@@ -259,6 +324,8 @@ func startModelLocked(modelName string) error {
 	}
 
 	slog.Info("model ready", "model", modelName, "url", backendURL)
+	switchTarget = ""
+	switchErr = nil
 	return nil
 }
 

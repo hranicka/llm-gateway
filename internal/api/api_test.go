@@ -353,6 +353,102 @@ func TestChatProxyHandler_RejectsWebModel(t *testing.T) {
 	assertOpenAICode(t, w, "model_not_api")
 }
 
+// TestRootHandler_AppLoadingAndErrorPages verifies the browser flow for a
+// not-yet-ready web app: a loading page while the backend starts (the load
+// must actually be kicked off in the background), the real UI once ready,
+// and an error page with the reason once a load failed.
+func TestRootHandler_AppLoadingAndErrorPages(t *testing.T) {
+	var mu2 sync.Mutex
+	sawPaths := map[string]bool{}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu2.Lock()
+		sawPaths[r.URL.Path] = true
+		mu2.Unlock()
+		fmt.Fprintf(w, "APP-OK %s", r.URL.Path)
+	}))
+	defer backend.Close()
+
+	setupWebConfig(t, "", backend.Listener.Addr().String())
+	defer manager.ShutdownCurrentModel()
+
+	htmlReq := func(path string) *http.Response {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Accept", "text/html")
+		req.AddCookie(&http.Cookie{Name: appCookieName, Value: "web-app"})
+		w := httptest.NewRecorder()
+		RootHandler(w, req)
+		return w.Result()
+	}
+
+	// 1. Not loaded yet → loading page (no proxying), but the load is kicked.
+	resp := htmlReq("/")
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("loading page status = %d, want 200", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "Loading <b>web-app</b>") {
+		t.Errorf("expected loading page, got:\n%s", body)
+	}
+	mu2.Lock()
+	proxied := sawPaths["/"]
+	mu2.Unlock()
+	if proxied {
+		t.Error("backend must not be hit while the loading page is shown")
+	}
+
+	// 2. The background load completes → same navigation now proxies.
+	deadline := time.Now().Add(10 * time.Second)
+	for manager.ModelState("web-app") != "ready" {
+		if time.Now().After(deadline) {
+			t.Fatalf("model never became ready, state = %q (err: %q)",
+				manager.ModelState("web-app"), manager.ModelSwitchError())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	resp = htmlReq("/")
+	defer resp.Body.Close()
+	body, _ = io.ReadAll(resp.Body)
+	if got := string(body); got != "APP-OK /" {
+		t.Errorf("after ready, proxied body = %q, want APP-OK /", got)
+	}
+
+	// 3. Break the backend, force a switch away and back → failure page.
+	backend.Close()
+	if _, release, err := manager.SwitchModel("web-app"); err == nil {
+		release()
+		manager.ShutdownCurrentModel()
+	}
+	// web-app is dead now; the next navigation kicks a load that fails fast
+	// (connection refused), and afterwards the error page is shown.
+	deadline = time.Now().Add(15 * time.Second)
+	for {
+		resp := htmlReq("/")
+		resp.Body.Close()
+		state := manager.ModelState("web-app")
+		if state == "failed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("model never reached failed state, state = %q", state)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	resp = htmlReq("/")
+	defer resp.Body.Close()
+	body, _ = io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Failed to load web-app") {
+		t.Errorf("expected failed page, got status %d body:\n%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), manager.ModelSwitchError()) {
+		t.Errorf("failed page missing the switch error reason, body:\n%s", body)
+	}
+	if !strings.Contains(string(body), `href="/?retry=1"`) {
+		t.Errorf("failed page missing retry link:\n%s", body)
+	}
+}
+
 // TestRootHandler_AppCookieProxiesEverything verifies that a browser with a
 // valid app cookie is proxied in full to the web backend — including /v1/*
 // paths the app UI itself may call (e.g. sd-server's /v1/images/generations).

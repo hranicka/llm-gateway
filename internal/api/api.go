@@ -185,8 +185,20 @@ func isWebSocketRequest(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(r.Header.Get("Upgrade")), "websocket")
 }
 
+// isBrowserNavigation reports whether the request is a regular page visit
+// (as opposed to an API call, asset fetch or websocket upgrade). Those get
+// a loading/status page instead of a hanging request.
+func isBrowserNavigation(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		!isWebSocketRequest(r) &&
+		strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
 // proxyWebApp switches to the web-app backend and reverse-proxies the
-// request in full. Websocket connections are kept alive against the
+// request in full. Browser navigations are answered with a self-refreshing
+// loading page while the backend loads in the background (and with an error
+// page plus retry link if the load fails); every other request blocks on
+// SwitchModel as usual. Websocket connections are kept alive against the
 // auto-unload timer for as long as the browser holds them open, but they
 // never block model switches (no active-request slot is held).
 func proxyWebApp(w http.ResponseWriter, r *http.Request, name string) {
@@ -196,6 +208,19 @@ func proxyWebApp(w http.ResponseWriter, r *http.Request, name string) {
 		http.Error(w, "Proxy loop detected: the gateway is forwarding requests to itself. "+
 			"Ensure model backend ports differ from the gateway port.", http.StatusBadGateway)
 		return
+	}
+
+	if isBrowserNavigation(r) {
+		state := manager.ModelState(name)
+		failed := state == "failed" && r.URL.Query().Get("retry") != "1"
+		if !failed && state != "ready" && state != "starting" {
+			manager.LoadModelAsync(name)
+		}
+		if state != "ready" {
+			writeAppStatusPage(w, name, failed)
+			return
+		}
+		// Ready — fall through to the normal (fast-path) proxy below.
 	}
 
 	backend, release, err := manager.SwitchModel(name)
@@ -422,6 +447,58 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := io.WriteString(w, b.String()); err != nil {
 		slog.Debug("failed to write index page", "error", err)
+	}
+}
+
+// appStatusCSS extends the index styles with the spinner and error colors.
+const appStatusCSS = indexPageCSS + `
+  .spinner { width: 28px; height: 28px; border: 3px solid #2a3140; border-top-color: #7aa2f7; border-radius: 50%; margin: 1.5rem 0; animation: appspin 1s linear infinite; }
+  @keyframes appspin { to { transform: rotate(360deg); } }
+  .error { color: #e06c75; }
+`
+
+// writeAppStatusPage answers a browser navigation to a not-yet-ready web
+// app: a self-refreshing loading page while the backend starts, or an
+// error page with a retry link when the last load failed. API clients are
+// never routed here — they block on the load instead.
+func writeAppStatusPage(w http.ResponseWriter, name string, failed bool) {
+	esc := html.EscapeString(name)
+
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
+	b.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
+	if !failed {
+		b.WriteString("<meta http-equiv=\"refresh\" content=\"3\">\n")
+	}
+	title := "Loading " + esc
+	if failed {
+		title = "Failed to load " + esc
+	}
+	b.WriteString("<title>" + title + "</title>\n")
+	b.WriteString("<style>" + appStatusCSS + "</style>\n</head>\n<body>\n<main>\n")
+	b.WriteString("<h1>LLM Gateway</h1>\n")
+
+	if failed {
+		fmt.Fprintf(&b, "<p class=\"error\"><b>Failed to load %s.</b></p>\n", esc)
+		if msg := manager.ModelSwitchError(); msg != "" {
+			fmt.Fprintf(&b, "<p class=\"error\">%s</p>\n", html.EscapeString(msg))
+		}
+		b.WriteString("<p><a href=\"/?retry=1\">Try again</a> &middot; <a href=\"/app/\">back to overview</a></p>\n")
+		b.WriteString("<p class=\"hint\">Check the gateway logs (journalctl -u llm-gateway) for the backend's own error output.</p>\n")
+	} else {
+		b.WriteString("<div class=\"spinner\"></div>\n")
+		fmt.Fprintf(&b, "<p>Loading <b>%s</b> &mdash; this page refreshes automatically; the first start can take a while while the model weights are loaded.</p>\n", esc)
+		b.WriteString("<p class=\"hint\"><a href=\"/app/\">back to overview</a></p>\n")
+	}
+
+	b.WriteString("</main>\n</body>\n</html>\n")
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if failed {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+	if _, err := io.WriteString(w, b.String()); err != nil {
+		slog.Debug("failed to write app status page", "error", err)
 	}
 }
 
