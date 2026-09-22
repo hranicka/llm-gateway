@@ -85,7 +85,7 @@ providers:
       - id: qwen-3.8-27b-uncensored
         name: Qwen 3.8 27B Uncensored
         reasoning: true
-        contextWindow: 122880
+        contextWindow: 98304
         # Room for thinking (budget-capped) plus large file writes.
         maxTokens: 32768
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s

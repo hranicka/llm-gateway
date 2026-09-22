@@ -163,7 +163,7 @@
           "attachment": false,
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
-            "context": 122880,
+            "context": 98304,
             "output": 16384
           },
           "options": {
