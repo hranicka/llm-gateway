@@ -57,7 +57,7 @@ providers:
             # from rambling and xhigh from dominating the single slot.
             reasoning_budget_tokens: 7500
       - id: qwen-3.8-27b-instruct
-        name: Qwen 3.8 27B instruct
+        name: Qwen 3.8 27B Instruct
         contextWindow: 122880
         maxTokens: 16384
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
@@ -82,3 +82,39 @@ providers:
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
+      - id: qwen-3.8-27b-uncensored
+        name: Qwen 3.8 27B Uncensored
+        reasoning: true
+        contextWindow: 122880
+        # Room for thinking (budget-capped) plus large file writes.
+        maxTokens: 32768
+        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
+        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
+        input: [text]
+        # Cold-cache prefill of ~100K tokens can run 10+ min on the eGPU.
+        timeout: 1800
+        thinking:
+          mode: effort
+          # Qwen3.8 template accepts reasoning_effort low/medium/xhigh only
+          # (high is aliased to xhigh); "minimal" would abort the template.
+          efforts: [low, medium, xhigh]
+          # Resolves the "auto" level; matches the gateway startup default.
+          defaultLevel: medium
+          # Allow full "off" (thinking disabled) in the level cycle.
+          requiresEffort: false
+        compat:
+          # Effort travels as chat_template_kwargs.reasoning_effort, which
+          # llama-server merges over its startup --chat-template-kwargs.
+          qwenTemplateReasoningEffort: true
+          # Thinking off goes into the same dict (enable_thinking: false);
+          # a top-level enable_thinking is ignored by llama-server.
+          reasoningDisableMode: qwen-template-false
+          supportsReasoningEffort: true
+          supportsReasoningParams: true
+          thinkingFormat: qwen
+          extraBody:
+            # Hard cap on thinking tokens per reply (llama-server's native
+            # field; vLLM calls it thinking_token_budget). Keeps effort low
+            # from rambling and xhigh from dominating the single slot.
+            reasoning_budget_tokens: 7500

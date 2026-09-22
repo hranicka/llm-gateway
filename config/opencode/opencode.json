@@ -150,12 +150,30 @@
           }
         },
         "qwen-3.8-27b-instruct": {
-          "name": "Qwen 3.8 27B instruct",
+          "name": "Qwen 3.8 27B Instruct",
           "attachment": false,
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
             "context": 122880,
             "output": 16384
+          }
+        },
+        "qwen-3.8-27b-uncensored": {
+          "name": "Qwen 3.8 27B Uncensored",
+          "attachment": false,
+          "modalities": {"input": ["text"], "output": ["text"]},
+          "limit": {
+            "context": 122880,
+            "output": 16384
+          },
+          "options": {
+            "chat_template_kwargs": {"reasoning_effort": "medium"}
+          },
+          "variants": {
+            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
+            "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
+            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
+            "none": {"chat_template_kwargs": {"enable_thinking": false}}
           }
         },
         "gemma-4-26b": {
