@@ -1,8 +1,6 @@
 modelRoles:
-  # Every role rides the single-slot qwen-3.8-27b and varies only the
-  # reasoning effort (doug.sh "tuning a local coding agent" setup). Picking
-  # a different model would kill and reload llama-server (~2.5 min), so
-  # roles never change the model — only the level.
+  # Every role rides the single-slot qwen-3.8-27b; only the reasoning effort
+  # varies (a model switch would reload llama-server, ~2.5 min).
   default: network-gem12/qwen-3.8-27b:medium
   plan: network-gem12/qwen-3.8-27b:xhigh
   slow: network-gem12/qwen-3.8-27b:xhigh
@@ -15,23 +13,18 @@ modelRoles:
   vision: network-gem12/qwen-3.8-27b:low
 
 providers:
-  # Serialize ALL llm-gateway traffic (main agent, task subagents, advisor,
-  # background jobs, retries): providers.maxInFlightRequests is omp's
-  # documented per-provider limit, shared across local omp processes, lease
-  # held until each streamed response finishes. gem12 serves llama-server
-  # with --parallel 1 (single slot), so anything concurrent re-prefills.
+  # Serialize all llm-gateway traffic: per-provider limit, shared across omp
+  # processes, held until the streamed response finishes — one llama-server
+  # slot (--parallel 1), concurrency would re-prefill.
   maxInFlightRequests:
     network-gem12: 1
-  # Cold 100K prefill takes ~3 min on the eGPU (~450 tok/s at depth);
-  # allow 15 min for the first token and between stream pauses before
-  # giving up (CPU image encoding, model reloads). Abandoned requests
-  # keep the single slot busy server-side, so never give up early.
+  # Cold 100K prefill ~3 min; 15 min timeout for the first token and stream
+  # pauses (never give up early: abandoned requests keep the slot busy).
   streamFirstEventTimeoutSeconds: 900
   streamIdleTimeoutSeconds: 900
 
 async:
-  # A task call blocks the main agent until its delegated work is complete.
-  # This prevents the main agent and a task agent from running concurrently.
+  # A task call blocks the main agent (one llama-server slot, no concurrency).
   enabled: false
 
 task:
@@ -42,20 +35,17 @@ task:
 defaultThinkingLevel: medium
 
 tools:
-  # Spill big tool output to a file and inline only head+tail: every inline
-  # token is re-prefilled on every turn against the slow eGPU.
+  # Spill big tool output: every inline token is re-prefilled every turn.
   artifactSpillThreshold: 10
   artifactHeadBytes: 10
   artifactTailBytes: 10
 
 compaction:
-  # Summarize only near the window — compaction throws away the warm KV
-  # prefix and forces a full re-prefill. A percentage follows each model's
-  # contextWindow (fixed thresholdTokens would win over it): ~100K on the
-  # 122880 qwen-3.8-27b, ~80K on the 96K uncensored, ~215K on Ornith 256K.
+  # Summarize only near the window — compaction loses the warm KV prefix.
+  # A percentage follows each model's contextWindow: ~107K qwen-3.8-27b,
+  # ~80K uncensored, ~215K Ornith.
   thresholdPercent: 82
 
 provider:
-  # llama-server caches the prompt prefix in KV; append-only conversations
-  # reuse it, so late compaction + no history rewrites keep turns fast.
+  # llama-server caches the KV prefix; append-only keeps turns fast.
   appendOnlyContext: "on"

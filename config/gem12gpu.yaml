@@ -65,21 +65,16 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Benchmarked on gem12 (CUDA, q4_0/q4_0 KV): prefill ~935 tok/s shallow,
-  # ~690 @ 32K, ~450 @ 98K deep — a cold 100K prompt takes ~3 min. ubatch
-  # barely matters (1024 is only +1-5% over 256), so 512 keeps VRAM headroom.
-  # q4_0 K frees ~1 GiB vs q8_0 (only 16 of 64 layers hold KV). Vision
-  # encoder (mmproj) stays in RAM/CPU: no VRAM cost, 120K context kept.
-  # An image is encoded once on the CPU; afterwards it is just <= 1024
-  # context tokens, prefilled/cached like text (decode speed unaffected).
-  # --cache-ram: single-slot prompt states (main agent vs task subagent)
-  # are parked in RAM and restored instead of re-prefilled.
+  # unsloth UD-IQ3_S (12.0 GB, MTP head embedded). Only 16 of 64 layers are
+  # full-attention (20 KiB/token KV at q4_0): 128K costs ~2.5 GiB, fits with
+  # ~1 GiB headroom. mmproj in RAM; --cache-ram parks single-slot prompt
+  # states in RAM; ubatch 512 (larger barely helps prefill).
   qwen-3.8-27b:
     command: |
       llama-server
       -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 122880 --cont-batching
+      --ctx-size 131072 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
       --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --jinja --tools all
       --batch-size 2048 --ubatch-size 512
@@ -96,7 +91,7 @@ models:
       llama-server
       -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 122880 --cont-batching
+      --ctx-size 131072 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
       --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --jinja --tools all
       --batch-size 2048 --ubatch-size 512

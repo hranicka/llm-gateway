@@ -8,62 +8,51 @@ providers:
         name: Ornith 1.5 35B A3B
         contextWindow: 262144
         maxTokens: 16384
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
       - id: qwen-3.6-35b
         name: Qwen 3.6 35B
         contextWindow: 131072
         maxTokens: 16384
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
       - id: qwen-3.8-27b
         name: Qwen 3.8 27B
         reasoning: true
-        contextWindow: 122880
+        contextWindow: 131072
         # Room for thinking (budget-capped) plus large file writes.
         maxTokens: 32768
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).
         input: [text, image]
-        # Cold-cache prefill of ~100K tokens takes ~3 min on the eGPU
-        # (benchmarked); headroom for image encoding on the CPU.
+        # Cold 100K prefill ~3 min (benchmarked); headroom for CPU image encoding.
         timeout: 1800
         thinking:
           mode: effort
-          # Qwen3.8 template accepts reasoning_effort low/medium/xhigh only
-          # (high is aliased to xhigh); "minimal" would abort the template.
+          # Template accepts low/medium/xhigh only ("minimal" aborts).
           efforts: [low, medium, xhigh]
-          # Resolves the "auto" level; matches the gateway startup default.
+          # "auto" → medium (gateway startup default); "off" allowed.
           defaultLevel: medium
-          # Allow full "off" (thinking disabled) in the level cycle.
           requiresEffort: false
         compat:
-          # Effort travels as chat_template_kwargs.reasoning_effort, which
-          # llama-server merges over its startup --chat-template-kwargs.
+          # Effort rides chat_template_kwargs.reasoning_effort, merged over
+          # the startup default; enable_thinking: false = thinking off.
           qwenTemplateReasoningEffort: true
-          # Thinking off goes into the same dict (enable_thinking: false);
-          # a top-level enable_thinking is ignored by llama-server.
           reasoningDisableMode: qwen-template-false
           supportsReasoningEffort: true
           supportsReasoningParams: true
           thinkingFormat: qwen
           extraBody:
-            # Hard cap on thinking tokens per reply (llama-server's native
-            # field; vLLM calls it thinking_token_budget). Keeps effort low
-            # from rambling and xhigh from dominating the single slot.
+            # Cap thinking tokens per reply (llama-server's native field).
             reasoning_budget_tokens: 7500
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B Instruct
-        contextWindow: 122880
+        contextWindow: 131072
         maxTokens: 16384
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).
         input: [text, image]
@@ -73,16 +62,14 @@ providers:
         name: Gemma 4 26B
         contextWindow: 131072
         maxTokens: 16384
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 262144
         maxTokens: 16384
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text, image]
       - id: qwen-3.8-27b-uncensored
@@ -91,34 +78,27 @@ providers:
         contextWindow: 98304
         # Room for thinking (budget-capped) plus large file writes.
         maxTokens: 32768
-        # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
-        # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
+        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).
         input: [text, image]
-        # Cold-cache prefill of ~100K tokens takes ~3 min on the eGPU.
+        # Cold 100K prefill ~3 min on the eGPU.
         timeout: 1800
         thinking:
           mode: effort
-          # Qwen3.8 template accepts reasoning_effort low/medium/xhigh only
-          # (high is aliased to xhigh); "minimal" would abort the template.
+          # Template accepts low/medium/xhigh only ("minimal" aborts).
           efforts: [low, medium, xhigh]
-          # Resolves the "auto" level; matches the gateway startup default.
+          # "auto" → medium (gateway startup default); "off" allowed.
           defaultLevel: medium
-          # Allow full "off" (thinking disabled) in the level cycle.
           requiresEffort: false
         compat:
-          # Effort travels as chat_template_kwargs.reasoning_effort, which
-          # llama-server merges over its startup --chat-template-kwargs.
+          # Effort rides chat_template_kwargs.reasoning_effort, merged over
+          # the startup default; enable_thinking: false = thinking off.
           qwenTemplateReasoningEffort: true
-          # Thinking off goes into the same dict (enable_thinking: false);
-          # a top-level enable_thinking is ignored by llama-server.
           reasoningDisableMode: qwen-template-false
           supportsReasoningEffort: true
           supportsReasoningParams: true
           thinkingFormat: qwen
           extraBody:
-            # Hard cap on thinking tokens per reply (llama-server's native
-            # field; vLLM calls it thinking_token_budget). Keeps effort low
-            # from rambling and xhigh from dominating the single slot.
+            # Cap thinking tokens per reply (llama-server's native field).
             reasoning_budget_tokens: 7500
