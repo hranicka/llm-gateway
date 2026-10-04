@@ -224,6 +224,40 @@ if command -v nvidia-persistenced >/dev/null 2>&1; then
     echo " -> NVIDIA persistence enabled"
 fi
 
+# Create /dev/nvidia-uvm at boot. devtmpfs never creates the node (the driver
+# registers no class device) and the shipped 60-nvidia.rules only reaches the
+# setuid nvidia-modprobe helper via uevents that do not fire on a headless
+# compute box — so cuInit fails with "unknown error" (999) until some
+# interactive CUDA run creates the node. This oneshot makes it deterministic.
+cat >/etc/systemd/system/nvidia-uvm-nodes.service <<'EOF'
+[Unit]
+Description=Create NVIDIA UVM device nodes
+After=systemd-modules-load.service
+ConditionPathExists=!/dev/nvidia-uvm
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'M=$(grep -w nvidia-uvm /proc/devices | tr -dc "0-9"); [ -n "$M" ] && mknod -m 666 /dev/nvidia-uvm c "$M" 0 && mknod -m 666 /dev/nvidia-uvm-tools c "$M" 1'
+
+[Install]
+WantedBy=sysinit.target
+EOF
+systemctl daemon-reload
+systemctl enable nvidia-uvm-nodes.service 2>/dev/null || true
+echo " -> nvidia-uvm-nodes.service installed (creates /dev/nvidia-uvm at boot)"
+
+# Create the nodes for the current session too — the oneshot skips when the
+# node already exists, and rebooting to activate it is unnecessary.
+if ! [ -e /dev/nvidia-uvm ]; then
+    M=$(grep -w nvidia-uvm /proc/devices | tr -dc "0-9")
+    if [ -n "$M" ]; then
+        mknod -m 666 /dev/nvidia-uvm c "$M" 0
+        mknod -m 666 /dev/nvidia-uvm-tools c "$M" 1
+        echo " -> /dev/nvidia-uvm created for the current session"
+    fi
+fi
+
 # CUDA 12 toolkit — stable on Blackwell (CUDA 13 has SOFT_MAX bug #25060).
 echo " -> Installing CUDA 12 toolkit..."
 if ! command -v nvcc >/dev/null 2>&1; then

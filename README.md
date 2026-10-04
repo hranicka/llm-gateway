@@ -319,7 +319,7 @@ The installer will prompt for:
 1. **Config** — pick one of the bundled `config/*.yaml` files (or keep an existing one).
 2. **Service type** — choose the systemd unit that matches your GPU setup:
    - `[1] Generic / Vulkan` — iGPU only (Radeon 780M, Intel iGPU). No NVIDIA ordering.
-   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Starts after `nvidia-persistenced.service`, loads `nvidia-uvm`, then runs a full `nvidia-smi` query before `llm-gateway` starts. This matches the manual recovery sequence that warms the GPU on cold boot. If NVIDIA is not ready yet, the unit fails and systemd retries instead of starting the gateway in a CPU-fallback state.
+   - `[2] CUDA / eGPU` — NVIDIA GPU (RTX 5060 Ti eGPU via OCuLink/Thunderbolt, or any NVIDIA dGPU). Starts after `nvidia-persistenced.service`, loads `nvidia-uvm`, creates the `/dev/nvidia-uvm` device nodes if missing (devtmpfs does not create them, and under `NoNewPrivileges` the gateway cannot use the setuid `nvidia-modprobe` helper that normally does — a missing node makes cuInit fail with "unknown error" and the backend silently falls back to CPU), then runs a full `nvidia-smi` query before `llm-gateway` starts. This matches the manual recovery sequence that warms the GPU on cold boot. If NVIDIA is not ready yet, the unit fails and systemd retries instead of starting the gateway in a CPU-fallback state.
 
 ### Remove
 

@@ -19,6 +19,13 @@ TimeoutStartSec=120
 # Starting the gateway early leads to llama-server falling back to CPU.
 # Use full nvidia-smi here, not -pm 1. The full query is what warms the GPU.
 ExecStartPre=+/sbin/modprobe nvidia-uvm
+# nvidia-smi never touches UVM, so it can pass while /dev/nvidia-uvm is still
+# missing: devtmpfs does not create the node (the driver registers no class
+# device) and distros rely on the setuid nvidia-modprobe helper, which cannot
+# gain privileges under NoNewPrivileges=yes below. cuInit then dies with
+# "unknown error" (999) and the backend silently falls back to CPU. Create
+# the nodes here as root, with a raw mknod fallback if the helper is absent.
+ExecStartPre=+/bin/sh -c '/usr/bin/nvidia-modprobe -u 2>/dev/null || true; [ -e /dev/nvidia-uvm ] || { M=$(grep -w nvidia-uvm /proc/devices | tr -dc "0-9"); [ -n "$$M" ] && mknod -m 666 /dev/nvidia-uvm c "$$M" 0 && mknod -m 666 /dev/nvidia-uvm-tools c "$$M" 1; }'
 ExecStartPre=+/usr/bin/nvidia-smi
 
 ExecStart=/usr/local/bin/llm-gateway
