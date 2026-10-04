@@ -10,9 +10,9 @@ modelRoles:
   smol: network-gem12/qwen-3.8-27b:low
   tiny: network-gem12/qwen-3.8-27b:low
   commit: network-gem12/qwen-3.8-27b:low
-  # Vision role: qwen-3.6-35b (mmproj vision, 35B A3B). Loading it swaps
-  # qwen-3.8-27b out of the single slot.
-  vision: network-gem12/qwen-3.6-35b
+  # Vision role: qwen-3.8-27b loads its mmproj on the CPU, so images no
+  # longer swap models. Fallback if vision misbehaves: network-gem12/qwen-3.6-35b.
+  vision: network-gem12/qwen-3.8-27b:low
 
 providers:
   # Serialize ALL llm-gateway traffic (main agent, task subagents, advisor,
@@ -22,8 +22,9 @@ providers:
   # with --parallel 1 (single slot), so anything concurrent re-prefills.
   maxInFlightRequests:
     network-gem12: 1
-  # Slow prefill on the eGPU (ubatch 256): allow 15 min for the first
-  # token and between stream pauses before giving up. Abandoned requests
+  # Cold 100K prefill takes ~3 min on the eGPU (~450 tok/s at depth);
+  # allow 15 min for the first token and between stream pauses before
+  # giving up (CPU image encoding, model reloads). Abandoned requests
   # keep the single slot busy server-side, so never give up early.
   streamFirstEventTimeoutSeconds: 900
   streamIdleTimeoutSeconds: 900
@@ -48,9 +49,11 @@ tools:
   artifactTailBytes: 10
 
 compaction:
-  # Summarize only near the 122880-token window — compaction throws away
-  # the warm KV prefix and forces a full re-prefill.
-  thresholdTokens: 100000
+  # Summarize only near the window — compaction throws away the warm KV
+  # prefix and forces a full re-prefill. A percentage follows each model's
+  # contextWindow (fixed thresholdTokens would win over it): ~100K on the
+  # 122880 qwen-3.8-27b, ~80K on the 96K uncensored, ~215K on Ornith 256K.
+  thresholdPercent: 82
 
 provider:
   # llama-server caches the prompt prefix in KV; append-only conversations

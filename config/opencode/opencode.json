@@ -118,7 +118,7 @@
           "attachment": true,
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
-            "context": 184320,
+            "context": 262144,
             "output": 16384
           }
         },
@@ -133,14 +133,15 @@
         },
         "qwen-3.8-27b": {
           "name": "Qwen 3.8 27B",
-          "attachment": false,
-          "modalities": {"input": ["text"], "output": ["text"]},
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 122880,
-            "output": 16384
+            "output": 32768
           },
           "options": {
-            "chat_template_kwargs": {"reasoning_effort": "medium"}
+            "chat_template_kwargs": {"reasoning_effort": "medium"},
+            "reasoning_budget_tokens": 7500
           },
           "variants": {
             "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
@@ -151,8 +152,8 @@
         },
         "qwen-3.8-27b-instruct": {
           "name": "Qwen 3.8 27B Instruct",
-          "attachment": false,
-          "modalities": {"input": ["text"], "output": ["text"]},
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 122880,
             "output": 16384
@@ -160,14 +161,15 @@
         },
         "qwen-3.8-27b-uncensored": {
           "name": "Qwen 3.8 27B Uncensored",
-          "attachment": false,
-          "modalities": {"input": ["text"], "output": ["text"]},
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 98304,
-            "output": 16384
+            "output": 32768
           },
           "options": {
-            "chat_template_kwargs": {"reasoning_effort": "medium"}
+            "chat_template_kwargs": {"reasoning_effort": "medium"},
+            "reasoning_budget_tokens": 7500
           },
           "variants": {
             "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
@@ -190,7 +192,7 @@
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
-            "context": 131072,
+            "context": 262144,
             "output": 16384
           }
         }

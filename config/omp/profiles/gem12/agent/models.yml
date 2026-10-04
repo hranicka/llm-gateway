@@ -6,7 +6,7 @@ providers:
     models:
       - id: ornith-1.5-35b-a3b
         name: Ornith 1.5 35B A3B
-        contextWindow: 184320
+        contextWindow: 262144
         maxTokens: 16384
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
@@ -29,8 +29,10 @@ providers:
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text]
-        # Cold-cache prefill of ~100K tokens can run 10+ min on the eGPU.
+        # Vision via mmproj encoded on the CPU (no VRAM cost).
+        input: [text, image]
+        # Cold-cache prefill of ~100K tokens takes ~3 min on the eGPU
+        # (benchmarked); headroom for image encoding on the CPU.
         timeout: 1800
         thinking:
           mode: effort
@@ -63,7 +65,8 @@ providers:
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text]
+        # Vision via mmproj encoded on the CPU (no VRAM cost).
+        input: [text, image]
         compat:
           qwenTemplateReasoningEffort: false
       - id: gemma-4-26b
@@ -76,7 +79,7 @@ providers:
         input: [text, image]
       - id: gemma-4-12b
         name: Gemma 4 12B
-        contextWindow: 131072
+        contextWindow: 262144
         maxTokens: 16384
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
@@ -91,8 +94,9 @@ providers:
         # Electricity-based pricing: 300 W, 7 CZK/kWh (~$0.33), ~550 tok/s
         # prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text]
-        # Cold-cache prefill of ~100K tokens can run 10+ min on the eGPU.
+        # Vision via mmproj encoded on the CPU (no VRAM cost).
+        input: [text, image]
+        # Cold-cache prefill of ~100K tokens takes ~3 min on the eGPU.
         timeout: 1800
         thinking:
           mode: effort
