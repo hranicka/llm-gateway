@@ -6,6 +6,19 @@
   config:
     welcomeNoticeVersion: 2026-09-28.1
 
+# Compaction threshold: default headroomTokens 65536 is sized for cloud
+# contexts — on the 131072 window (minus 32768 maxTokens output reserve)
+# it forces compaction at ~33K tokens (measured firing at 31.5-35K).
+# 8192 lifts the trigger to ~90K = window − maxTokens − headroom; the
+# 0.8 window-ratio cap (104858) stays non-binding. retainRatio 0.16
+# keeps a ~15K verbatim tail. Omp parity (~105K) would additionally
+# require declaring maxTokens 16384 on the model — at the cost of
+# truncating larger single responses (big file writes).
+- id: compaction-tuning
+  name: "@deepseek-ai/dsh-compaction-basic"
+  config:
+    headroomTokens: 8192
+
 # llm-gateway models (gem12 eGPU + laptop), same set as opencode/omp.
 # Mirrored in the llm-gateway repo at config/dsh/profiles/web/cordis.patch.yml.
 - id: llm-pi-ai
