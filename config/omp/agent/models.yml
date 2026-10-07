@@ -51,7 +51,7 @@ providers:
       - id: qwen-3.8-27b-instruct
         name: Qwen 3.8 27B Instruct
         contextWindow: 131072
-        maxTokens: 16384
+        maxTokens: 32768
         # Pricing: 300 W @ 7 CZK/kWh, ~750 tok/s prefill (~$0.04/M), ~48 tok/s decode (~$0.60/M); KV hits ~ free.
         cost: { input: 0.04, output: 0.6, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).

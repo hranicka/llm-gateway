@@ -7,10 +7,9 @@
     welcomeNoticeVersion: 2026-09-28.1
 
 # Default headroomTokens 65536 (cloud-sized) forced compaction at ~33K
-# (measured). headroom 8192 + maxTokens 16384 on qwen-3.8-27b put the
-# trigger at ~105K = window − maxTokens − headroom (omp parity; the
-# 0.8-ratio cap stays non-binding); retainRatio 0.16 keeps an ~18K
-# verbatim tail.
+# (measured). headroom 8192 keeps the trigger at ~90K = window −
+# maxTokens 32768 − headroom (0.8-ratio cap non-binding); retainRatio
+# 0.16 keeps a ~15.7K verbatim tail.
 - id: compaction-tuning
   name: "@deepseek-ai/dsh-compaction-basic"
   config:
@@ -72,9 +71,9 @@
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
-            # Thinking is budget-capped at 7500; 16384 (not 32768) keeps
-            # the compaction trigger at ~105K, omp parity.
-            maxTokens: 16384
+            # Thinking is budget-capped at 7500; output needs room for
+            # large file writes.
+            maxTokens: 32768
             # Vision via mmproj encoded on the CPU.
             input: [text, image]
             reasoningEfforts:
@@ -85,7 +84,7 @@
           - id: qwen-3.8-27b-instruct
             name: Qwen 3.8 27B Instruct
             contextWindow: 131072
-            maxTokens: 16384
+            maxTokens: 32768
             input: [text, image]
           - id: qwen-3.8-27b-uncensored
             name: Qwen 3.8 27B Uncensored
