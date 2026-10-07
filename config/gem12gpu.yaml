@@ -65,25 +65,16 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # GSQ-RCO IQ3_S-mtp (11.16 GiB, MTP head embedded) — the best coding
-  # quant that fits at 128K: task-lossless (AIME25 100.0, LCB 85.7 = the
-  # BF16 base exactly, GPQA-D 89.4; unsloth UD-IQ3_S was 96.7/84.0/89.9,
-  # and IQ4_XS at 13.2 GiB does not fit with KV). Per-tensor quant
-  # searched under a size budget (ISTA-DASLab GSQ+RCO). Measured on gem12
-  # (C-code prompt, medium effort): prefill 755 t/s @34K (= 759 baseline),
-  # decode 47.8 t/s with n-max 4 vs 46 with MTP-2 (acceptance is dead
-  # past depth ~2; n-max costs nothing). -hff selects the exact file: the
-  # "-hf repo:name.gguf" tag form fails — the suffix must be a quant name.
-  # CRITICAL: ubatch must stay <= 256 — at 512 the model loads but
-  # core-dumps (cuMemCreate/cublas workspace OOM, exit 134) on the first
-  # prefill; the GSQ mixed-quant mix needs more runtime slack than the
-  # unsloth file did. DFlash2 alternative measured and rejected for this
-  # box (decode-priority would flip it back): IQ3_XXS + Q4_K_M drafter,
-  # --spec-draft-hf incoai/Qwen3.8-27B-DFlash2-GGUF -md ...Q4_K_M.gguf
-  # --spec-type draft-dflash --spec-draft-n-max 7 — decode 51.6 (+8%),
-  # prefill 698 (-8%), LCB 84.6 (-1.1), acceptance 0.39/mean 3.7 on code,
-  # 15.25 GiB VRAM. mmproj in RAM; --cache-ram parks single-slot prompt
-  # states in RAM.
+  # GSQ-RCO IQ3_S-mtp (11.16 GiB): best coding quant fitting 128K —
+  # task-lossless vs BF16 (AIME 100.0, LCB 85.7, GPQA 89.4; unsloth
+  # UD-IQ3_S was 96.7/84.0/89.9). gem12 measured: prefill 755 t/s @34K,
+  # decode 47.8 t/s (MTP acceptance dies past depth ~2 — deeper n-max is
+  # free). ubatch must stay <= 256: at 512 the GSQ mix loads, then
+  # core-dumps on the first prefill (cublas workspace OOM). Decode-first
+  # alternative (measured: +8% decode, -8% prefill, -1.1 LCB): GSQ
+  # IQ3_XXS + DFlash2 Q4_K_M drafter, draft-dflash n-max 7, ubatch 256 —
+  # needs IQ3_XXS, no drafter fits beside IQ3_S at 128K. -hff selects
+  # the exact file; "-hf repo:file.gguf" fails (suffix = quant name).
   qwen-3.8-27b:
     command: |
       llama-server
@@ -120,13 +111,9 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Fine-tune (uncensored weights), so no GSQ swap — only the free wins
-  # from the base-model tuning: n-max 4 (MTP acceptance dies past ~2 but
-  # deeper drafting costs nothing) and image-min-tokens. IQ3_M (12.8 GB,
-  # MTP head embedded) is ~0.7 GiB larger than unsloth's IQ3_S, so the
-  # context stays at 96K for the same VRAM headroom; this conventional
-  # quant tolerates ubatch 512 (no GSQ workspace trap). 120K would need
-  # the IQ3_XS quant (12.2 GB). The repo ships an mmproj too.
+  # Fine-tune, so no GSQ swap: IQ3_M (12.8 GB, ~0.7 GiB over unsloth
+  # IQ3_S) keeps ctx at 96K; conventional quant tolerates ubatch 512
+  # (no GSQ workspace trap). Free wins applied: n-max 4, image-min-tokens.
   qwen-3.8-27b-uncensored:
     command: |
       llama-server
