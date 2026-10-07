@@ -74,6 +74,10 @@ Use the same scheduling settings in every Oh My Pi profile: disable asynchronous
 
 The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, or `xhigh` (plus thinking fully off via `enable_thinking: false`). The bundled [`config/omp/profiles/gem12/agent/models.yml`](config/omp/profiles/gem12/agent/models.yml) declares exactly those levels for `qwen-3.8-27b` and routes both through `chat_template_kwargs`, which llama-server merges over its startup `--chat-template-kwargs` per request. The `medium` effort baked into the gateway's model command remains the default for non-Oh-My-Pi clients only.
 
+### DeepSeek Harness (dsh)
+
+[`config/dsh/profiles/web/cordis.patch.yml`](config/dsh/profiles/web/cordis.patch.yml) mirrors the live `~/.dsh/profiles/web/cordis.patch.yml` patch layer. It configures the `llm-pi-ai` adapter with the same `network-gem12` and `local-laptop` routes as the other clients, including the Qwen 3.8 dialect: `thinkingFormat: chat-template` sends `enable_thinking` and `reasoning_effort` as `chat_template_kwargs` (with `omitWhenOff`, so the effort key disappears when thinking is off), `thinkingTokenBudgetField: thinking_budget_tokens` caps thinking at a flat 7500 tokens like Oh My Pi, and `supportsDeveloperRole: false` plus `maxTokensField: max_tokens` keep the request bodies llama-server-native. The gateway is keyless on the trusted LAN, but pi-ai insists on some credential for OpenAI-compatible endpoints — a placeholder `Authorization` header satisfies it. Note that dsh's settings UI rewrites this file (dropping YAML comments) when you save model or general settings; re-sync from the repo copy afterwards.
+
 ## Endpoints
 
 | Path | Method | Purpose |

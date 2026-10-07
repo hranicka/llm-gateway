@@ -1,0 +1,128 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+- id: ui-settings-general
+  name: "@deepseek-ai/dsh-client-ui-settings-general"
+  config:
+    welcomeNoticeVersion: 2026-09-28.1
+
+# llm-gateway models (gem12 eGPU + laptop), same set as opencode/omp.
+# Mirrored in the llm-gateway repo at config/dsh/profiles/web/cordis.patch.yml.
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      network-gem12:
+        displayName: Network Gem12
+        api: openai-completions
+        baseURL: http://192.168.50.103:1234/v1
+        # Gateway is keyless (trusted LAN, auth_token: ""). pi-ai still insists
+        # on a credential for OpenAI-compatible endpoints; a placeholder
+        # Authorization header satisfies it and llama-server ignores the value.
+        headers:
+          Authorization: Bearer unused
+        # Cold 100K prefill ~3 min on the eGPU; 30 min request cap and 15 min
+        # stream-idle watchdog (first token counts as idle) never give up early.
+        timeoutMs: 1800000
+        streamIdleTimeoutMs: 900000
+        compat:
+          # Send the system prompt as "system" (llama-server has no developer role).
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+          # Qwen3.8 dialect on llama-server --jinja: everything rides
+          # chat_template_kwargs; enable_thinking false is the off switch,
+          # reasoning_effort carries the level (template accepts
+          # low/medium/xhigh only). Startup default is medium (--chat-template-kwargs).
+          thinkingFormat: chat-template
+          chatTemplateKwargs:
+            enable_thinking:
+              $var: thinking.enabled
+            reasoning_effort:
+              $var: thinking.effort
+              omitWhenOff: true
+            preserve_thinking: true
+          # llama.cpp's native thinking-budget request field; flat 7500 cap
+          # like omp (xhigh reads the "high" bucket).
+          thinkingTokenBudgetField: thinking_budget_tokens
+        thinkingBudgets:
+          minimal: 7500
+          low: 7500
+          medium: 7500
+          high: 7500
+        models:
+          - id: ornith-1.5-35b-a3b
+            name: Ornith 1.5 35B A3B
+            contextWindow: 262144
+            maxTokens: 16384
+          - id: qwen-3.6-35b
+            name: Qwen 3.6 35B
+            contextWindow: 131072
+            maxTokens: 16384
+            input: [text, image]
+          - id: qwen-3.8-27b
+            name: Qwen 3.8 27B
+            contextWindow: 131072
+            # Room for thinking (budget-capped) plus large file writes.
+            maxTokens: 32768
+            # Vision via mmproj encoded on the CPU.
+            input: [text, image]
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              xhigh: xhigh
+          - id: qwen-3.8-27b-instruct
+            name: Qwen 3.8 27B Instruct
+            contextWindow: 131072
+            maxTokens: 16384
+            input: [text, image]
+          - id: qwen-3.8-27b-uncensored
+            name: Qwen 3.8 27B Uncensored
+            contextWindow: 98304
+            maxTokens: 32768
+            input: [text, image]
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              xhigh: xhigh
+          - id: gemma-4-26b
+            name: Gemma 4 26B
+            contextWindow: 131072
+            maxTokens: 16384
+            input: [text, image]
+          - id: gemma-4-12b
+            name: Gemma 4 12B
+            contextWindow: 262144
+            maxTokens: 16384
+            input: [text, image]
+      local-laptop:
+        displayName: Local Laptop
+        api: openai-completions
+        baseURL: http://127.0.0.1:1234/v1
+        headers:
+          Authorization: Bearer unused
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+        models:
+          - id: qwen-3.5-4b
+            name: Qwen 3.5 4B
+            contextWindow: 16384
+            maxTokens: 8192
+          - id: gemma-4-2b
+            name: Gemma 4 2B
+            contextWindow: 16384
+            maxTokens: 8192
+
+# Start fresh sessions on the local eGPU instead of the DeepSeek account
+# (dsh defaults new agents to deepseek-official/deepseek-flash); pick the
+# effort in the model selector per session. Enabled 2026-10-07 via the dsh
+# settings UI; this copy is the source of truth (the UI drops comments —
+# re-sync from the repo after saving settings).
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: network-gem12
+    model: qwen-3.8-27b
+    reasoningEffort: medium
