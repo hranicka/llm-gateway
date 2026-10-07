@@ -6,8 +6,26 @@
   config:
     welcomeNoticeVersion: 2026-09-28.1
 
+# Default headroomTokens 65536 (cloud-sized) forced compaction at ~33K
+# (measured). headroom 8192 keeps the trigger at ~90K = window −
+# maxTokens 32768 − headroom (0.8-ratio cap non-binding); retainRatio
+# 0.16 keeps a ~15.7K verbatim tail.
+- id: compaction-tuning
+  name: "@deepseek-ai/dsh-compaction-basic"
+  config:
+    headroomTokens: 8192
+
+# gem12 serves one llama-server slot: subagents must run sequentially.
+# Default maxActiveSubagents is 8 — parallel subagents would queue at the
+# gateway's single generation slot (stall) or swap models mid-task.
+# maxDepth stays at its default 1.
+- id: subagent-sequential
+  name: "@deepseek-ai/dsh-subagent"
+  config:
+    maxActiveSubagents: 1
+
 # llm-gateway models (gem12 eGPU + laptop), same set as opencode/omp.
-# Mirrored in the llm-gateway repo at config/dsh/profiles/web/cordis.patch.yml.
+# Mirrored in the llm-gateway repo at config/dsh/profiles/gem12/cordis.patch.yml.
 - id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
@@ -62,7 +80,8 @@
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
-            # Room for thinking (budget-capped) plus large file writes.
+            # Thinking is budget-capped at 7500; output needs room for
+            # large file writes.
             maxTokens: 32768
             # Vision via mmproj encoded on the CPU.
             input: [text, image]
@@ -74,7 +93,7 @@
           - id: qwen-3.8-27b-instruct
             name: Qwen 3.8 27B Instruct
             contextWindow: 131072
-            maxTokens: 16384
+            maxTokens: 32768
             input: [text, image]
           - id: qwen-3.8-27b-uncensored
             name: Qwen 3.8 27B Uncensored
@@ -115,14 +134,12 @@
             contextWindow: 16384
             maxTokens: 8192
 
-# Optional: start fresh sessions on the local eGPU instead of the DeepSeek
-# account (dsh defaults new agents to deepseek-official/deepseek-flash).
-# Uncomment to apply; pick the effort in the model selector per session.
-# For the safe gem12 setup (sequential subagents, late compaction) use the
-# gem12 profile instead: dsh --profile gem12.
-# - id: agent-default-model
-#   name: "@deepseek-ai/dsh-agent-default-model"
-#   config:
-#     provider: network-gem12
-#     model: qwen-3.8-27b
-#     reasoningEffort: medium
+# New sessions default to the local eGPU instead of the DeepSeek account;
+# pick the effort per session in the model selector. The dsh UI drops
+# comments when saving settings — re-sync from this repo copy.
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: network-gem12
+    model: qwen-3.8-27b
+    reasoningEffort: medium
