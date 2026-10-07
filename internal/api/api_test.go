@@ -353,6 +353,104 @@ func TestChatProxyHandler_RejectsWebModel(t *testing.T) {
 	assertOpenAICode(t, w, "model_not_api")
 }
 
+func TestChatProxyHandler_RejectsDecisionModel(t *testing.T) {
+	config.ConfigApp = &config.Config{
+		Host: "127.0.0.1:9999", AutoUnload: "1h", DrainTimeout: "5s",
+		Models: map[string]config.ModelConf{
+			"decide-model": {Kind: config.KindDecision, Command: "sleep 60", Host: "", ReadyTimeout: "5s"},
+		},
+	}
+	config.SortedModelNames = []string{"decide-model"}
+
+	body, _ := json.Marshal(map[string]string{"model": "decide-model"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+	ChatProxyHandler(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	assertOpenAICode(t, w, "model_not_chat")
+}
+
+// TestDecisionProxyHandler_Systemone routes a /v1/systemone request to a
+// decision model and proxies the body (including the "model" routing field)
+// and response untouched.
+func TestDecisionProxyHandler_Systemone(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if r.URL.Path != "/v1/systemone" {
+			t.Errorf("backend path = %q, want /v1/systemone", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Errorf("failed to unmarshal proxied body: %v", err)
+		}
+		if payload["model"] != "decide-model" || payload["state"] != "s1" {
+			t.Errorf("unexpected proxied body: %v", payload)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"answers":{"route":{"type":"choice","choice":"billing","probabilities":{"billing":0.9}}}}`)
+	}))
+	defer backend.Close()
+
+	config.ConfigApp = &config.Config{
+		Host: "127.0.0.1:9999", Debug: true, AutoUnload: "1h", DrainTimeout: "5s",
+		Models: map[string]config.ModelConf{
+			"decide-model": {Kind: config.KindDecision, Command: "sleep 60", Host: backend.Listener.Addr().String(), ReadyTimeout: "5s"},
+		},
+	}
+	config.SortedModelNames = []string{"decide-model"}
+	manager.Shutdown(context.Background())
+	defer manager.ShutdownCurrentModel()
+
+	gateway := httptest.NewServer(http.HandlerFunc(RootHandler))
+	defer gateway.Close()
+
+	body, _ := json.Marshal(map[string]any{
+		"model": "decide-model", "state": "s1",
+		"questions": map[string]any{"route": map[string]any{
+			"type": "choice", "instructions": "Which team?", "criteria": map[string]any{"billing": nil},
+		}},
+	})
+	resp, err := http.Post(gateway.URL+"/v1/systemone", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+	respBody, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(respBody), `"choice":"billing"`) {
+		t.Errorf("proxied response = %s, want the backend decision JSON", respBody)
+	}
+}
+
+func TestModelsHandler_IncludesDecisionModels(t *testing.T) {
+	config.ConfigApp = &config.Config{
+		AutoUnload: "1h", DrainTimeout: "5s",
+		Models: map[string]config.ModelConf{
+			"decide-model": {Kind: config.KindDecision, Command: "sleep 60", Host: "", ReadyTimeout: "5s"},
+		},
+	}
+	config.SortedModelNames = []string{"decide-model"}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	w := httptest.NewRecorder()
+	ModelsHandler(w, req)
+	var list modelList
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode models list: %v", err)
+	}
+	if len(list.Data) != 1 || list.Data[0].ID != "decide-model" {
+		t.Errorf("models listed = %+v, want decide-model", list.Data)
+	}
+}
+
 // TestRootHandler_AppLoadingAndErrorPages verifies the browser flow for a
 // not-yet-ready web app: a loading page while the backend starts (the load
 // must actually be kicked off in the background), the real UI once ready,

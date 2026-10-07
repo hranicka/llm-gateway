@@ -30,14 +30,16 @@ type Config struct {
 // via /v1/chat/completions, /v1/completions and /v1/images/generations.
 // KindWeb models serve a browser UI (e.g. sd-server, ComfyUI) that the
 // gateway reverse-proxies in full — including websockets — once selected
-// via /app/<name>.
+// via /app/<name>. KindDecision models (e.g. Cloudflare clef) answer
+// structured decision requests via /v1/systemone and cannot chat.
 const (
-	KindAPI = "api"
-	KindWeb = "web"
+	KindAPI      = "api"
+	KindWeb      = "web"
+	KindDecision = "decision"
 )
 
 type ModelConf struct {
-	Kind           string `yaml:"kind"` // optional; "api" (default) or "web"
+	Kind           string `yaml:"kind"` // optional; "api" (default), "web" or "decision"
 	Command        string `yaml:"command"`
 	Host           string `yaml:"host"`
 	ReadyTimeout   string `yaml:"ready_timeout"`
@@ -255,9 +257,9 @@ func Load(filename string) error {
 			return fmt.Errorf("model %q ready_timeout: %w", name, err)
 		}
 		switch m.Kind {
-		case "", KindAPI, KindWeb:
+		case "", KindAPI, KindWeb, KindDecision:
 		default:
-			return fmt.Errorf("model %q has unknown kind %q (expected %q or %q)", name, m.Kind, KindAPI, KindWeb)
+			return fmt.Errorf("model %q has unknown kind %q (expected %q, %q or %q)", name, m.Kind, KindAPI, KindWeb, KindDecision)
 		}
 	}
 
@@ -319,8 +321,8 @@ func HealthEndpoint(modelName string) string {
 	return m.HealthEndpoint
 }
 
-// ModelKind returns the resolved kind ("api" or "web") of the given model.
-// Unknown and unconfigured models resolve to "api".
+// ModelKind returns the resolved kind ("api", "web" or "decision") of the
+// given model. Unknown and unconfigured models resolve to "api".
 func ModelKind(modelName string) string {
 	m, ok := ConfigApp.Models[modelName]
 	if !ok || m.Kind == "" {

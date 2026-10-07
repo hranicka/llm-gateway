@@ -117,6 +117,8 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 		ModelsHandler(w, r)
 	case "/v1/chat/completions", "/v1/completions":
 		ChatProxyHandler(w, r)
+	case "/v1/systemone":
+		DecisionProxyHandler(w, r)
 	case "/v1/images/generations", "/v1/images/edits":
 		ProxyHandler(w, r)
 	default:
@@ -299,16 +301,44 @@ func proxyWebApp(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 // ChatProxyHandler proxies OpenAI chat/completion requests, rejecting
-// web-app models that have no chat endpoint.
+// web-app models that have no chat endpoint and decision models that
+// cannot generate text.
 func ChatProxyHandler(w http.ResponseWriter, r *http.Request) {
 	name, ok := parseModelRequest(w, r)
 	if !ok {
 		return
 	}
-	if config.ModelKind(name) == config.KindWeb {
+	switch config.ModelKind(name) {
+	case config.KindWeb:
 		slog.Warn("chat request for web model", "model", name, "path", r.URL.Path)
 		writeOpenAIError(w,
 			fmt.Sprintf("Model %s is a web app (kind: web) with no chat endpoint — open /app/%s in a browser, or use /v1/images/generations for image models.", name, name),
+			"model_not_api", http.StatusBadRequest)
+		return
+	case config.KindDecision:
+		slog.Warn("chat request for decision model", "model", name, "path", r.URL.Path)
+		writeOpenAIError(w,
+			fmt.Sprintf("Model %s is a decision model (kind: decision) — it scores options instead of generating text; use /v1/systemone.", name),
+			"model_not_chat", http.StatusBadRequest)
+		return
+	}
+	switchAndProxy(w, r, name)
+}
+
+// DecisionProxyHandler proxies decision-model requests (POST /v1/systemone,
+// e.g. Cloudflare clef models on llama-server): a state plus a question
+// schema in, per-option probabilities out in a single forward pass. The
+// gateway-required "model" routing field is an extra body field upstream
+// tolerates (and echoes in the response).
+func DecisionProxyHandler(w http.ResponseWriter, r *http.Request) {
+	name, ok := parseModelRequest(w, r)
+	if !ok {
+		return
+	}
+	if config.ModelKind(name) == config.KindWeb {
+		slog.Warn("decision request for web model", "model", name, "path", r.URL.Path)
+		writeOpenAIError(w,
+			fmt.Sprintf("Model %s is a web app (kind: web) with no decision endpoint — open /app/%s in a browser.", name, name),
 			"model_not_api", http.StatusBadRequest)
 		return
 	}
@@ -466,9 +496,12 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	var apps, apiModels strings.Builder
 	for _, name := range config.SortedModelNames {
 		esc := html.EscapeString(name)
-		if config.ModelKind(name) == config.KindWeb {
+		switch config.ModelKind(name) {
+		case config.KindWeb:
 			fmt.Fprintf(&apps, "<li><a href=\"/app/%s\">%s</a><span class=\"hint\">open UI</span></li>\n", esc, esc)
-		} else {
+		case config.KindDecision:
+			fmt.Fprintf(&apiModels, "<li><span>%s</span><code>POST /v1/systemone</code></li>\n", esc)
+		default:
 			fmt.Fprintf(&apiModels, "<li><span>%s</span><code>POST /v1/chat/completions</code></li>\n", esc)
 		}
 	}
@@ -492,7 +525,7 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 		b.WriteString("<h2>API models</h2>\n<ul>\n" + apiModels.String() + "</ul>\n")
 	}
 
-	b.WriteString("<p class=\"hint\">API endpoints: <code>/v1/chat/completions</code>, <code>/v1/completions</code>, <code>/v1/images/generations</code>, <code>/v1/models</code>, <code>/health</code></p>\n")
+	b.WriteString("<p class=\"hint\">API endpoints: <code>/v1/chat/completions</code>, <code>/v1/completions</code>, <code>/v1/systemone</code>, <code>/v1/images/generations</code>, <code>/v1/models</code>, <code>/health</code></p>\n")
 	b.WriteString("</main>\n</body>\n</html>\n")
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -553,14 +586,15 @@ func writeAppStatusPage(w http.ResponseWriter, name string, failed bool) {
 	}
 }
 
-// ModelsHandler exposes available API models to OpenAI clients. Web apps
-// (kind: web) are omitted: they are not addressable through chat or image
-// model fields (their UIs live under /app/<name>), and listing them only
-// invites clients to select something unusable.
+// ModelsHandler exposes available API models to OpenAI clients: chat models
+// and decision models (addressable via /v1/systemone's "model" field). Web
+// apps (kind: web) are omitted: they are not addressable through API model
+// fields (their UIs live under /app/<name>), and listing them only invites
+// clients to select something unusable.
 func ModelsHandler(w http.ResponseWriter, r *http.Request) {
 	models := make([]openaiModel, 0, len(config.SortedModelNames))
 	for _, name := range config.SortedModelNames {
-		if config.ModelKind(name) != config.KindAPI {
+		if config.ModelKind(name) == config.KindWeb {
 			continue
 		}
 		models = append(models, openaiModel{

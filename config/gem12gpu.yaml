@@ -24,17 +24,12 @@ models:
   # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
 
   # MoE models (35B A3B, 26B A4B): --fit puts as many expert tensors in VRAM
-  # as fit and the rest on the CPU, measured at load time (replaces the
-  # hand-tuned --n-cpu-moe; any explicit -ngl/--n-cpu-moe disables fitting).
-  # --fit-target keeps 768 MiB of VRAM free. Every GiB freed in VRAM moves
-  # ~2 expert layers back to the GPU = faster decode. Qwen3.6/Ornith KV is
-  # tiny: only 10 of 40 layers hold it (~10.6 KiB/token at q8_0). A large
-  # ubatch amortizes streaming the CPU-side experts over OCuLink in prefill.
-  # Benchmarked on gem12 (Qwen3.6 UD-Q4_K_XL, PCIe x4): ubatch 4096 = ~1716
-  # tok/s pp4096 vs ~1403 at 2048; decode ~66 tok/s (short context).
-  # GGML_OP_OFFLOAD_MIN_BATCH=1024: batches below 1024 tokens (tool results,
-  # chat turns, MTP) compute the RAM experts on the CPU instead of copying
-  # them over OCuLink — 3.4x faster at 32 tokens, 1.3x at 512, equal at 1024.
+  # as fit and streams the rest from RAM over OCuLink; --fit-target keeps
+  # 768 MiB free. Large ubatch amortizes that streaming in prefill — measured
+  # on gem12 (Qwen3.6 UD-Q4_K_XL, PCIe x4): ubatch 4096 = ~1716 t/s pp4096 vs
+  # ~1403 at 2048. GGML_OP_OFFLOAD_MIN_BATCH=1024 computes small batches
+  # (tool results, chat turns) on the CPU instead of copying them over
+  # OCuLink — 3.4x faster at 32 tokens, equal at 1024.
   qwen-3.6-35b:
     command: |
       GGML_OP_OFFLOAD_MIN_BATCH=1024 llama-server
@@ -65,16 +60,14 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # GSQ-RCO IQ3_S-mtp (11.16 GiB): best coding quant fitting 128K —
-  # task-lossless vs BF16 (AIME 100.0, LCB 85.7, GPQA 89.4; unsloth
-  # UD-IQ3_S was 96.7/84.0/89.9). gem12 measured: prefill 755 t/s @34K,
-  # decode 47.8 t/s (MTP acceptance dies past depth ~2 — deeper n-max is
-  # free). ubatch must stay <= 256: at 512 the GSQ mix loads, then
-  # core-dumps on the first prefill (cublas workspace OOM). Decode-first
-  # alternative (measured: +8% decode, -8% prefill, -1.1 LCB): GSQ
-  # IQ3_XXS + DFlash2 Q4_K_M drafter, draft-dflash n-max 7, ubatch 256 —
-  # needs IQ3_XXS, no drafter fits beside IQ3_S at 128K. -hff selects
-  # the exact file; "-hf repo:file.gguf" fails (suffix = quant name).
+  # GSQ-RCO IQ3_S-mtp (11.16 GiB): task-lossless coding quant fitting 128K
+  # (AIME 100.0, LCB 85.7, GPQA 89.4). Measured on gem12: prefill 755 t/s
+  # @34K, decode 47.8 t/s. ubatch must stay <= 256: at 512 the GSQ mix
+  # core-dumps on the first prefill (cublas workspace OOM) — also at
+  # spec-draft-n-max >= 6. Decode-first alternative (measured: +8% decode,
+  # -8% prefill, -1.1 LCB): GSQ IQ3_XXS + DFlash2 Q4_K_M drafter,
+  # draft-dflash n-max 7, ubatch 256. -hff selects the exact file;
+  # "-hf repo:file.gguf" fails (suffix = quant name).
   qwen-3.8-27b:
     command: |
       llama-server
@@ -111,13 +104,12 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Fine-tune, so no GSQ swap: IQ3_M (12.8 GB, ~0.7 GiB over unsloth
-  # IQ3_S) keeps ctx at 96K; conventional quant tolerates ubatch 512
-  # (no GSQ workspace trap). Otherwise mirrors the qwen-3.8-27b stack:
-  # n-max 4 is the VRAM ceiling on 16 GB (the 11.2 GB GSQ sibling
-  # core-dumps at runtime with n-max 6), sampling per README thinking
-  # preset (temp 1.0 / top-p 0.95), batch 2048/ubatch 512 per the repo's
-  # example launch. Measured on gem12: decode 36.7 t/s, prefill ~807 t/s.
+  # Fine-tune, so no GSQ swap: IQ3_M (12.8 GB) keeps ctx at 96K; conventional
+  # quant tolerates ubatch 512 (no GSQ workspace trap). Mirrors the
+  # qwen-3.8-27b stack; n-max 4 is the VRAM ceiling (GSQ sibling core-dumps
+  # at n-max 6, n-max 8 OOMs at load). Sampling per the repo's thinking
+  # preset; batch 2048/ubatch 512 per its example launch. Measured: decode
+  # 36.7 t/s, prefill ~807 t/s @2K.
   qwen-3.8-27b-uncensored:
     command: |
       llama-server
@@ -152,15 +144,13 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Dense 7.4 GB, fully in VRAM. Only 8 of 48 layers keep full-context KV
-  # (1 KV head, ~8.5 KiB/token at q8_0), the rest is a 1024-token sliding
-  # window: the native 256K context costs ~2.1 GiB of KV. ubatch must stay
-  # <= 2048: at 4096 the ~2.9 GiB compute buffer OOMs beside MTP at 262K.
-  # MTP-6 measured on gem12 (2K ctx): decode 188-192 t/s vs 97 at n-max 4
-  # and 89 at 2; JSON-heavy output (worst case) 190 vs 98. Drafting
-  # degrades with context (n-max 6 @15K ~35% acceptance) and the drafter
-  # stops entirely past ~32K ctx (drafter context limit); decode there is
-  # ~15 t/s with or without MTP. ubatch 4096 vs 2048 prefill: no gain.
+  # Dense 7.4 GB, fully in VRAM; only 8 of 48 layers keep full-context KV
+  # (1024-token sliding window on the rest) — 262K ctx costs ~2.1 GiB of KV.
+  # ubatch must stay <= 2048: at 4096 the ~2.9 GiB compute buffer OOMs beside
+  # MTP (2048 vs 4096 prefill: no gain). MTP-6 measured @2K ctx: decode
+  # 188-192 t/s vs 97 at n-max 4 and 89 at 2; JSON-heavy worst case 190 vs
+  # 98. Drafting degrades with context and stops past ~32K (drafter context
+  # limit); decode there ~15 t/s with or without MTP.
   gemma-4-12b:
     command: |
       llama-server
@@ -177,26 +167,56 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
+  # ── DECISION MODELS (Cloudflare clef: kind: decision, POST /v1/systemone) ──
+  # Read a state + question schema, return per-option probabilities in one
+  # forward pass — no text generation. llama-server >= b11430 serves them via
+  # /v1/systemone; the gateway routes by the extra "model" body field.
+  # Sub-4-bit quants lose extra quality: no imatrix is possible for decision
+  # models. clef-flash measured on gem12: 5.56 GiB VRAM with mmproj, ~130 ms
+  # per decision over LAN, ~324 input tokens.
+  clef-flash:
+    kind: decision
+    command: |
+      llama-server
+      -hf bartowski/Cloudflare_clef-flash-GGUF:Q4_K_M
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 32768 --cont-batching
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload
+      --batch-size 2048 --ubatch-size 2048
+      --host 127.0.0.1 --port 1235 --alias clef-flash
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
+  # 27B clef (Qwen3.8-27B base, text-only — mmproj would OOM beside 14.5 GB
+  # weights): Q4_K_M is 17.65 GB and doesn't fit 16 GB VRAM; Q3_K_M is the
+  # largest quant that does (~15.2 GiB estimated — drop to Q3_K_S, 13.59 GB,
+  # if it OOMs at load). ctx 16384 keeps the q8_0 KV small.
+  clef:
+    kind: decision
+    command: |
+      llama-server
+      -hf bartowski/Cloudflare_clef-GGUF:Q3_K_M
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 16384 --cont-batching
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --flash-attn on --load-mode none --no-mmproj
+      --batch-size 512 --ubatch-size 512
+      --host 127.0.0.1 --port 1235 --alias clef
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
   # ══════════════════════════════════════════════════════════════════════════
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
-  # Qwen-Image-2.1: 7B DiT, text-to-image + image editing (up to 10 refs).
-  # Diffusion weights: leejet/Qwen-Image-2.1-GGUF, Q4_0 quant — the
-  # lightest/fastest option, and small enough that the editing mmproj fits
-  # in VRAM too: Q4_0 4.2 GB + Qwen3-VL-8B TE Q4_K_M 4.9 GB + mmproj
-  # ~2.5 GB + VAE 0.4 GB ≈ 12 GB resident in the 16 GB VRAM (no PCIe
-  # streaming), so 40 steps @ 1024² runs in well under a minute.
-  # Defaults: 1024x1024, 40 steps, euler sampling. Quality knobs:
-  # --cfg-scale is the guidance strength — the sd.cpp doc value is 6.0;
-  # 1.0 (current) skips the guidance pass entirely, ~2x faster but with
-  # weaker prompt adherence and small-text rendering. Near-lossless
-  # quality alternative: INT8 convrot (DOWNLOAD_INT8=1 in the installer,
-  # then point --diffusion-model at qwen_image_2.1_int8_convrot.safetensors
-  # — ~6.8 GB, drop --llm_vision to stay in VRAM); GGUF Q6_K sits between.
-  # If the stack ever OOMs, re-add --offload-to-cpu (weights then stream
-  # from RAM: ~12 GB of 32 GB, but roughly 5x slower per step).
-  # Browser: open http://<host>:1234/ and click the app below.
-  # API:     POST /v1/images/generations  {"model": "qwen-image-2.1", ...}
+  # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). Q4_0
+  # diffusion 4.2 GB + Qwen3-VL TE Q4_K_M 4.9 GB + mmproj ~2.5 GB + VAE 0.4 GB
+  # ≈ 12 GB resident in VRAM (no PCIe streaming): 40 steps @1024² in well
+  # under a minute. --cfg-scale 1.0 skips the guidance pass (~2x faster,
+  # weaker prompt adherence; doc value 6.0). Near-lossless alt: INT8 convrot
+  # (DOWNLOAD_INT8=1 in the installer, ~6.8 GB, drop --llm_vision); GGUF Q6_K
+  # sits between. If OOMs: re-add --offload-to-cpu (~5x slower per step).
+  # Browser: http://<host>:1234/ → app below.  API: POST /v1/images/generations
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
   qwen-image-2.1:
     kind: web
@@ -214,9 +234,8 @@ models:
     ready_timeout: 30m
 
   # ── COMFYUI (graph workflows: multi-photo composition, masked 1:1 edits) ──
-  # Gateway-managed like sd-server: opening it switches the VRAM slot
-  # automatically. Weights are symlinked from /opt/sdcpp/models (no extra
-  # disk). Install: sudo ./scripts/install-comfyui.sh
+  # Gateway-managed like sd-server; weights symlinked from /opt/sdcpp/models.
+  # Install: sudo ./scripts/install-comfyui.sh
   comfyui:
     kind: web
     command: |

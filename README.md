@@ -16,6 +16,7 @@ Running on consumer hardware typically means only one single quantized model can
 - **Sequential execution**: Proxied requests are processed strictly one at a time. Concurrent client sessions (e.g. coding agents spawning parallel subagents) queue at the gateway instead of interleaving on the single loaded backend or triggering model switches that would kill an in-flight stream.
 - **OpenAI-compatible**: Supports `/v1/chat/completions` and `/v1/completions`.
 - **Image generation**: Supports OpenAI-style `/v1/images/generations` for image backends (e.g. `sd-server` from stable-diffusion.cpp).
+- **Decision models**: Supports `kind: decision` backends (e.g. Cloudflare clef on llama-server) via `POST /v1/systemone` — a state plus a question schema in, per-option probabilities out in a single forward pass.
 - **Web apps in the browser**: Backends with `kind: web` (sd-server, ComfyUI, …) get their full web UI proxied through the gateway — open `http://<gateway>/`, click the app, and it loads like llama-server loads for a chat request, including websockets.
 
 ## How it Works
@@ -28,6 +29,26 @@ Running on consumer hardware typically means only one single quantized model can
 4. **Monitoring**: If a model process exits unexpectedly, the gateway resets its state and will reload it on the next request.
 
 **Web apps** (`kind: web`) work the same way, but the trigger is a browser: opening `/app/<name>` pins the app via cookie and redirects to `/`, from where every request — page, assets, API calls, websocket — is reverse-proxied to the app backend. Loading it kills whatever chat model currently holds the VRAM, exactly like a chat request would.
+
+**Decision models** (`kind: decision`, e.g. Cloudflare clef) never generate text: `POST /v1/systemone` with a `state` string and a `questions` schema, and the backend returns a probability for every allowed option of every question in a single forward pass (llama-server ≥ b11430). The gateway requires the usual `"model"` field in the body for routing — an extra field upstream tolerates and echoes. Chat requests to a decision model are rejected with a pointer to `/v1/systemone`:
+
+```bash
+curl http://<gateway>/v1/systemone -H "Content-Type: application/json" -d '{
+  "model": "clef-flash",
+  "state": "Customer message: I was charged twice for my order last week and nobody has replied.",
+  "questions": {
+    "route":   {"type": "choice", "instructions": "Which team should handle this?",
+                "criteria": {"billing": null, "shipping": null, "technical": null}},
+    "angry":   {"type": "noul",   "instructions": "Is the customer angry?"},
+    "urgency": {"type": "score",  "instructions": "How urgent is this?",
+                "criteria": ["can wait", "this week", "today", "right now"]}
+  }
+}'
+```
+
+```json
+{"model":"clef-flash","answers":{"route":{"type":"choice","choice":"billing","probabilities":{"billing":0.975,"shipping":0.015,"technical":0.009},"confidence":0.963},"angry":{"type":"noul","noul":0.53},"urgency":{"type":"score","score":2.32,"legend":{"0":"can wait","1":"this week","2":"today","3":"right now"},"probabilities":{"0":0.03,"1":0.13,"2":0.33,"3":0.51},"confidence":0.32}},"usage":{"input_tokens":324,"output_tokens":0}}
+```
 
 ## Configuration
 
@@ -44,7 +65,7 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
     - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
-    - **`kind`**: Optional. `api` (default) for OpenAI-style backends reached via `/v1/*`, or `web` for backends with a browser UI that the gateway proxies in full once selected via `/app/<name>`.
+    - **`kind`**: Optional. `api` (default) for OpenAI-style backends reached via `/v1/*`, `decision` for decision models (Cloudflare clef) reached via `/v1/systemone`, or `web` for backends with a browser UI that the gateway proxies in full once selected via `/app/<name>`.
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`). Line breaks are collapsed into spaces, so the whole block runs as a single command; quote any argument that contains spaces (e.g. `--chat-template-kwargs '{"enable_thinking": true}'`).
     - **`host`**: The `host:port` address the model will listen on.
     - **`ready_timeout`**: How long the gateway waits for the backend to become ready before failing the request.
@@ -86,13 +107,14 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 | `/app/<name>` | GET | Pin the browser to a `kind: web` model (sets a cookie, redirects to `/`); `/app/` unpins |
 | `/v1/chat/completions` | POST | Proxy request (supports model switching) |
 | `/v1/completions` | POST | Legacy proxy request (supports model switching) |
+| `/v1/systemone` | POST | Proxy decision request to a `kind: decision` model (supports model switching) |
 | `/v1/images/generations` | POST | Proxy image-generation request (supports model switching) |
-| `/v1/models` | GET | List available **API** models (web apps are excluded — they are browser-only via `/app/<name>`) |
+| `/v1/models` | GET | List available **API** and **decision** models (web apps are excluded — they are browser-only via `/app/<name>`) |
 | `/health` | GET | Gateway health check (always answers for the gateway itself, never for an app) |
 
 ### Request handling
 
-- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`, `/v1/images/generations`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
+- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`, `/v1/systemone`, `/v1/images/generations`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
 - **Web apps bypass the slot**: browser traffic to a `kind: web` backend is not serialized (UI assets and polls are concurrent-safe, and an open websocket must never block API generation). Websocket connections do keep the auto-unload timer reset while open, but they do not block model switches.
 - **Shared single slot**: there is still only one loaded backend at a time. A chat request switches away from a running image app (killing it mid-generation) and vice versa — keep `drain_timeout` in mind.
 - **Transparency**: Request bodies are proxied untouched. The gateway does not rewrite model-specific parameters — clients are expected to send values the backend chat template supports (e.g. Qwen3 GGUF templates only accept `reasoning_effort` of `xhigh`, `medium`, or `low`; see [`config/omp/`](config/omp/) for a client setup that matches).
