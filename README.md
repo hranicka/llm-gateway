@@ -64,7 +64,7 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`auto_unload`**: Idle duration after which the active model is shut down to free VRAM (e.g. `2h`). The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
-    - The key (e.g., `gemma-4-26b`) is the model name used in API requests.
+    - The key (e.g., `ornith-1.5-35b-a3b`) is the model name used in API requests.
     - **`kind`**: Optional. `api` (default) for OpenAI-style backends reached via `/v1/*`, `decision` for decision models (Cloudflare clef) reached via `/v1/systemone`, or `web` for backends with a browser UI that the gateway proxies in full once selected via `/app/<name>`.
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`). Line breaks are collapsed into spaces, so the whole block runs as a single command; quote any argument that contains spaces (e.g. `--chat-template-kwargs '{"enable_thinking": true}'`).
     - **`host`**: The `host:port` address the model will listen on.
@@ -260,7 +260,7 @@ Composition = the Editing workflow with several reference images (up to 10); "re
 
 [`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
-- **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `gemma-4-26b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
+- **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
 - **Images**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) and send with a **regular chat model selected** — never pick `qwen-image-2.1` in the model picker; it is not a chat model (and since it's a web app, the gateway doesn't even list it). The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
 - **Editing** (reference images) stays in sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1`.
 

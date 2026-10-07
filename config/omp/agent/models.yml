@@ -11,13 +11,6 @@ providers:
         # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
-      - id: qwen-3.6-35b
-        name: Qwen 3.6 35B
-        contextWindow: 131072
-        maxTokens: 16384
-        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
-        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text, image]
       - id: qwen-3.8-27b
         name: Qwen 3.8 27B
         reasoning: true
@@ -58,20 +51,6 @@ providers:
         input: [text, image]
         compat:
           qwenTemplateReasoningEffort: false
-      - id: gemma-4-26b
-        name: Gemma 4 26B
-        contextWindow: 131072
-        maxTokens: 16384
-        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
-        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text, image]
-      - id: gemma-4-12b
-        name: Gemma 4 12B
-        contextWindow: 262144
-        maxTokens: 16384
-        # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
-        cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
-        input: [text, image]
       - id: qwen-3.8-27b-uncensored
         name: Qwen 3.8 27B Uncensored
         reasoning: true

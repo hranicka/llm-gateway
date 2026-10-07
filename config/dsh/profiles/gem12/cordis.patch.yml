@@ -72,11 +72,6 @@
             name: Ornith 1.5 35B A3B
             contextWindow: 262144
             maxTokens: 16384
-          - id: qwen-3.6-35b
-            name: Qwen 3.6 35B
-            contextWindow: 131072
-            maxTokens: 16384
-            input: [text, image]
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
@@ -105,16 +100,6 @@
               low: low
               medium: medium
               xhigh: xhigh
-          - id: gemma-4-26b
-            name: Gemma 4 26B
-            contextWindow: 131072
-            maxTokens: 16384
-            input: [text, image]
-          - id: gemma-4-12b
-            name: Gemma 4 12B
-            contextWindow: 262144
-            maxTokens: 16384
-            input: [text, image]
       local-laptop:
         displayName: Local Laptop
         api: openai-completions
