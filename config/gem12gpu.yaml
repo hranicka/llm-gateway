@@ -65,47 +65,68 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # unsloth UD-IQ3_S (12.0 GB, MTP head embedded). Only 16 of 64 layers are
-  # full-attention (20 KiB/token KV at q4_0): 128K costs ~2.5 GiB, fits with
-  # ~1 GiB headroom. mmproj in RAM; --cache-ram parks single-slot prompt
-  # states in RAM; ubatch 512 (larger barely helps prefill).
+  # GSQ-RCO IQ3_S-mtp (11.16 GiB, MTP head embedded) — the best coding
+  # quant that fits at 128K: task-lossless (AIME25 100.0, LCB 85.7 = the
+  # BF16 base exactly, GPQA-D 89.4; unsloth UD-IQ3_S was 96.7/84.0/89.9,
+  # and IQ4_XS at 13.2 GiB does not fit with KV). Per-tensor quant
+  # searched under a size budget (ISTA-DASLab GSQ+RCO). Measured on gem12
+  # (C-code prompt, medium effort): prefill 755 t/s @34K (= 759 baseline),
+  # decode 47.8 t/s with n-max 4 vs 46 with MTP-2 (acceptance is dead
+  # past depth ~2; n-max costs nothing). -hff selects the exact file: the
+  # "-hf repo:name.gguf" tag form fails — the suffix must be a quant name.
+  # CRITICAL: ubatch must stay <= 256 — at 512 the model loads but
+  # core-dumps (cuMemCreate/cublas workspace OOM, exit 134) on the first
+  # prefill; the GSQ mixed-quant mix needs more runtime slack than the
+  # unsloth file did. DFlash2 alternative measured and rejected for this
+  # box (decode-priority would flip it back): IQ3_XXS + Q4_K_M drafter,
+  # --spec-draft-hf incoai/Qwen3.8-27B-DFlash2-GGUF -md ...Q4_K_M.gguf
+  # --spec-type draft-dflash --spec-draft-n-max 7 — decode 51.6 (+8%),
+  # prefill 698 (-8%), LCB 84.6 (-1.1), acceptance 0.39/mean 3.7 on code,
+  # 15.25 GiB VRAM. mmproj in RAM; --cache-ram parks single-slot prompt
+  # states in RAM.
   qwen-3.8-27b:
     command: |
       llama-server
-      -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
+      -hf ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF -hff Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
+      --spec-type draft-mtp --spec-draft-n-max 4
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --jinja --tools all
-      --batch-size 2048 --ubatch-size 512
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
+      --batch-size 256 --ubatch-size 256
       --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
-      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --chat-template-kwargs '{"reasoning_effort":"medium"}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
+  # Same GSQ IQ3_S-mtp stack as qwen-3.8-27b above (quant, ubatch 256
+  # ceiling, n-max 4) with thinking disabled and chattier sampling.
   qwen-3.8-27b-instruct:
     command: |
       llama-server
-      -hf unsloth/Qwen3.8-27B-GGUF:UD-IQ3_S
+      -hf ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF -hff Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
+      --spec-type draft-mtp --spec-draft-n-max 4
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --jinja --tools all
-      --batch-size 2048 --ubatch-size 512
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
+      --batch-size 256 --ubatch-size 256
       --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
-      --spec-type draft-mtp --spec-draft-n-max 2
       --temp 0.7 --top-p 0.80 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
       --chat-template-kwargs '{"enable_thinking":false}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # IQ3_M (12.8 GB, MTP head embedded) is ~0.7 GiB larger than unsloth's
-  # IQ3_S, so the context stays at 96K for the same VRAM headroom. 120K
-  # would need the IQ3_XS quant (12.2 GB). The repo ships an mmproj too.
+  # Fine-tune (uncensored weights), so no GSQ swap — only the free wins
+  # from the base-model tuning: n-max 4 (MTP acceptance dies past ~2 but
+  # deeper drafting costs nothing) and image-min-tokens. IQ3_M (12.8 GB,
+  # MTP head embedded) is ~0.7 GiB larger than unsloth's IQ3_S, so the
+  # context stays at 96K for the same VRAM headroom; this conventional
+  # quant tolerates ubatch 512 (no GSQ workspace trap). 120K would need
+  # the IQ3_XS quant (12.2 GB). The repo ships an mmproj too.
   qwen-3.8-27b-uncensored:
     command: |
       llama-server
@@ -113,10 +134,10 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 98304 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --jinja --tools all
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
       --batch-size 2048 --ubatch-size 512
       --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
-      --spec-type draft-mtp --spec-draft-n-max 2
+      --spec-type draft-mtp --spec-draft-n-max 4
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --chat-template-kwargs '{"reasoning_effort":"medium"}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-uncensored
