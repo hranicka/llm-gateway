@@ -112,6 +112,29 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
+  # Dense 7.4 GB, fully in VRAM; only 8 of 48 layers keep full-context KV
+  # (1024-token sliding window on the rest) — 262K ctx costs ~2.1 GiB of KV.
+  # ubatch must stay <= 2048: at 4096 the ~2.9 GiB compute buffer OOMs beside
+  # MTP (2048 vs 4096 prefill: no gain). MTP-6 measured @2K ctx: decode
+  # 188-192 t/s vs 97 at n-max 4 and 89 at 2; JSON-heavy worst case 190 vs
+  # 98. Drafting degrades with context and stops past ~32K (drafter context
+  # limit); decode there ~15 t/s with or without MTP.
+  gemma-4-12b:
+    command: |
+      llama-server
+      -hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced:Q4_K_M
+      --spec-draft-hf HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced -md mtp-gemma-4-12B-it.gguf
+      --spec-type draft-mtp --spec-draft-n-max 6
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 262144 --cont-batching
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --batch-size 2048 --ubatch-size 2048
+      --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
+      --host 127.0.0.1 --port 1235 --alias gemma-4-12b
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
   # ── DECISION MODELS (Cloudflare clef: kind: decision, POST /v1/systemone) ──
   # Read a state + question schema, return per-option probabilities in one
   # forward pass — no text generation. llama-server >= b11430 serves them via

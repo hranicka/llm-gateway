@@ -9,7 +9,7 @@ modelRoles:
   tiny: network-gem12/qwen-3.8-27b:low
   commit: network-gem12/qwen-3.8-27b:low
   # Vision role: qwen-3.8-27b loads its mmproj on the CPU, so images no
-  # longer swap models. Fallback if vision misbehaves: network-gem12/qwen-3.8-27b-uncensored.
+  # longer swap models. Fallback if vision misbehaves: network-gem12/gemma-4-12b.
   vision: network-gem12/qwen-3.8-27b:low
 
 providers:
