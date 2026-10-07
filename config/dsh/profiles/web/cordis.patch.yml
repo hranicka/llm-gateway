@@ -6,14 +6,11 @@
   config:
     welcomeNoticeVersion: 2026-09-28.1
 
-# Compaction threshold: default headroomTokens 65536 is sized for cloud
-# contexts — on the 131072 window (minus 32768 maxTokens output reserve)
-# it forces compaction at ~33K tokens (measured firing at 31.5-35K).
-# 8192 lifts the trigger to ~90K = window − maxTokens − headroom; the
-# 0.8 window-ratio cap (104858) stays non-binding. retainRatio 0.16
-# keeps a ~15K verbatim tail. Omp parity (~105K) would additionally
-# require declaring maxTokens 16384 on the model — at the cost of
-# truncating larger single responses (big file writes).
+# Default headroomTokens 65536 (cloud-sized) forced compaction at ~33K
+# (measured). headroom 8192 + maxTokens 16384 on qwen-3.8-27b put the
+# trigger at ~105K = window − maxTokens − headroom (omp parity; the
+# 0.8-ratio cap stays non-binding); retainRatio 0.16 keeps an ~18K
+# verbatim tail.
 - id: compaction-tuning
   name: "@deepseek-ai/dsh-compaction-basic"
   config:
@@ -75,8 +72,9 @@
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
-            # Room for thinking (budget-capped) plus large file writes.
-            maxTokens: 32768
+            # Thinking is budget-capped at 7500; 16384 (not 32768) keeps
+            # the compaction trigger at ~105K, omp parity.
+            maxTokens: 16384
             # Vision via mmproj encoded on the CPU.
             input: [text, image]
             reasoningEfforts:
@@ -128,11 +126,9 @@
             contextWindow: 16384
             maxTokens: 8192
 
-# Start fresh sessions on the local eGPU instead of the DeepSeek account
-# (dsh defaults new agents to deepseek-official/deepseek-flash); pick the
-# effort in the model selector per session. Enabled 2026-10-07 via the dsh
-# settings UI; this copy is the source of truth (the UI drops comments —
-# re-sync from the repo after saving settings).
+# New sessions default to the local eGPU instead of the DeepSeek account;
+# pick the effort per session in the model selector. The dsh UI drops
+# comments when saving settings — re-sync from this repo copy.
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
