@@ -9,7 +9,9 @@
 #
 # Reuses the Qwen-Image-2.1 models already downloaded by
 # install-qwen-image-sdcpp.sh via symlinks (no extra disk for weights).
-# Upgrade: bump COMFY_REF / GGUF_NODE_REF at the top, then re-run.
+# Upgrade: bump COMFY_REF / GGUF_NODE_REF at the top and re-run, or
+# COMFY_REF=latest GGUF_NODE_REF=latest (scripts/update.sh) for the newest
+# ComfyUI release and the node's default branch.
 
 set -euo pipefail
 
@@ -150,13 +152,20 @@ checkout_ref() {
 	fi
 }
 
+if [ "$COMFY_REF" = "latest" ]; then
+	COMFY_REF="$(curl -fsSL https://api.github.com/repos/Comfy-Org/ComfyUI/releases/latest \
+		| grep -oE '"tag_name": *"[^"]+"' | cut -d'"' -f4)"
+	[ -n "$COMFY_REF" ] || { echo "ERROR: cannot resolve the latest ComfyUI release."; exit 1; }
+fi
+if [ "$GGUF_NODE_REF" = "latest" ]; then GGUF_NODE_REF="HEAD"; fi
+
 # Unapply the patch first so it can never block the checkout.
 if [ -s "${PATCH_FILE}" ] && git -C "${COMFY_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
 	git -C "${COMFY_DIR}" apply --reverse "${PATCH_FILE}"
 fi
 checkout_ref "$COMFY_REPO" "${COMFY_DIR}" "$COMFY_REF"
 checkout_ref "$GGUF_NODE_REPO" "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF" "$GGUF_NODE_REF"
-echo "  ComfyUI at ${COMFY_REF:0:12}, GGUF node at ${GGUF_NODE_REF:0:12} (pin via COMFY_REF / GGUF_NODE_REF)."
+echo "  ComfyUI at $(git -C "${COMFY_DIR}" describe --tags --always), GGUF node at $(git -C "${COMFY_DIR}/custom_nodes/ComfyUI-GGUF" rev-parse --short HEAD)."
 apply_nvfp4_patch
 
 # ── 3. Dependencies (CUDA torch for Blackwell via uv's torch backend) ────────
@@ -253,6 +262,11 @@ echo "  NOTE: optional FP4 text-encoder acceleration patch + prompting guide:"
 echo "        ${NVFP4_REPO} (runtime/, PROMPTING.md)"
 
 chown -R "$RUN_USER" "$INSTALL_DIR"
+
+# A running ComfyUI keeps the old code; the gateway restarts it on the next request.
+if pkill -f "${INSTALL_DIR}/venv/bin/python main.py" 2>/dev/null; then
+	echo "  Stopped the running ComfyUI — the gateway starts the updated one on the next request."
+fi
 
 # ── 5. Done — print the gateway config snippet ────────────────────────────────
 echo "[6/6] Done. The gateway manages ComfyUI's lifecycle (kind: web):"

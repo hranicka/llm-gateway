@@ -348,6 +348,24 @@ make docker
 
 The gateway will be available at `http://localhost:1234`.
 
+## Updating backends and apps
+
+The installers pin upstream versions (sd.cpp release, ComfyUI release + GGUF node commit, open-webui) so a re-run reproduces a known-good install; llama.cpp always builds `master`. [`scripts/update.sh`](scripts/update.sh) re-runs the installers in `latest` mode — everything installed, or the components named:
+
+```bash
+./scripts/update.sh                  # llama, sdcpp, comfyui, openwebui — whatever is installed
+./scripts/update.sh sdcpp comfyui    # only these
+```
+
+| Component | Latest means | Pin variable |
+|---|---|---|
+| `llama` | `master`, rebuilt for the hardware chosen at install (`~/.config/llm-gateway/llama-hw-choice`, or `HW_CHOICE=`) | — |
+| `sdcpp` | newest stable-diffusion.cpp release tag; rebuilds only when it changed | `SDCPP_RELEASE` |
+| `comfyui` | newest ComfyUI release + ComfyUI-GGUF default branch | `COMFY_REF`, `GGUF_NODE_REF` |
+| `openwebui` | newest open-webui on PyPI; the service is restarted | `OPEN_WEBUI_VERSION` |
+
+Run it as your normal user; it uses sudo where needed. Running backends are stopped and the gateway starts the new version on the next request; model files are kept. The same variables set to `latest` work with a single installer, e.g. `sudo env COMFY_REF=latest ./scripts/install-comfyui.sh`. If an update breaks something, re-run that installer without the variable to return to the pinned version — except Open WebUI, whose database migrations only go forward: back up `/opt/open-webui/data` before updating it.
+
 ## Cleaning up old downloads
 
 Model swaps leave old files behind. [`scripts/cleanup.sh`](scripts/cleanup.sh) lists what nothing references any more, with sizes, and deletes it with `--apply`:

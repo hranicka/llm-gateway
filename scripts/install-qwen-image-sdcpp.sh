@@ -31,8 +31,8 @@ TURBO_QUANT="${TURBO_QUANT:-Q6_K_XL}"
 DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
 
 # Pinned upstream release (supply chain): both the prebuilt download and the
-# source build use this revision. Set SDCPP_RELEASE=latest to track master,
-# or bump deliberately, e.g.:
+# source build use this revision. SDCPP_RELEASE=latest (scripts/update.sh)
+# picks the newest release tag; or bump deliberately, e.g.:
 #   SDCPP_RELEASE=master-890-<sha> sudo -E ./scripts/install-qwen-image-sdcpp.sh
 SDCPP_RELEASE="${SDCPP_RELEASE:-master-955-b7a74e6}"
 # Optional sha256 the downloaded release zip must match (published per asset
@@ -155,8 +155,16 @@ ensure_frontend_toolchain() {
 }
 
 # ── 1. Get sd-server: prebuilt CUDA release, else build from source ───────────
+# "latest" resolves to the newest release tag, so it rebuilds only when
+# upstream has published a newer one.
+if [ "$SDCPP_RELEASE" = "latest" ]; then
+	SDCPP_RELEASE="$(curl -fsSL https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest \
+		| grep -oE '"tag_name": *"[^"]+"' | cut -d'"' -f4)"
+	[ -n "$SDCPP_RELEASE" ] || { echo "ERROR: cannot resolve the latest sd.cpp release."; exit 1; }
+	echo "  Latest sd.cpp release: ${SDCPP_RELEASE}"
+fi
 if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server" \
-	&& [ "$SDCPP_RELEASE" != "latest" ] && [ "$(installed_release)" = "$SDCPP_RELEASE" ]; then
+	&& [ "$(installed_release)" = "$SDCPP_RELEASE" ]; then
 	echo "[1/3] sd-server ${SDCPP_RELEASE} already installed at ${BIN_DIR}/sd-server (web UI embedded) — skipping."
 else
 	if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server"; then
@@ -167,11 +175,7 @@ else
 	else
 		echo "[1/3] Fetching sd-server..."
 	fi
-	if [ "$SDCPP_RELEASE" = "latest" ]; then
-		RELEASE_API="https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest"
-	else
-		RELEASE_API="https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/tags/${SDCPP_RELEASE}"
-	fi
+	RELEASE_API="https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/tags/${SDCPP_RELEASE}"
 	API_JSON=$(curl -sSf "$RELEASE_API")
 	ASSET_URL=$(echo "$API_JSON" \
 		| grep -oE '"browser_download_url": *"[^"]+"' \
@@ -209,18 +213,14 @@ else
 		if [ ! -d "$SRC_DIR/.git" ]; then
 			git clone https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
 		fi
-		# Build exactly the pinned revision (the release tag embeds its
-		# commit, e.g. master-955-b7a74e6). SDCPP_RELEASE=latest tracks master.
-		if [ "$SDCPP_RELEASE" = "latest" ]; then
-			git -C "$SRC_DIR" pull --ff-only && git -C "$SRC_DIR" submodule update --init --recursive
-		else
-			if ! git -C "$SRC_DIR" fetch --depth 1 origin "refs/tags/${SDCPP_RELEASE}" \
-				|| ! git -C "$SRC_DIR" checkout --detach FETCH_HEAD; then
-				echo "ERROR: cannot fetch pinned release ${SDCPP_RELEASE} — check the tag exists."
-				exit 1
-			fi
-			git -C "$SRC_DIR" submodule update --init --recursive
+		# Build exactly the release tag (it embeds its commit, e.g.
+		# master-955-b7a74e6).
+		if ! git -C "$SRC_DIR" fetch --depth 1 origin "refs/tags/${SDCPP_RELEASE}" \
+			|| ! git -C "$SRC_DIR" checkout --detach FETCH_HEAD; then
+			echo "ERROR: cannot fetch release ${SDCPP_RELEASE} — check the tag exists."
+			exit 1
 		fi
+		git -C "$SRC_DIR" submodule update --init --recursive
 
 		# The embedded web UI needs Node >= 20 + pnpm >= 10; try to provision
 		# them, but degrade gracefully (gateway + Open WebUI work without it).

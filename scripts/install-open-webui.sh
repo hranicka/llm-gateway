@@ -19,7 +19,9 @@
 # Image model:   IMAGE_MODEL=qwen-image-2.1 (generation), IMAGE_EDIT_MODEL=...
 # Open WebUI stores these as persistent settings: the env values seed the
 # first start only; change later via Admin Settings → Images.
-# Upgrade:      re-run the script (upgrades the package in place).
+# Upgrade:      re-run the script (upgrades the package in place and restarts
+#               the service); OPEN_WEBUI_VERSION=latest (scripts/update.sh)
+#               installs the newest PyPI release.
 
 set -euo pipefail
 
@@ -84,7 +86,8 @@ install_uv() {
 install_uv
 
 # ── 2. venv + package ─────────────────────────────────────────────────────────
-# Pinned open-webui version (supply chain): upgrades are a deliberate bump.
+# Pinned open-webui version (supply chain): upgrades are a deliberate bump,
+# or "latest" for the newest PyPI release.
 OPEN_WEBUI_VERSION="${OPEN_WEBUI_VERSION:-0.11.3}"
 echo "[2/4] Installing open-webui ${OPEN_WEBUI_VERSION} into ${VENV_DIR}/venv (CPU torch, ~2 GB)..."
 mkdir -p "${VENV_DIR}/venv" "${VENV_DIR}/data" "${VENV_DIR}/python"
@@ -115,7 +118,11 @@ fi
 source "${VENV_DIR}/venv/bin/activate"
 # CPU torch is enough: the GPU work happens in the gateway's backends, and
 # Open WebUI only uses torch for local RAG embeddings.
-uv pip install "open-webui==${OPEN_WEBUI_VERSION}" --torch-backend=cpu
+if [ "$OPEN_WEBUI_VERSION" = "latest" ]; then
+	uv pip install --upgrade open-webui --torch-backend=cpu
+else
+	uv pip install "open-webui==${OPEN_WEBUI_VERSION}" --torch-backend=cpu
+fi
 
 [ -x "${VENV_DIR}/venv/bin/open-webui" ] || { echo "ERROR: open-webui not found in venv."; exit 1; }
 chown -R "$RUN_USER" "$VENV_DIR"
@@ -220,7 +227,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now open-webui.service
+systemctl enable open-webui.service
+# restart, not start: a re-run must replace the old version that is running.
+systemctl restart open-webui.service
 
 # ── 4. Done ───────────────────────────────────────────────────────────────────
 echo "[4/4] Service status:"
