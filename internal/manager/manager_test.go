@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +37,12 @@ func clearActive() {
 	activeRequests.Store(0)
 	lastExit = time.Time{}
 	mu.Unlock()
+	statusMu.Lock()
+	readyModel = ""
+	readyCmd = nil
+	switchTarget = ""
+	switchErr = nil
+	statusMu.Unlock()
 }
 
 // newHealthBackend returns the address of a stub backend whose /health (and
@@ -150,4 +157,140 @@ func TestSwitchModel_ProcessExitResetsState(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Error("state not cleared after process exit")
+}
+
+// newGatedBackend returns a stub backend that answers 503 until open() is
+// called, then 200 — a model that takes a while to become ready.
+func newGatedBackend(t *testing.T) (addr string, open func()) {
+	t.Helper()
+	gate := make(chan struct{})
+	var once sync.Once
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-gate:
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.Listener.Addr().String(), func() { once.Do(func() { close(gate) }) }
+}
+
+// within runs fn and fails the test if it takes longer than d.
+func within(t *testing.T, d time.Duration, what string, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		fn()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(d):
+		t.Fatalf("%s blocked for more than %v", what, d)
+	}
+}
+
+func TestStatusQueries_DoNotBlockDuringLoad(t *testing.T) {
+	resetState(t)
+	addr, open := newGatedBackend(t)
+	setTestConfig(map[string]config.ModelConf{
+		"m": {Command: "sleep 30", Host: addr, ReadyTimeout: "10s"},
+	})
+
+	loaded := make(chan error, 1)
+	go func() {
+		_, release, err := SwitchModel("m")
+		if err == nil {
+			release()
+		}
+		loaded <- err
+	}()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for ModelState("m") != "starting" {
+		if time.Now().After(deadline) {
+			t.Fatalf("state = %q, want starting", ModelState("m"))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	within(t, 500*time.Millisecond, "status queries during load", func() {
+		if got := CurrentModel(); got != "" {
+			t.Errorf("CurrentModel during load = %q, want empty", got)
+		}
+		if got := ModelState("m"); got != "starting" {
+			t.Errorf("ModelState during load = %q, want starting", got)
+		}
+		if got := ModelSwitchError(); got != "" {
+			t.Errorf("ModelSwitchError during load = %q, want empty", got)
+		}
+		LoadModelAsync("m") // already in flight: must return at once
+		TouchModel()
+	})
+
+	open()
+	if err := <-loaded; err != nil {
+		t.Fatalf("SwitchModel error: %v", err)
+	}
+	if got := ModelState("m"); got != "ready" {
+		t.Errorf("ModelState after load = %q, want ready", got)
+	}
+	if got := CurrentModel(); got != "m" {
+		t.Errorf("CurrentModel after load = %q, want m", got)
+	}
+}
+
+func TestFailedStart_RecordsExitAndError(t *testing.T) {
+	resetState(t)
+	addr, _ := newGatedBackend(t) // never opens
+	setTestConfig(map[string]config.ModelConf{
+		"m": {Command: "sleep 30", Host: addr, ReadyTimeout: "1s"},
+	})
+
+	if _, _, err := SwitchModel("m"); err == nil {
+		t.Fatal("SwitchModel = nil error, want readiness timeout")
+	}
+	if got := ModelState("m"); got != "failed" {
+		t.Errorf("ModelState = %q, want failed", got)
+	}
+	if ModelSwitchError() == "" {
+		t.Error("ModelSwitchError empty after failed load")
+	}
+	mu.RLock()
+	exited := lastExit
+	mu.RUnlock()
+	if time.Since(exited) > 5*time.Second || exited.IsZero() {
+		t.Errorf("lastExit = %v, want a fresh timestamp after the failed start", exited)
+	}
+}
+
+func TestAutoUnload_SparesInFlightRequest(t *testing.T) {
+	resetState(t)
+	addr := newHealthBackend(t)
+	setTestConfig(map[string]config.ModelConf{
+		"m": {Command: "sleep 30", Host: addr, ReadyTimeout: "5s"},
+	})
+	StartAutoUnload(300 * time.Millisecond)
+
+	_, release, err := SwitchModel("m")
+	if err != nil {
+		t.Fatalf("SwitchModel error: %v", err)
+	}
+
+	// Well past the idle window while the request is still open.
+	time.Sleep(900 * time.Millisecond)
+	if got := CurrentModel(); got != "m" {
+		t.Fatalf("model %q after the idle window with a request in flight, want m kept loaded", got)
+	}
+
+	release()
+	deadline := time.Now().Add(3 * time.Second)
+	for CurrentModel() != "" {
+		if time.Now().After(deadline) {
+			t.Fatal("model not unloaded after the request ended and the idle window elapsed")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

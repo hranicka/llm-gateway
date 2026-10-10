@@ -8,10 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
-	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -29,9 +26,16 @@ var (
 	currentModel   string
 	currentBackend string
 
+	// statusMu guards the status snapshot below. It is independent of mu so
+	// status pages and polls answer immediately while a load holds mu for
+	// minutes. Lock order: mu, then statusMu; status readers never take mu.
+	statusMu sync.RWMutex
+	// readyModel/readyCmd identify the model that passed its readiness probe.
+	readyModel string
+	readyCmd   *exec.Cmd
 	// switchTarget/switchErr track the most recent load for status pages.
 	// switchTarget stays set with switchErr != nil after a failed load so
-	// clients can show the failure. Guarded by mu.
+	// clients can show the failure.
 	switchTarget string
 	switchErr    error
 
@@ -89,9 +93,12 @@ func StopAutoUnload() {
 	timerMu.Unlock()
 }
 
-// ReleaseModel decrements the active request counter.
+// ReleaseModel decrements the active request counter and restarts the idle
+// countdown, so the auto-unload interval runs from the end of the last
+// request rather than its start.
 func ReleaseModel() {
 	activeRequests.Add(-1)
+	resetAutoUnload()
 }
 
 // TouchModel records activity for the auto-unload timer. Used for web-app
@@ -99,21 +106,22 @@ func ReleaseModel() {
 // proxied HTTP requests): while a browser tab is connected, the app counts
 // as in use and is not idle-unloaded.
 func TouchModel() {
-	mu.RLock()
-	loaded := activeCmd != nil
-	mu.RUnlock()
+	statusMu.RLock()
+	loaded := readyCmd != nil
+	statusMu.RUnlock()
 	if loaded {
 		resetAutoUnload()
 	}
 }
 
 // CurrentModel returns the name of the currently loaded, live model,
-// or an empty string when nothing is loaded.
+// or an empty string when nothing is loaded. It never waits for a load in
+// progress.
 func CurrentModel() string {
-	mu.RLock()
-	defer mu.RUnlock()
-	if processAlive(activeCmd) {
-		return currentModel
+	statusMu.RLock()
+	defer statusMu.RUnlock()
+	if processAlive(readyCmd) {
+		return readyModel
 	}
 	return ""
 }
@@ -122,9 +130,9 @@ func CurrentModel() string {
 // alive), "starting" (a load is in progress), "failed" (the most recent
 // load of this model failed) or "" (idle — nothing attempted or loaded).
 func ModelState(modelName string) string {
-	mu.RLock()
-	defer mu.RUnlock()
-	if currentModel == modelName && processAlive(activeCmd) {
+	statusMu.RLock()
+	defer statusMu.RUnlock()
+	if readyModel == modelName && processAlive(readyCmd) {
 		return "ready"
 	}
 	if switchTarget == modelName {
@@ -139,8 +147,8 @@ func ModelState(modelName string) string {
 // ModelSwitchError returns the error message of the most recent failed
 // load, or an empty string.
 func ModelSwitchError() string {
-	mu.RLock()
-	defer mu.RUnlock()
+	statusMu.RLock()
+	defer statusMu.RUnlock()
 	if switchErr != nil {
 		return switchErr.Error()
 	}
@@ -154,10 +162,10 @@ func LoadModelAsync(modelName string) {
 	if shutdownCtx != nil && shutdownCtx.Err() != nil {
 		return
 	}
-	mu.RLock()
-	inFlight := (currentModel == modelName && processAlive(activeCmd)) ||
+	statusMu.RLock()
+	inFlight := (readyModel == modelName && processAlive(readyCmd)) ||
 		(switchTarget == modelName && switchErr == nil)
-	mu.RUnlock()
+	statusMu.RUnlock()
 	if inFlight {
 		return
 	}
@@ -186,6 +194,12 @@ func resetAutoUnload() {
 // doAutoUnload is called by the timer. It guards against spurious fires
 // (e.g. timer stopped after Stop returned false) by re-checking idle time.
 func doAutoUnload() {
+	// A request that started before the idle window elapsed is still being
+	// served: count the idle time from its end, never kill it mid-stream.
+	if activeRequests.Load() > 0 {
+		resetAutoUnload()
+		return
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	if activeCmd == nil {
@@ -268,13 +282,12 @@ func startModelLocked(modelName string) (retErr error) {
 	if err != nil {
 		return err
 	}
-	switchTarget = modelName
-	switchErr = nil
+	setSwitchStatus(modelName, nil)
 	// Report the failure on the status page instead of leaving the load
 	// looking "in progress" forever.
 	defer func() {
 		if retErr != nil {
-			switchErr = retErr
+			setSwitchStatus(modelName, retErr)
 		}
 	}()
 
@@ -320,13 +333,28 @@ func startModelLocked(modelName string) (retErr error) {
 		if activeCmd == cmd {
 			clearStateLocked()
 		}
+		// monitorProcess skips the bookkeeping once the state is cleared, so
+		// record the exit here: the next start still honours the GPU cooldown.
+		lastExit = time.Now()
 		return fmt.Errorf("server failed to become ready: %w", err)
 	}
 
 	slog.Info("model ready", "model", modelName, "url", backendURL)
+	statusMu.Lock()
+	readyModel = modelName
+	readyCmd = cmd
 	switchTarget = ""
 	switchErr = nil
+	statusMu.Unlock()
 	return nil
+}
+
+// setSwitchStatus records the load target and its error (nil while loading).
+func setSwitchStatus(target string, err error) {
+	statusMu.Lock()
+	switchTarget = target
+	switchErr = err
+	statusMu.Unlock()
 }
 
 // monitorProcess waits for cmd to exit and clears state if it was the active
@@ -350,6 +378,10 @@ func clearStateLocked() {
 	currentModel = ""
 	currentBackend = ""
 	lastAccess.Store(0)
+	statusMu.Lock()
+	readyModel = ""
+	readyCmd = nil
+	statusMu.Unlock()
 }
 
 // ShutdownCurrentModel kills the active model process and cleans up.
@@ -393,67 +425,13 @@ func shutdownCurrentModelLocked() {
 		}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		if !waitForGroupExit(pgid, 10*time.Second) {
-			slog.Warn("model did not exit on SIGTERM, escalating to SIGKILL", "model", currentModel)
-			killProcessGroup(cmd)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		killDescendants(cmd.Process.Pid)
-	}()
-
-	wg.Wait()
+	if !waitForGroupExit(pgid, 10*time.Second) {
+		slog.Warn("model did not exit on SIGTERM, escalating to SIGKILL", "model", currentModel)
+		killProcessGroup(cmd)
+	}
 
 	clearStateLocked()
 	lastExit = time.Now()
-}
-
-// readChildren reads /proc/<pid>/status Children: field and returns live child PIDs.
-func readChildren(pid int) []int {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
-	if err != nil {
-		return nil
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "Children:") {
-			var children []int
-			for _, m := range strings.Fields(strings.TrimPrefix(line, "Children:")) {
-				var p int
-				_, err := fmt.Sscanf(m, "%d", &p)
-				if err == nil && p > 0 {
-					children = append(children, p)
-				}
-			}
-			return children
-		}
-	}
-	return nil
-}
-
-// isAlive checks if a process exists by sending signal 0.
-// EPERM means the process exists but we lack permission to signal it.
-func isAlive(pid int) bool {
-	err := syscall.Kill(pid, syscall.Signal(0))
-	return err == nil || err == syscall.EPERM
-}
-
-// waitForSingleExit polls until pid or any of its children no longer exists.
-func waitForSingleExit(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if !isAlive(pid) {
-			return true
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return false
 }
 
 // killProcessGroup sends SIGKILL to the whole process group and waits for exit.
@@ -468,66 +446,6 @@ func killProcessGroup(cmd *exec.Cmd) {
 		}
 	}
 	waitForGroupExit(pgid, 5*time.Second)
-}
-
-const maxDescendantNodes = 512
-
-// collectAllDescendants collects all descendants of pid from /proc/*/status by
-// finding processes whose PPid matches any PID in the current set. Returns a
-// unique set of descendant PIDs (does not include pid itself). Traversal is
-// capped at maxDescendantNodes to avoid unbounded work on pathological trees.
-func collectAllDescendants(pid int) []int {
-	seen := map[int]struct{}{pid: {}}
-	queue := []int{pid}
-	capped := false
-	for len(queue) > 0 && !capped {
-		next := queue[:0]
-		for _, p := range queue {
-			children := readChildren(p)
-			for _, c := range children {
-				if _, ok := seen[c]; !ok {
-					seen[c] = struct{}{}
-					next = append(next, c)
-					if len(seen) > maxDescendantNodes {
-						capped = true
-						break
-					}
-				}
-			}
-			if capped {
-				break
-			}
-		}
-		queue = next
-	}
-	if capped {
-		slog.Warn("descendant traversal capped", "root_pid", pid, "limit", maxDescendantNodes)
-	}
-	pids := make([]int, 0, len(seen)-1)
-	for p := range seen {
-		if p != pid {
-			pids = append(pids, p)
-		}
-	}
-	sort.Ints(pids)
-	return pids
-}
-
-// killDescendants SIGKILLs all descendants of pid and waits for them to exit.
-func killDescendants(pid int) {
-	descendants := collectAllDescendants(pid)
-	for _, d := range descendants {
-		if isAlive(d) {
-			if err := syscall.Kill(d, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
-				slog.Debug("failed to SIGKILL descendent process", "pid", d, "error", err)
-			}
-		}
-	}
-	for _, d := range descendants {
-		if isAlive(d) {
-			waitForSingleExit(d, 2*time.Second)
-		}
-	}
 }
 
 // waitForGroupExit polls until no process in the process group pgid exists,

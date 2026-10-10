@@ -355,3 +355,30 @@ func TestLoad_Kind(t *testing.T) {
 		t.Errorf("ModelKind(missing) = %q, want %q", k, KindAPI)
 	}
 }
+
+func TestLoad_ImageChatRequiresWebKind(t *testing.T) {
+	base := `host: 0.0.0.0:1234
+auth_token: ""
+allowed_hosts: []
+max_body_size: 64MB
+auto_unload: 2h
+drain_timeout: 30s
+models:
+  img:
+    kind: %s
+    image_chat: true
+    command: sd-server
+    host: 127.0.0.1:1235
+    ready_timeout: 1m
+`
+	if err := Load(writeConfig(t, strings.Replace(base, "%s", "web", 1))); err != nil {
+		t.Fatalf("image_chat on a web model: %v", err)
+	}
+	if !ModelImageChat("img") {
+		t.Error("ModelImageChat(img) = false, want true")
+	}
+	err := Load(writeConfig(t, strings.Replace(base, "%s", "api", 1)))
+	if err == nil || !strings.Contains(err.Error(), "image_chat") {
+		t.Errorf("image_chat on an api model: err = %v, want an image_chat error", err)
+	}
+}

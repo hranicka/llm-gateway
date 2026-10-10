@@ -9,6 +9,8 @@ import (
 	"html"
 	"io"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -115,7 +117,8 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 		IndexHandler(w, r)
 	case "/v1/models":
 		ModelsHandler(w, r)
-	case "/v1/chat/completions", "/v1/completions":
+	case "/v1/chat/completions", "/v1/completions",
+		"/v1/messages", "/v1/messages/count_tokens", "/v1/responses":
 		ChatProxyHandler(w, r)
 	case "/v1/systemone":
 		DecisionProxyHandler(w, r)
@@ -310,6 +313,10 @@ func ChatProxyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch config.ModelKind(name) {
 	case config.KindWeb:
+		if config.ModelImageChat(name) && r.URL.Path == "/v1/chat/completions" {
+			imageChatHandler(w, r, name)
+			return
+		}
 		slog.Warn("chat request for web model", "model", name, "path", r.URL.Path)
 		writeOpenAIError(w,
 			fmt.Sprintf("Model %s is a web app (kind: web) with no chat endpoint — open /app/%s in a browser, or use /v1/images/generations for image models.", name, name),
@@ -385,8 +392,8 @@ func parseModelRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	r.ContentLength = int64(len(bodyBytes))
 
-	var payload requestPayload
-	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+	payload, err := parseRequestPayload(r.Header.Get("Content-Type"), bodyBytes)
+	if err != nil {
 		slog.Warn("failed to parse request body", "error", err)
 		writeOpenAIError(w, "Invalid request body", "invalid_body", http.StatusBadRequest)
 		return "", false
@@ -404,6 +411,42 @@ func parseModelRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 	slog.Debug("request received", "model", payload.Model, "method", r.Method, "path", r.URL.Path)
 	return payload.Model, true
+}
+
+// parseRequestPayload extracts the routing fields from a request body: JSON
+// for chat and image generation, multipart/form-data for image edits (the
+// OpenAI edits endpoint uploads the reference images as form files). The
+// body itself is forwarded untouched.
+func parseRequestPayload(contentType string, body []byte) (requestPayload, error) {
+	var payload requestPayload
+	mediaType, params, _ := mime.ParseMediaType(contentType)
+	if mediaType != "multipart/form-data" {
+		err := json.Unmarshal(body, &payload)
+		return payload, err
+	}
+	boundary := params["boundary"]
+	if boundary == "" {
+		return payload, errors.New("multipart body without boundary")
+	}
+	mr := multipart.NewReader(bytes.NewReader(body), boundary)
+	for {
+		part, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			return payload, nil
+		}
+		if err != nil {
+			return payload, err
+		}
+		if part.FormName() != "model" {
+			continue
+		}
+		value, err := io.ReadAll(io.LimitReader(part, 1024))
+		if err != nil {
+			return payload, err
+		}
+		payload.Model = strings.TrimSpace(string(value))
+		return payload, nil
+	}
 }
 
 // switchAndProxy waits for the generation slot, switches to the model and
@@ -525,7 +568,7 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 		b.WriteString("<h2>API models</h2>\n<ul>\n" + apiModels.String() + "</ul>\n")
 	}
 
-	b.WriteString("<p class=\"hint\">API endpoints: <code>/v1/chat/completions</code>, <code>/v1/completions</code>, <code>/v1/systemone</code>, <code>/v1/images/generations</code>, <code>/v1/models</code>, <code>/health</code></p>\n")
+	b.WriteString("<p class=\"hint\">API endpoints: <code>/v1/chat/completions</code>, <code>/v1/completions</code>, <code>/v1/messages</code>, <code>/v1/responses</code>, <code>/v1/systemone</code>, <code>/v1/images/generations</code>, <code>/v1/images/edits</code>, <code>/v1/models</code>, <code>/health</code></p>\n")
 	b.WriteString("</main>\n</body>\n</html>\n")
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -587,14 +630,15 @@ func writeAppStatusPage(w http.ResponseWriter, name string, failed bool) {
 }
 
 // ModelsHandler exposes available API models to OpenAI clients: chat models
-// and decision models (addressable via /v1/systemone's "model" field). Web
-// apps (kind: web) are omitted: they are not addressable through API model
-// fields (their UIs live under /app/<name>), and listing them only invites
-// clients to select something unusable.
+// and decision models (addressable via /v1/systemone's "model" field), plus
+// web apps flagged image_chat, which answer chat completions with an image.
+// Other web apps (kind: web) are omitted: they are not addressable through
+// API model fields (their UIs live under /app/<name>), and listing them only
+// invites clients to select something unusable.
 func ModelsHandler(w http.ResponseWriter, r *http.Request) {
 	models := make([]openaiModel, 0, len(config.SortedModelNames))
 	for _, name := range config.SortedModelNames {
-		if config.ModelKind(name) == config.KindWeb {
+		if config.ModelKind(name) == config.KindWeb && !config.ModelImageChat(name) {
 			continue
 		}
 		models = append(models, openaiModel{

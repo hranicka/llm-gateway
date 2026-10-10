@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -744,6 +745,102 @@ func TestProxyHandler_SerializesConcurrentRequests(t *testing.T) {
 	for i, status := range statuses {
 		if status != http.StatusOK {
 			t.Errorf("request %d status = %d, want 200", i, status)
+		}
+	}
+}
+
+// newEchoBackend serves /health and echoes each request's path and
+// content type, so tests can see what the gateway forwarded.
+func newEchoBackend(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		fmt.Fprintf(w, "%s|%s|%d", r.URL.Path, r.Header.Get("Content-Type"), len(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func setSingleModelConfig(backend *httptest.Server, name, kind string) {
+	config.ConfigApp = &config.Config{
+		Host:         "127.0.0.1:9999",
+		AutoUnload:   "1h",
+		DrainTimeout: "5s",
+		Models: map[string]config.ModelConf{
+			name: {Kind: kind, Command: "sleep 60", Host: backend.Listener.Addr().String(), ReadyTimeout: "5s"},
+		},
+	}
+	config.SortedModelNames = []string{name}
+	manager.Shutdown(context.Background())
+}
+
+func TestRootHandler_ImageEditsMultipart(t *testing.T) {
+	backend := newEchoBackend(t)
+	setSingleModelConfig(backend, "img", config.KindWeb)
+	defer manager.ShutdownCurrentModel()
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("prompt", "make it blue")
+	_ = mw.WriteField("model", "img")
+	fw, _ := mw.CreateFormFile("image", "in.png")
+	_, _ = fw.Write(bytes.Repeat([]byte{0x89}, 2048))
+	_ = mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	RootHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	parts := strings.Split(w.Body.String(), "|")
+	if len(parts) != 3 || parts[0] != "/v1/images/edits" || !strings.HasPrefix(parts[1], "multipart/form-data") {
+		t.Fatalf("backend saw %q, want the untouched multipart edit request", w.Body.String())
+	}
+	if n := parts[2]; n == "0" {
+		t.Error("backend received an empty body; the multipart payload must be forwarded intact")
+	}
+}
+
+func TestRootHandler_ImageEditsMultipartMissingModel(t *testing.T) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("prompt", "make it blue")
+	_ = mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	w := httptest.NewRecorder()
+	ProxyHandler(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	assertOpenAICode(t, w, "model_required")
+}
+
+func TestRootHandler_AnthropicAndResponsesRoutes(t *testing.T) {
+	backend := newEchoBackend(t)
+	setSingleModelConfig(backend, "chat", config.KindAPI)
+	defer manager.ShutdownCurrentModel()
+
+	for _, path := range []string{"/v1/messages", "/v1/messages/count_tokens", "/v1/responses"} {
+		body, _ := json.Marshal(map[string]any{"model": "chat", "messages": []any{}})
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		RootHandler(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200 (body: %s)", path, w.Code, w.Body.String())
+			continue
+		}
+		if got := strings.Split(w.Body.String(), "|")[0]; got != path {
+			t.Errorf("%s: backend saw path %q", path, got)
 		}
 	}
 }

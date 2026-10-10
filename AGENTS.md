@@ -13,6 +13,7 @@ internal/config/config.go — YAML loading, validation, model config (kind: api|
 internal/manager/manager.go — process lifecycle: start, monitor (Wait goroutine), shutdown
 internal/manager/install.go — install/uninstall commands
 internal/api/api.go   — RootHandler dispatcher: gateway API routes, index page, web-app cookie proxy; /app/<name> launcher
+internal/api/security.go — Host allowlist, bearer/cookie auth middleware
 config/example.yaml   — example configuration file
 config/systemd.service — systemd service unit file
 compose.yml           — local development with Docker

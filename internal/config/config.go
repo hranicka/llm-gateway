@@ -44,6 +44,10 @@ type ModelConf struct {
 	Host           string `yaml:"host"`
 	ReadyTimeout   string `yaml:"ready_timeout"`
 	HealthEndpoint string `yaml:"health_endpoint"` // optional; defaults to "/health" (used by llama-server); web apps typically "/"
+	// ImageChat lets chat clients use a web model that serves
+	// /v1/images/generations (sd-server) as a chat model: the last user
+	// message becomes the prompt and the reply carries the image.
+	ImageChat bool `yaml:"image_chat"`
 }
 
 // Default config search paths.
@@ -261,6 +265,9 @@ func Load(filename string) error {
 		default:
 			return fmt.Errorf("model %q has unknown kind %q (expected %q, %q or %q)", name, m.Kind, KindAPI, KindWeb, KindDecision)
 		}
+		if m.ImageChat && m.Kind != KindWeb {
+			return fmt.Errorf("model %q sets image_chat, which requires kind: %s", name, KindWeb)
+		}
 	}
 
 	if len(ConfigApp.Models) == 0 {
@@ -329,4 +336,11 @@ func ModelKind(modelName string) string {
 		return KindAPI
 	}
 	return m.Kind
+}
+
+// ModelImageChat reports whether chat clients may address the model: a web
+// backend that answers chat completions by generating an image.
+func ModelImageChat(modelName string) bool {
+	m, ok := ConfigApp.Models[modelName]
+	return ok && m.ImageChat
 }
