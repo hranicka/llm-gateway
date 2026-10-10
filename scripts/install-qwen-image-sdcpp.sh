@@ -317,7 +317,9 @@ fi
 echo
 
 # ── 2. Download models ────────────────────────────────────────────────────────
-# curl -C - resumes partial downloads; -f fails loudly on a wrong filename.
+# Downloads land in <file>.part and are renamed only when complete: an
+# interrupted run is resumed by curl -C - next time instead of leaving a
+# truncated model under its final name. -f fails loudly on a wrong filename.
 fetch_model() {
 	local url="$1" out="$2" optional="${3:-no}"
 	if [ -s "$out" ]; then
@@ -325,8 +327,9 @@ fetch_model() {
 		return 0
 	fi
 	echo "  $(basename "$out") ..."
-	if ! curl -fL --retry 3 -C - -o "$out" "$url"; then
-		rm -f "$out"
+	if curl -fL --retry 3 -C - -o "${out}.part" "$url"; then
+		mv -f "${out}.part" "$out"
+	else
 		if [ "$optional" = "yes" ]; then
 			echo "  WARN: optional download failed — ${url} (check the repo for the exact filename)"
 			return 0

@@ -203,8 +203,10 @@ fetch_hf() {
 	fi
 	echo "  ${path} ..."
 	mkdir -p "$(dirname "$out")"
-	if ! curl -fL --retry 3 -C - -o "$out" "${repo}/resolve/main/${path}"; then
-		rm -f "$out"
+	# <file>.part is renamed only when complete, so an interrupted run resumes.
+	if curl -fL --retry 3 -C - -o "${out}.part" "${repo}/resolve/main/${path}"; then
+		mv -f "${out}.part" "$out"
+	else
 		echo "ERROR: download failed — ${repo}/resolve/main/${path}"
 		exit 1
 	fi
