@@ -276,7 +276,7 @@ echo "  - Turbo_* workflows: 8-step Turbo NVFP4 + the base NVFP4 encoder (euler,
 echo "    ManualSigmas schedule) — Text-to-Image, Editing, RGBA, Multiple"
 echo "    References, Typography, 2K Typography."
 echo "  - GGUF alternative: templates → search 'qwen' + UnetLoader (GGUF)"
-echo "    with the Q4_0 / Turbo Q6_K_XL gguf; CLIP loader type 'qwen_image'"
+echo "    with the Q6_K_XL / Turbo Q6_K_XL gguf; CLIP loader type 'qwen_image'"
 echo "    (Qwen3VL gguf). Turbo needs the ManualSigmas schedule of a Turbo_ workflow."
 echo "  - Compose multiple photos: the Editing workflow accepts several"
 echo "    reference images (the model takes up to 10)."

@@ -173,9 +173,10 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
-  # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). Q4_0
-  # diffusion 4.2 GB + Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB + VAE 0.4
-  # GB ≈ 10.8 GB: 40 steps @1024² in well under a minute. --cfg-scale 1.0
+  # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). unsloth
+  # Q6_K_XL diffusion 6.7 GB (same size as the Turbo one) + Qwen3-VL TE Q4_K_M
+  # 5.0 GB + mmproj F16 1.2 GB + VAE 0.4 GB ≈ 13.3 GB, ~3 GiB left for 1024²
+  # compute: 40 steps @1024² in well under a minute. --cfg-scale 1.0
   # skips the guidance pass (~2x faster, weaker prompt adherence; doc value
   # 6.0). sd.cpp auto-fit keeps diffusion weights in VRAM first and moves the
   # TE to RAM only when VRAM runs short — no offload flags needed.
@@ -194,7 +195,7 @@ models:
     image_chat: true
     command: |
       /opt/sdcpp/bin/sd-server
-      --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q4_0.gguf
+      --diffusion-model /opt/sdcpp/models/qwen-image-2.1-Q6_K_XL.gguf
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors

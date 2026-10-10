@@ -8,11 +8,11 @@
 # config/gem12gpu.yaml to the gateway config — the gateway launches/kills
 # sd-server like llama-server and proxies its web UI at /app/<model>.
 #
-# Quant override: DIFFUSION_QUANT=Q8_0 sudo -E ./scripts/install-qwen-image-sdcpp.sh
-# (default Q4_0 — the file gem12gpu.yaml references; also available: Q2_K 2.6 GB,
-# Q5_0 5.1 GB, Q6_K 6.0 GB, Q8_0 7.7 GB)
-# Repo override: DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF
-# (community re-quants of the same weights, dash naming, adds Q4_K_M/Q5_K_M)
+# Quant override: DIFFUSION_QUANT=Q4_K_M sudo -E ./scripts/install-qwen-image-sdcpp.sh
+# (default Q6_K_XL 6.7 GB — the file gem12gpu.yaml references, same size as
+# the Turbo one; also Q4_K_M 4.2 GB, Q5_K_M 5.4 GB, Q8_0 7.6 GB)
+# Repo override: DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF (Q4_0/Q6_K/Q8_0,
+# underscore naming) or abenzerps/Qwen-Image-2.1-Uncensored-GGUF
 # Turbo (8-step distilled, unsloth GGUF): installed by default as
 # TURBO_QUANT=Q6_K_XL (6.7 GB; Q4_K_M 4.2 GB, Q8_0 7.6 GB). Skip it with
 # DOWNLOAD_TURBO=0; point at another repo with TURBO_REPO.
@@ -24,8 +24,8 @@ BIN_DIR="${INSTALL_DIR}/bin"
 MODEL_DIR="${INSTALL_DIR}/models"
 SRC_DIR="${INSTALL_DIR}/src"
 CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
-DIFFUSION_REPO="${DIFFUSION_REPO:-leejet/Qwen-Image-2.1-GGUF}"
-DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q4_0}"
+DIFFUSION_REPO="${DIFFUSION_REPO:-unsloth/Qwen-Image-2.1-GGUF}"
+DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K_XL}"
 TURBO_REPO="${TURBO_REPO:-unsloth/Qwen-Image-2.1-Turbo-GGUF}"
 TURBO_QUANT="${TURBO_QUANT:-Q6_K_XL}"
 DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
@@ -48,10 +48,10 @@ fi
 echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
-echo " Installs to ${INSTALL_DIR} (binary + ~11 GB of models,"
+echo " Installs to ${INSTALL_DIR} (binary + ~13 GB of models,"
 echo " +~7 GB with the Turbo DiT)."
-echo " Resident set ≈ 11 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
-echo " + mmproj + VAE) — fully in 16 GB VRAM; Turbo ${TURBO_QUANT} ≈ 13 GB."
+echo " Resident set ≈ 13.3 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
+echo " + mmproj + VAE) — fully in 16 GB VRAM; Turbo ${TURBO_QUANT} the same."
 echo "======================================================"
 echo
 
@@ -364,7 +364,7 @@ echo "[2/3] Downloading models to ${MODEL_DIR} (resumable)..."
 
 DIFFUSION_NAME="$(hf_resolve "${DIFFUSION_REPO}" \
 	'qwen[-_]image[-_]2\.1-[^"]*'"${DIFFUSION_QUANT}"'\.gguf' \
-	"qwen_image_2.1-${DIFFUSION_QUANT}.gguf")"
+	"qwen-image-2.1-${DIFFUSION_QUANT}.gguf")"
 fetch_model \
 	"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
 	"${MODEL_DIR}/${DIFFUSION_NAME}"
@@ -398,7 +398,7 @@ for f in "${MODEL_DIR}"/qwen*image*2.1-*.gguf; do
 	[ -e "$f" ] || continue
 	[ "$(basename "$f")" = "${DIFFUSION_NAME}" ] && continue
 	[ -n "${TURBO_NAME}" ] && [ "$(basename "$f")" = "${TURBO_NAME}" ] && continue
-	echo "  NOTE: $(basename "$f") is no longer referenced by the config — delete it to reclaim ~6 GB."
+	echo "  NOTE: $(basename "$f") is no longer referenced by the config — delete it to reclaim disk."
 done
 
 TE_NAME="$(hf_resolve 'Qwen/Qwen3-VL-8B-Instruct-GGUF' \
