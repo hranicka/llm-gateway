@@ -34,7 +34,7 @@ DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
 # source build use this revision. Set SDCPP_RELEASE=latest to track master,
 # or bump deliberately, e.g.:
 #   SDCPP_RELEASE=master-890-<sha> sudo -E ./scripts/install-qwen-image-sdcpp.sh
-SDCPP_RELEASE="${SDCPP_RELEASE:-master-889-c678dfe}"
+SDCPP_RELEASE="${SDCPP_RELEASE:-master-955-b7a74e6}"
 # Optional sha256 the downloaded release zip must match (published per asset
 # on the GitHub release page / API "digest" field).
 SDCPP_SHA256="${SDCPP_SHA256:-}"
@@ -114,6 +114,9 @@ mkdir -p "$BIN_DIR" "$MODEL_DIR"
 # for "UI embedded" — more reliable than marker files or generated headers.
 # The marker exists only to remember that a prebuilt release asset ships a UI.
 FRONTEND_MARKER="${BIN_DIR}/.from-release"
+# Release the installed binary was built from; a different pin rebuilds.
+RELEASE_MARKER="${BIN_DIR}/.release"
+installed_release() { cat "${RELEASE_MARKER}" 2>/dev/null || true; }
 binary_has_ui() {
 	[ -f "$1" ] && ! grep -aqF 'Stable Diffusion Server is running' "$1"
 }
@@ -152,10 +155,13 @@ ensure_frontend_toolchain() {
 }
 
 # ── 1. Get sd-server: prebuilt CUDA release, else build from source ───────────
-if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server"; then
-	echo "[1/3] sd-server already installed at ${BIN_DIR}/sd-server (web UI embedded) — skipping."
+if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server" \
+	&& [ "$SDCPP_RELEASE" != "latest" ] && [ "$(installed_release)" = "$SDCPP_RELEASE" ]; then
+	echo "[1/3] sd-server ${SDCPP_RELEASE} already installed at ${BIN_DIR}/sd-server (web UI embedded) — skipping."
 else
-	if [ -x "${BIN_DIR}/sd-server" ]; then
+	if [ -x "${BIN_DIR}/sd-server" ] && binary_has_ui "${BIN_DIR}/sd-server"; then
+		echo "[1/3] Upgrading sd-server $(installed_release || true) → ${SDCPP_RELEASE}..."
+	elif [ -x "${BIN_DIR}/sd-server" ]; then
 		echo "[1/3] Existing sd-server has no embedded web UI — rebuilding."
 		rm -f "${FRONTEND_MARKER}"
 	else
@@ -204,7 +210,7 @@ else
 			git clone https://github.com/leejet/stable-diffusion.cpp "$SRC_DIR"
 		fi
 		# Build exactly the pinned revision (the release tag embeds its
-		# commit, e.g. master-889-c678dfe). SDCPP_RELEASE=latest tracks master.
+		# commit, e.g. master-955-b7a74e6). SDCPP_RELEASE=latest tracks master.
 		if [ "$SDCPP_RELEASE" = "latest" ]; then
 			git -C "$SRC_DIR" pull --ff-only && git -C "$SRC_DIR" submodule update --init --recursive
 		else
@@ -312,6 +318,7 @@ else
 		fi
 	fi
 	[ -x "${BIN_DIR}/sd-server" ] || { echo "ERROR: sd-server binary not found after install."; exit 1; }
+	echo "${SDCPP_RELEASE}" > "${RELEASE_MARKER}"
 	echo "  Installed: ${BIN_DIR}/sd-server"
 fi
 echo

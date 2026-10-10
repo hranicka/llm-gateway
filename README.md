@@ -245,6 +245,8 @@ sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~18 GB of models into /o
 
 Then add the `qwen-image-2.1` and `qwen-image-2.1-turbo` entries to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_TURBO=0` skips the Turbo weights.
 
+The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master). No Linux CUDA binaries are published, so it builds that tag from source; re-running it after the pin changes rebuilds sd-server, otherwise the existing binary is kept.
+
 ### Turbo: 8-step Qwen-Image-2.1 ([`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF))
 
 `qwen-image-2.1-turbo` is a distilled checkpoint of the same 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It reuses the text encoder, mmproj and VAE above — only the diffusion file differs, which is what the second gateway entry swaps. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident, ~3 GiB left for 1024² compute.
