@@ -20,7 +20,7 @@ COMFY_REPO="https://github.com/comfyanonymous/ComfyUI.git"
 GGUF_NODE_REPO="https://github.com/leejet/ComfyUI-GGUF.git"
 SDCPP_MODELS="/opt/sdcpp/models"
 PORT="${COMFYUI_PORT:-8188}"
-DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"  # Turbo NVFP4 transformer (4.2 GB)
+DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"  # Turbo NVFP4 transformer (5.7 GB)
 
 # Pinned upstream revisions: re-running the installer must not silently
 # deploy new upstream code. Bump deliberately, e.g.:
@@ -43,7 +43,7 @@ echo "------------------------------------------------------"
 echo " install: ${INSTALL_DIR} (venv + ComfyUI + GGUF node)"
 echo " models:  symlinked from ${SDCPP_MODELS} + NVFP4 package"
 echo "          (Blackwell-native fp4 — preferred, ~12 GB download;"
-echo "          Turbo 4.2 GB more, DOWNLOAD_TURBO=0 skips it)"
+echo "          Turbo 5.7 GB more, DOWNLOAD_TURBO=0 skips it)"
 echo " runs as: ${RUN_USER}, managed by llm-gateway (kind: web)"
 echo " UI:      http://<host>:1234/ → click 'comfyui'"
 echo "======================================================"
@@ -214,7 +214,7 @@ fetch_hf() {
 	fi
 }
 
-echo "[5/6] Downloading the NVFP4 packages + workflows (~12 GB, Turbo 4.2 GB more, resumable)..."
+echo "[5/6] Downloading the NVFP4 packages + workflows (~12 GB, Turbo 5.7 GB more, resumable)..."
 fetch_hf "${NVFP4_REPO}" "diffusion_models/qwen_image_2.1_nvfp4.safetensors" \
 	"${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen_image_2.1_nvfp4.safetensors"
 fetch_hf "${NVFP4_REPO}" "text_encoders/qwen3vl_8b_nvfp4.safetensors" \
@@ -227,25 +227,26 @@ fetch_hf "${NVFP4_REPO}" "input/qwen_image_2.1_edit_reference.png" \
 	"${INSTALL_DIR}/ComfyUI/input/qwen_image_2.1_edit_reference.png"
 echo "  (VAE: already linked from ${SDCPP_MODELS})"
 
-# Turbo (8-step distilled): abenzerps' NVFP4 transformer is 4.2 GB — the same
-# footprint as the base NVFP4 one — and reuses the base NVFP4 encoder, so
-# Turbo stays fully VRAM-resident wherever the base model does. (BennyDaBall's
-# Turbo package needs 15.7 GB with its own encoder.) Its workflows are used
-# with the file names rewritten to these models, prefixed Turbo_ so they don't
-# overwrite the base ones; 06 (BF16 encoder) is skipped.
+# Turbo (8-step distilled): BennyDaBall's Turbo NVFP4 transformer (5.7 GB,
+# sensitive layers kept BF16, validated against BF16 by its author) with the
+# base NVFP4 encoder above — 13.9 GB with the VAE, fully VRAM-resident. The
+# package's own encoder (9.3 GB) would not fit beside it. Its workflows are
+# installed as Turbo_* with the encoder name rewritten; 06 (BF16 encoder) is
+# skipped.
 if [ "${DOWNLOAD_TURBO}" = "1" ]; then
-	fetch_hf "https://huggingface.co/abenzerps/Qwen-Image-2.1-Turbo-Quantized" \
-		"qwen-image-2.1-turbo-NVFP4.safetensors" \
-		"${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen-image-2.1-turbo-NVFP4.safetensors"
-	TURBO_WF_REPO="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-Turbo-NVFP4"
+	TURBO_REPO="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-Turbo-NVFP4"
+	fetch_hf "${TURBO_REPO}" "diffusion_models/qwen_image_2.1_turbo_nvfp4.safetensors" \
+		"${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen_image_2.1_turbo_nvfp4.safetensors"
 	for wf in 01_Text_to_Image 02_Image_Editing 03_Transparent_RGBA 04_Multiple_References 05_Typography 07_2K_Typography; do
 		out="${INSTALL_DIR}/ComfyUI/user/default/workflows/Turbo_${wf}.json"
-		fetch_hf "${TURBO_WF_REPO}" "workflows/${wf}.json" "$out"
-		sed -i -e 's/qwen_image_2\.1_turbo_nvfp4\.safetensors/qwen-image-2.1-turbo-NVFP4.safetensors/g' \
-			-e 's/qwen3vl_8b_turbo_nvfp4\.safetensors/qwen3vl_8b_nvfp4.safetensors/g' "$out"
+		fetch_hf "${TURBO_REPO}" "workflows/${wf}.json" "$out"
+		sed -i -e 's/qwen3vl_8b_turbo_nvfp4\.safetensors/qwen3vl_8b_nvfp4.safetensors/g' \
+			-e 's/qwen-image-2\.1-turbo-NVFP4\.safetensors/qwen_image_2.1_turbo_nvfp4.safetensors/g' "$out"
 	done
+	old="${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen-image-2.1-turbo-NVFP4.safetensors"
+	[ -e "$old" ] && echo "  NOTE: $(basename "$old") is no longer used — delete it to reclaim 4.2 GB."
 	for img in turbo_ref_casual turbo_ref_editorial turbo_ref_poster; do
-		fetch_hf "${TURBO_WF_REPO}" "input/${img}.png" "${INSTALL_DIR}/ComfyUI/input/${img}.png"
+		fetch_hf "${TURBO_REPO}" "input/${img}.png" "${INSTALL_DIR}/ComfyUI/input/${img}.png"
 	done
 fi
 echo "  NOTE: optional FP4 text-encoder acceleration patch + prompting guide:"
