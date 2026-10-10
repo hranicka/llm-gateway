@@ -20,11 +20,12 @@ COMFY_REPO="https://github.com/comfyanonymous/ComfyUI.git"
 GGUF_NODE_REPO="https://github.com/leejet/ComfyUI-GGUF.git"
 SDCPP_MODELS="/opt/sdcpp/models"
 PORT="${COMFYUI_PORT:-8188}"
+DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"  # Turbo NVFP4 transformer (4.2 GB)
 
 # Pinned upstream revisions: re-running the installer must not silently
 # deploy new upstream code. Bump deliberately, e.g.:
 #   COMFY_REF=<sha> GGUF_NODE_REF=<sha> sudo -E ./scripts/install-comfyui.sh
-COMFY_REF="${COMFY_REF:-b0f4b7b294ce482a2e071d9d762c133d38c7aa07}"
+COMFY_REF="${COMFY_REF:-b0b743566f65daafc423b4fea8a2fbda94b3384a}" # v0.39.0
 GGUF_NODE_REF="${GGUF_NODE_REF:-edd981b10e107d3b8f58e16c498f2d08f631bc47}"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -41,7 +42,8 @@ echo " ComfyUI — graph workflows on top of the Qwen models"
 echo "------------------------------------------------------"
 echo " install: ${INSTALL_DIR} (venv + ComfyUI + GGUF node)"
 echo " models:  symlinked from ${SDCPP_MODELS} + NVFP4 package"
-echo "          (Blackwell-native fp4 — preferred, ~12 GB download)"
+echo "          (Blackwell-native fp4 — preferred, ~12 GB download;"
+echo "          Turbo 4.2 GB more, DOWNLOAD_TURBO=0 skips it)"
 echo " runs as: ${RUN_USER}, managed by llm-gateway (kind: web)"
 echo " UI:      http://<host>:1234/ → click 'comfyui'"
 echo "======================================================"
@@ -212,7 +214,7 @@ fetch_hf() {
 	fi
 }
 
-echo "[5/6] Downloading the NVFP4 package + workflows (~12 GB, resumable)..."
+echo "[5/6] Downloading the NVFP4 packages + workflows (~12 GB, Turbo 4.2 GB more, resumable)..."
 fetch_hf "${NVFP4_REPO}" "diffusion_models/qwen_image_2.1_nvfp4.safetensors" \
 	"${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen_image_2.1_nvfp4.safetensors"
 fetch_hf "${NVFP4_REPO}" "text_encoders/qwen3vl_8b_nvfp4.safetensors" \
@@ -224,6 +226,28 @@ done
 fetch_hf "${NVFP4_REPO}" "input/qwen_image_2.1_edit_reference.png" \
 	"${INSTALL_DIR}/ComfyUI/input/qwen_image_2.1_edit_reference.png"
 echo "  (VAE: already linked from ${SDCPP_MODELS})"
+
+# Turbo (8-step distilled): abenzerps' NVFP4 transformer is 4.2 GB — the same
+# footprint as the base NVFP4 one — and reuses the base NVFP4 encoder, so
+# Turbo stays fully VRAM-resident wherever the base model does. (BennyDaBall's
+# Turbo package needs 15.7 GB with its own encoder.) Its workflows are used
+# with the file names rewritten to these models, prefixed Turbo_ so they don't
+# overwrite the base ones; 06 (BF16 encoder) is skipped.
+if [ "${DOWNLOAD_TURBO}" = "1" ]; then
+	fetch_hf "https://huggingface.co/abenzerps/Qwen-Image-2.1-Turbo-Quantized" \
+		"qwen-image-2.1-turbo-NVFP4.safetensors" \
+		"${INSTALL_DIR}/ComfyUI/models/diffusion_models/qwen-image-2.1-turbo-NVFP4.safetensors"
+	TURBO_WF_REPO="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-Turbo-NVFP4"
+	for wf in 01_Text_to_Image 02_Image_Editing 03_Transparent_RGBA 04_Multiple_References 05_Typography 07_2K_Typography; do
+		out="${INSTALL_DIR}/ComfyUI/user/default/workflows/Turbo_${wf}.json"
+		fetch_hf "${TURBO_WF_REPO}" "workflows/${wf}.json" "$out"
+		sed -i -e 's/qwen_image_2\.1_turbo_nvfp4\.safetensors/qwen-image-2.1-turbo-NVFP4.safetensors/g' \
+			-e 's/qwen3vl_8b_turbo_nvfp4\.safetensors/qwen3vl_8b_nvfp4.safetensors/g' "$out"
+	done
+	for img in turbo_ref_casual turbo_ref_editorial turbo_ref_poster; do
+		fetch_hf "${TURBO_WF_REPO}" "input/${img}.png" "${INSTALL_DIR}/ComfyUI/input/${img}.png"
+	done
+fi
 echo "  NOTE: optional FP4 text-encoder acceleration patch + prompting guide:"
 echo "        ${NVFP4_REPO} (runtime/, PROMPTING.md)"
 
@@ -248,8 +272,12 @@ echo " Workflow tips:"
 echo "  - Preinstalled (Workflows panel): 01 Text-to-Image, 02 Image Editing,"
 echo "    03 Transparent RGBA, 04 2K Typography — all wired to the NVFP4"
 echo "    models (40 steps, euler, cfg 1, 1024x1024 / 2K)."
+echo "  - Turbo_* workflows: 8-step Turbo NVFP4 + the base NVFP4 encoder (euler, cfg 1,"
+echo "    ManualSigmas schedule) — Text-to-Image, Editing, RGBA, Multiple"
+echo "    References, Typography, 2K Typography."
 echo "  - GGUF alternative: templates → search 'qwen' + UnetLoader (GGUF)"
-echo "    with the Q4_0/Q6_K gguf; CLIP loader type 'qwen_image' (Qwen3VL gguf)."
+echo "    with the Q4_0 / Turbo Q6_K_XL gguf; CLIP loader type 'qwen_image'"
+echo "    (Qwen3VL gguf). Turbo needs the ManualSigmas schedule of a Turbo_ workflow."
 echo "  - Compose multiple photos: the Editing workflow accepts several"
 echo "    reference images (the model takes up to 10)."
 echo "  - Remove something but keep the rest 1:1: right-click the image →"
