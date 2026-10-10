@@ -348,6 +348,20 @@ make docker
 
 The gateway will be available at `http://localhost:1234`.
 
+## Cleaning up old downloads
+
+Model swaps leave old files behind. [`scripts/cleanup.sh`](scripts/cleanup.sh) lists what nothing references any more, with sizes, and deletes it with `--apply`:
+
+```bash
+sudo ./scripts/cleanup.sh            # dry run
+sudo ./scripts/cleanup.sh --apply    # delete
+```
+
+- Image models in `/opt/sdcpp/models` and ComfyUI's `diffusion_models`, `text_encoders`, `vae` whose file name is in neither the gateway config (`/etc/llm-gateway/config.yaml`, comment lines ignored; `--config` overrides) nor a saved ComfyUI workflow. Models used only in unsaved ComfyUI graphs look unused — save the workflow first.
+- Interrupted downloads (`*.part`) and dangling ComfyUI model symlinks.
+- llama.cpp `-hf` downloads of GGUF repos no `-hf` / `--spec-draft-hf` in the config names, in the gateway user's HF hub cache and legacy `~/.cache/llama.cpp`. Non-GGUF repos (e.g. Open WebUI's embedding models) are left alone.
+- `--caches` also clears the uv package cache.
+
 ## Build & Run
 
 ```bash
