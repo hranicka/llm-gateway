@@ -9,11 +9,16 @@
 #   - chat models      → http://127.0.0.1:1234/v1  (llama-server models,
 #                        loaded/killed on demand by the gateway)
 #   - image generation → http://127.0.0.1:1234/v1/images/generations
-#                        with model qwen-image-2.1 (sd-server)
-# Image editing (reference images) stays in sd-server's own UI:
+#   - image editing    → http://127.0.0.1:1234/v1/images/edits (multipart)
+#                        both with an sd-server model (default
+#                        qwen-image-2.1-turbo, 8 steps)
+# sd-server's own UI stays available for graph-style control:
 #   http://<host>:1234/app/qwen-image-2.1
 #
 # Port override: OPEN_WEBUI_PORT=8081 sudo -E ./scripts/install-open-webui.sh
+# Image model:   IMAGE_MODEL=qwen-image-2.1 (generation), IMAGE_EDIT_MODEL=...
+# Open WebUI stores these as persistent settings: the env values seed the
+# first start only; change later via Admin Settings → Images.
 # Upgrade:      re-run the script (upgrades the package in place).
 
 set -euo pipefail
@@ -21,7 +26,8 @@ set -euo pipefail
 VENV_DIR="/opt/open-webui"
 PYVER="3.11"
 GATEWAY_API="${GATEWAY_API:-http://127.0.0.1:1234/v1}"
-IMAGE_MODEL="${IMAGE_MODEL:-qwen-image-2.1}"
+IMAGE_MODEL="${IMAGE_MODEL:-qwen-image-2.1-turbo}"
+IMAGE_EDIT_MODEL="${IMAGE_EDIT_MODEL:-${IMAGE_MODEL}}"
 PORT="${OPEN_WEBUI_PORT:-8080}"
 SERVICE_FILE="/etc/systemd/system/open-webui.service"
 
@@ -46,7 +52,7 @@ echo "------------------------------------------------------"
 echo " venv:   ${VENV_DIR}/venv (uv-managed Python ${PYVER})"
 echo " data:   ${VENV_DIR}/data (persists chats/accounts)"
 echo " API:    ${GATEWAY_API}  (models via llm-gateway)"
-echo " images: model ${IMAGE_MODEL} via the same gateway"
+echo " images: ${IMAGE_MODEL} (edit: ${IMAGE_EDIT_MODEL}) via the same gateway"
 echo " UI:     http://<host>:${PORT}"
 echo "======================================================"
 echo
@@ -152,7 +158,8 @@ umask 077
 cat > "$ENV_FILE" <<EOF
 WEBUI_SECRET_KEY=${OLD_SECRET}
 OPENAI_API_KEY=${GATEWAY_TOKEN}
-IMAGE_GENERATION_API_KEY=${GATEWAY_TOKEN}
+IMAGES_OPENAI_API_KEY=${GATEWAY_TOKEN}
+IMAGES_EDIT_OPENAI_API_KEY=${GATEWAY_TOKEN}
 EOF
 umask 022
 chmod 600 "$ENV_FILE"
@@ -190,8 +197,13 @@ Environment=OPENAI_API_BASE_URL=${GATEWAY_API}
 Environment=ENABLE_OLLAMA_API=false
 Environment=ENABLE_IMAGE_GENERATION=true
 Environment=IMAGE_GENERATION_ENGINE=openai
-Environment=IMAGE_GENERATION_API_BASE_URL=${GATEWAY_API}
+Environment=IMAGES_OPENAI_API_BASE_URL=${GATEWAY_API}
 Environment=IMAGE_GENERATION_MODEL=${IMAGE_MODEL}
+Environment=IMAGE_SIZE=1024x1024
+Environment=ENABLE_IMAGE_EDIT=true
+Environment=IMAGE_EDIT_ENGINE=openai
+Environment=IMAGES_EDIT_OPENAI_API_BASE_URL=${GATEWAY_API}
+Environment=IMAGE_EDIT_MODEL=${IMAGE_EDIT_MODEL}
 ${HTTP_TIMEOUT_ENV}
 # The gateway API key is the gateway's auth_token; re-run this installer
 # (or edit ${ENV_FILE}) after changing auth_token.
@@ -222,10 +234,15 @@ echo
 echo " Chat:    model picker lists every gateway model (qwen-3.8-27b, gemma-4,"
 echo "          ...); the gateway loads/switches them on demand."
 echo " Images:  in a chat, the image button (or /image <prompt>) generates via"
-echo "          ${IMAGE_MODEL}. Set the resolution in Admin Settings → Images"
-echo "          (width/height in multiples of 32, e.g. 1024x1024 or 2048x2048)."
-echo " Editing: reference-image editing lives in sd-server's own UI:"
-echo "          http://<host>:1234/app/qwen-image-2.1"
+echo "          ${IMAGE_MODEL}; uploading an image and asking for a change edits it"
+echo "          via ${IMAGE_EDIT_MODEL}. Pick any other sd-server model (e.g."
+echo "          qwen-image-2.1) in Admin Settings → Images; resolution is there"
+echo "          too (multiples of 32, default 1024x1024)."
+echo " Picker:  the gateway also lists its image models (image_chat) — pick one in"
+echo "          the model picker, describe the image, get the image back. Keep"
+echo "          those chats separate from text chats (the image is inline)."
+echo " Note:    these are first-start defaults — Open WebUI keeps its settings in"
+echo "          its database, so an existing install keeps its stored values."
 echo
 echo " Manage:  systemctl {status|restart|stop} open-webui"
 echo " Logs:    journalctl -u open-webui -f"

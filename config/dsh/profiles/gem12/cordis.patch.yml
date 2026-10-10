@@ -51,14 +51,15 @@
               $var: thinking.effort
               omitWhenOff: true
             preserve_thinking: true
-          # llama.cpp's native thinking-budget request field; flat 7500 cap
-          # like omp (xhigh reads the "high" bucket).
+          # llama.cpp's thinking-budget request field (the alias honoured by
+          # every build). Budget per effort level: xhigh reads the "high"
+          # bucket and gets room for plan/slow work; low stays quick.
           thinkingTokenBudgetField: thinking_budget_tokens
         thinkingBudgets:
-          minimal: 7500
-          low: 7500
+          minimal: 4000
+          low: 4000
           medium: 7500
-          high: 7500
+          high: 12000
         models:
           - id: ornith-1.5-35b-a3b
             name: Ornith 1.5 35B A3B
@@ -67,9 +68,10 @@
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
-            # Thinking is budget-capped at 7500; output needs room for
-            # large file writes.
-            maxTokens: 32768
+            # Output cap = reserve in the compaction trigger (see the preset
+            # below): thinking is budget-capped at 4000/7500/12000, leaving
+            # 8K+ for tool calls and file writes.
+            maxTokens: 20480
             # Vision via mmproj encoded on the CPU.
             input: [text, image]
             reasoningEfforts:
@@ -77,15 +79,10 @@
               low: low
               medium: medium
               xhigh: xhigh
-          - id: qwen-3.8-27b-instruct
-            name: Qwen 3.8 27B Instruct
-            contextWindow: 131072
-            maxTokens: 32768
-            input: [text, image]
           - id: qwen-3.8-27b-uncensored
             name: Qwen 3.8 27B Uncensored
             contextWindow: 98304
-            maxTokens: 32768
+            maxTokens: 20480
             input: [text, image]
             reasoningEfforts:
               off:
@@ -130,17 +127,29 @@
 # patch map indexes top-level rows only, and the host-plane compaction-basic row
 # is disabled by dsh-web-app) — so compaction tuning rides on full preset
 # copies. Both entries below are the installed dsh-web-app
-# presets/standard.patch.yml with compaction-basic headroomTokens 8192
-# (default 65536 compacts at ~33K on the 131K local windows; 8192 lifts the
-# trigger to ~90K, uncensored ~57K). Regenerate both from the installed preset
-# on dsh updates.
+# presets/standard.patch.yml with compaction-basic tuned for local windows.
+#
+# Trigger = floor(min(W * thresholdRatio, W - O - headroomTokens)), W = context
+# window, O = the route's maxTokens (output reserve). Stock (ratio 0.8,
+# headroom 65536) compacts at ~33K on a 131K window. Here: ratio 0.9,
+# headroom 4096, O 20480:
+#   131072 windows (qwen-3.8-27b)  -> 106496
+#    98304 (uncensored)            ->  73728
+#   262144 (ornith, O 16384)       -> 235929 (the ratio binds)
+# Each 4096 tokens of maxTokens moves the trigger by 4096; thinking budgets
+# (4000/7500/12000) are sized to leave 8K+ of answer room under that cap.
+# Compaction keeps the newest 16% of W - O verbatim (~17K) plus the summary
+# (cap 20480 = the output reserve, so the summary request at the trigger still
+# fits; thinking tokens count against it and a truncated summary is discarded).
+# Overflow errors from the server still trigger one reactive compaction.
+# Regenerate both from the installed preset on dsh updates.
 #
 
 - id: preset-standard
   name: "@deepseek-ai/dsh-agent-preset"
   config:
     id: standard
-    description: Standard tools; compaction tuned for local models (headroom 8192, trigger ~90K on 131K windows).
+    description: Standard tools; compaction tuned for local models (ratio 0.9, headroom 4096, trigger ~106K on 131K windows).
     order: 1
     plugins:
       - id: persona
@@ -205,7 +214,9 @@
           - id: compaction-basic
             name: '@deepseek-ai/dsh-compaction-basic'
             config:
-              headroomTokens: 8192
+              thresholdRatio: 0.9
+              headroomTokens: 4096
+              maxTokens: 20480
           - id: command-compact
             name: '@deepseek-ai/dsh-command-compact'
           - id: tool-result-pruner
@@ -353,7 +364,9 @@
             - id: compaction-basic
               name: '@deepseek-ai/dsh-compaction-basic'
               config:
-                headroomTokens: 8192
+                thresholdRatio: 0.9
+                headroomTokens: 4096
+                maxTokens: 20480
             - id: command-compact
               name: '@deepseek-ai/dsh-command-compact'
             - id: tool-result-pruner

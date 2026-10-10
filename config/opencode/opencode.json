@@ -47,6 +47,8 @@
       "extensions": [".php"]
     }
   },
+  "model": "network-gem12/qwen-3.8-27b",
+  "small_model": "network-gem12/qwen-3.8-27b",
   "default_agent": "plan",
   "compaction": {
     "auto": true,
@@ -81,7 +83,8 @@
     },
     "qwen-3.8-instruct": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b-instruct",
+      "model": "network-gem12/qwen-3.8-27b",
+      "variant": "instruct",
       "description": "Exploration, exact instruction following, basic tasks, commands",
       "prompt": "You are a precise instruction-following assistant.\n\nRules:\n- Follow exact instructions and explore codebases without improvisation.\n- Handle basic, well-defined tasks and running commands."
     },
@@ -89,12 +92,6 @@
       "mode": "all",
       "model": "network-gem12/ornith-1.5-35b-a3b",
       "description": "General developer, coder, fast interactions, longer context",
-      "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
-    },
-    "qwen-3.6": {
-      "mode": "all",
-      "model": "network-gem12/qwen-3.6-35b",
-      "description": "Base Qwen 3.6 alternative",
       "prompt": "You are a software developer, coder.\n\nRules:\n- Focus on coding tasks, exploration, analysis, debugging, general workhorse tasks."
     },
     "gemma-12b": {
@@ -122,41 +119,25 @@
             "output": 16384
           }
         },
-        "qwen-3.6-35b": {
-          "name": "Qwen 3.6 35B",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 16384
-          }
-        },
         "qwen-3.8-27b": {
           "name": "Qwen 3.8 27B",
           "attachment": true,
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 131072,
-            "output": 32768
+            "output": 20480
           },
           "options": {
             "chat_template_kwargs": {"reasoning_effort": "medium"},
-            "reasoning_budget_tokens": 7500
+            "reasoning_budget_tokens": 7500,
+            "thinking_budget_tokens": 7500
           },
           "variants": {
-            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
+            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}, "reasoning_budget_tokens": 12000, "thinking_budget_tokens": 12000},
             "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
-            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
-            "none": {"chat_template_kwargs": {"enable_thinking": false}}
-          }
-        },
-        "qwen-3.8-27b-instruct": {
-          "name": "Qwen 3.8 27B Instruct",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 16384
+            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}, "reasoning_budget_tokens": 4000, "thinking_budget_tokens": 4000},
+            "none": {"chat_template_kwargs": {"enable_thinking": false}},
+            "instruct": {"chat_template_kwargs": {"enable_thinking": false}, "temperature": 0.7, "top_p": 0.8, "presence_penalty": 1.5}
           }
         },
         "qwen-3.8-27b-uncensored": {
@@ -165,26 +146,19 @@
           "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
             "context": 98304,
-            "output": 32768
+            "output": 20480
           },
           "options": {
             "chat_template_kwargs": {"reasoning_effort": "medium"},
-            "reasoning_budget_tokens": 7500
+            "reasoning_budget_tokens": 7500,
+            "thinking_budget_tokens": 7500
           },
           "variants": {
-            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
+            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}, "reasoning_budget_tokens": 12000, "thinking_budget_tokens": 12000},
             "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
-            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
-            "none": {"chat_template_kwargs": {"enable_thinking": false}}
-          }
-        },
-        "gemma-4-26b": {
-          "name": "Gemma 4 26B",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 16384
+            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}, "reasoning_budget_tokens": 4000, "thinking_budget_tokens": 4000},
+            "none": {"chat_template_kwargs": {"enable_thinking": false}},
+            "instruct": {"chat_template_kwargs": {"enable_thinking": false}, "temperature": 0.7, "top_p": 0.8, "presence_penalty": 1.5}
           }
         },
         "gemma-4-12b": {

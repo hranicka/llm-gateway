@@ -48,6 +48,7 @@ models:
   # backend also answers OpenAI-style POST /v1/images/generations.
   # qwen-image-2.1:
   #   kind: web
+  #   image_chat: true                   # optional: chat clients may pick it as a chat model
   #   command: |
   #     /opt/sdcpp/bin/sd-server
   #     --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q6_K.gguf

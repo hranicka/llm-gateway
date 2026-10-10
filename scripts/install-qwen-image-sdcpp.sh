@@ -4,14 +4,18 @@
 # Installs stable-diffusion.cpp's sd-server (single C++ binary with an
 # embedded web UI and OpenAI-compatible images API) plus the Qwen-Image-2.1
 # models into /opt/sdcpp, sized for a 16 GB VRAM GPU (RTX 5060 Ti) with 32 GB
-# RAM. Then add the `qwen-image-2.1` model from config/gem12gpu.yaml to the
-# gateway config — the gateway launches/kills sd-server like llama-server and
-# proxies its web UI at /app/qwen-image-2.1.
+# RAM. Then add the `qwen-image-2.1` (and `qwen-image-2.1-turbo`) models from
+# config/gem12gpu.yaml to the gateway config — the gateway launches/kills
+# sd-server like llama-server and proxies its web UI at /app/<model>.
 #
 # Quant override: DIFFUSION_QUANT=Q8_0 sudo -E ./scripts/install-qwen-image-sdcpp.sh
-# (default Q6_K; also available: Q2_K 2.6 GB, Q4_0 4.2 GB, Q5_0 5.1 GB, Q8_0 7.7 GB)
+# (default Q4_0 — the file gem12gpu.yaml references; also available: Q2_K 2.6 GB,
+# Q5_0 5.1 GB, Q6_K 6.0 GB, Q8_0 7.7 GB)
 # Repo override: DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF
 # (community re-quants of the same weights, dash naming, adds Q4_K_M/Q5_K_M)
+# Turbo (8-step distilled, unsloth GGUF): installed by default as
+# TURBO_QUANT=Q6_K_XL (6.7 GB; Q4_K_M 4.2 GB, Q8_0 7.6 GB). Skip it with
+# DOWNLOAD_TURBO=0; point at another repo with TURBO_REPO.
 
 set -euo pipefail
 
@@ -21,7 +25,10 @@ MODEL_DIR="${INSTALL_DIR}/models"
 SRC_DIR="${INSTALL_DIR}/src"
 CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
 DIFFUSION_REPO="${DIFFUSION_REPO:-leejet/Qwen-Image-2.1-GGUF}"
-DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K}"
+DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q4_0}"
+TURBO_REPO="${TURBO_REPO:-unsloth/Qwen-Image-2.1-Turbo-GGUF}"
+TURBO_QUANT="${TURBO_QUANT:-Q6_K_XL}"
+DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
 
 # Pinned upstream release (supply chain): both the prebuilt download and the
 # source build use this revision. Set SDCPP_RELEASE=latest to track master,
@@ -41,10 +48,10 @@ fi
 echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
-echo " Installs to ${INSTALL_DIR} (binary + ~14 GB of models)."
-echo " Weights ≈ 13.7 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B"
-echo " Q4_K_M + mmproj + VAE) → with --offload-to-cpu they live"
-echo " in RAM (~14 GB of 32 GB), so no OOM kills on 16 GB VRAM."
+echo " Installs to ${INSTALL_DIR} (binary + ~11 GB of models,"
+echo " +~7 GB with the Turbo DiT)."
+echo " Resident set ≈ 11 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
+echo " + mmproj + VAE) — fully in 16 GB VRAM; Turbo ${TURBO_QUANT} ≈ 13 GB."
 echo "======================================================"
 echo
 
@@ -363,11 +370,24 @@ if [ "${DOWNLOAD_INT8:-0}" = "1" ]; then
 		"${MODEL_DIR}/qwen_image_2.1_int8_convrot.safetensors"
 fi
 
+# Turbo: 8-step distilled DiT (cfg 1.0, custom sigmas); reuses the text
+# encoder, mmproj and VAE below.
+TURBO_NAME=""
+if [ "${DOWNLOAD_TURBO}" = "1" ]; then
+	TURBO_NAME="$(hf_resolve "${TURBO_REPO}" \
+		'qwen-image-2\.1-turbo-'"${TURBO_QUANT}"'\.gguf' \
+		"qwen-image-2.1-turbo-${TURBO_QUANT}.gguf")"
+	fetch_model \
+		"https://huggingface.co/${TURBO_REPO}/resolve/main/${TURBO_NAME}" \
+		"${MODEL_DIR}/${TURBO_NAME}"
+fi
+
 # Flag diffusion files left over from a previous repo/naming (e.g. after
 # switching leejet → abenzerps) so the user can reclaim the disk.
 for f in "${MODEL_DIR}"/qwen*image*2.1-*.gguf; do
 	[ -e "$f" ] || continue
 	[ "$(basename "$f")" = "${DIFFUSION_NAME}" ] && continue
+	[ -n "${TURBO_NAME}" ] && [ "$(basename "$f")" = "${TURBO_NAME}" ] && continue
 	echo "  NOTE: $(basename "$f") is no longer referenced by the config — delete it to reclaim ~6 GB."
 done
 
@@ -398,26 +418,34 @@ echo "[3/3] Done. Disk usage:"
 du -sh "$MODEL_DIR" "$BIN_DIR"
 df -h "$INSTALL_DIR" | tail -1
 echo
-echo "Add this model to the gateway config (see config/gem12gpu.yaml):"
+echo "Add these models to the gateway config (see config/gem12gpu.yaml):"
 echo "  qwen-image-2.1:"
 echo "    kind: web"
 echo "    command: |"
 echo "      ${BIN_DIR}/sd-server"
-echo "      --diffusion-model ${MODEL_DIR}/qwen_image_2.1-${DIFFUSION_QUANT}.gguf"
-echo "      --llm ${MODEL_DIR}/Qwen3VL-8B-Instruct-Q4_K_M.gguf"
+echo "      --diffusion-model ${MODEL_DIR}/${DIFFUSION_NAME}"
+echo "      --llm ${MODEL_DIR}/${TE_NAME}"
 echo "      --llm_vision ${MODEL_DIR}/${MMPROJ_NAME}"
-echo "      --vae ${MODEL_DIR}/qwen_image_2.1_vae_bf16.safetensors"
-echo "      --diffusion-fa --cfg-scale 6.0 --offload-to-cpu"
+echo "      --vae ${MODEL_DIR}/$(basename "${VAE_NAME}")"
+echo "      --diffusion-fa --cfg-scale 1.0 --sampling-method euler"
+echo "      --steps 40 --width 1024 --height 1024"
 echo "      --listen-ip 127.0.0.1 --listen-port 1235"
 echo "    host: 127.0.0.1:1235"
 echo "    health_endpoint: /"
-echo "    ready_timeout: 15m"
+echo "    ready_timeout: 30m"
+if [ -n "${TURBO_NAME}" ]; then
+	echo
+	echo "  qwen-image-2.1-turbo:   # same as above, with:"
+	echo "      --diffusion-model ${MODEL_DIR}/${TURBO_NAME}"
+	echo "      --diffusion-fa --cfg-scale 1.0 --sampling-method euler"
+	echo "      --sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0"
+	echo "      --steps 8 --width 1024 --height 1024"
+fi
 echo
 echo "Then restart the gateway and open:"
-echo "  Web UI: http://<gateway-host>:1234/  → click 'qwen-image-2.1'"
+echo "  Web UI: http://<gateway-host>:1234/  → click 'qwen-image-2.1' (or '-turbo')"
 echo "  API:    POST /v1/images/generations  {\"model\": \"qwen-image-2.1\", \"prompt\": \"...\"}"
 echo
-echo "Editing and OOM protection are on by default: --llm_vision enables image"
-echo "editing, --offload-to-cpu keeps the ~13.7 GB of weights in RAM instead of"
-echo "the 16 GB VRAM. Max speed at ≤1024 px: drop --offload-to-cpu — with Q6_K"
-echo "the weights then fit entirely in VRAM."
+echo "Editing is on: --llm_vision loads the mmproj. Steps, cfg and sampler come"
+echo "from the command line (the OpenAI endpoints only take prompt/size/n). If a"
+echo "larger quant or 2048 px hits CUDA OOM, add --offload-to-cpu (~5x slower/step)."

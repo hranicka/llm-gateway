@@ -15,8 +15,9 @@ providers:
         name: Qwen 3.8 27B
         reasoning: true
         contextWindow: 131072
-        # Room for thinking (budget-capped) plus large file writes.
-        maxTokens: 32768
+        # Room for thinking (budget-capped) plus large file writes. The cap
+        # also keeps a reply at the compaction trigger inside the window.
+        maxTokens: 20480
         # Pricing: 300 W @ 7 CZK/kWh, ~750 tok/s prefill (~$0.04/M), ~48 tok/s decode (~$0.60/M); KV hits ~ free.
         cost: { input: 0.04, output: 0.6, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).
@@ -27,7 +28,8 @@ providers:
           mode: effort
           # Template accepts low/medium/xhigh only ("minimal" aborts).
           efforts: [low, medium, xhigh]
-          # "auto" → medium (gateway startup default); "off" allowed.
+          # "auto" → medium (gateway startup default); "off" allowed — the
+          # non-thinking (instruct) mode of the same loaded weights.
           defaultLevel: medium
           requiresEffort: false
         compat:
@@ -39,18 +41,11 @@ providers:
           supportsReasoningParams: true
           thinkingFormat: qwen
           extraBody:
-            # Cap thinking tokens per reply (llama-server's native field).
+            # Cap thinking tokens per reply. Both names: builds before
+            # llama.cpp b9982 honour only the thinking_ alias, newer ones the
+            # reasoning_ field.
             reasoning_budget_tokens: 7500
-      - id: qwen-3.8-27b-instruct
-        name: Qwen 3.8 27B Instruct
-        contextWindow: 131072
-        maxTokens: 32768
-        # Pricing: 300 W @ 7 CZK/kWh, ~750 tok/s prefill (~$0.04/M), ~48 tok/s decode (~$0.60/M); KV hits ~ free.
-        cost: { input: 0.04, output: 0.6, cacheRead: 0.005, cacheWrite: 0 }
-        # Vision via mmproj encoded on the CPU (no VRAM cost).
-        input: [text, image]
-        compat:
-          qwenTemplateReasoningEffort: false
+            thinking_budget_tokens: 7500
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 262144
@@ -62,8 +57,9 @@ providers:
         name: Qwen 3.8 27B Uncensored
         reasoning: true
         contextWindow: 98304
-        # Room for thinking (budget-capped) plus large file writes.
-        maxTokens: 32768
+        # Room for thinking (budget-capped) plus large file writes. The cap
+        # also keeps a reply at the compaction trigger inside the window.
+        maxTokens: 20480
         # Pricing: 300 W @ 7 CZK/kWh, ~550 tok/s prefill (~$0.05/M), ~35 tok/s decode (~$0.80/M); KV hits ~ free.
         cost: { input: 0.05, output: 0.8, cacheRead: 0.005, cacheWrite: 0 }
         # Vision via mmproj encoded on the CPU (no VRAM cost).
@@ -86,5 +82,8 @@ providers:
           supportsReasoningParams: true
           thinkingFormat: qwen
           extraBody:
-            # Cap thinking tokens per reply (llama-server's native field).
+            # Cap thinking tokens per reply. Both names: builds before
+            # llama.cpp b9982 honour only the thinking_ alias, newer ones the
+            # reasoning_ field.
             reasoning_budget_tokens: 7500
+            thinking_budget_tokens: 7500

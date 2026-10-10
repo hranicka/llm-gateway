@@ -14,8 +14,9 @@ Running on consumer hardware typically means only one single quantized model can
 - **Predictable VRAM**: Kills the previous model before starting a new one.
 - **Fast switching**: Requests for an already-loaded model are proxied immediately.
 - **Sequential execution**: Proxied requests are processed strictly one at a time. Concurrent client sessions (e.g. coding agents spawning parallel subagents) queue at the gateway instead of interleaving on the single loaded backend or triggering model switches that would kill an in-flight stream.
-- **OpenAI-compatible**: Supports `/v1/chat/completions` and `/v1/completions`.
-- **Image generation**: Supports OpenAI-style `/v1/images/generations` for image backends (e.g. `sd-server` from stable-diffusion.cpp).
+- **OpenAI- and Anthropic-compatible**: Supports `/v1/chat/completions`, `/v1/completions`, the OpenAI Responses API (`/v1/responses`) and the Anthropic Messages API (`/v1/messages`, so Claude Code and similar clients can use local models).
+- **Image models as chat models**: a web model flagged `image_chat: true` shows up in `/v1/models` and answers `/v1/chat/completions` by rendering the last user message (or editing the images attached to it) and replying with the image — so any chat UI, Open WebUI's model picker included, can "chat" with Qwen-Image.
+- **Image generation and editing**: Supports OpenAI-style `/v1/images/generations` and `/v1/images/edits` (multipart uploads) for image backends (e.g. `sd-server` from stable-diffusion.cpp).
 - **Decision models**: Supports `kind: decision` backends (e.g. Cloudflare clef on llama-server) via `POST /v1/systemone` — a state plus a question schema in, per-option probabilities out in a single forward pass.
 - **Web apps in the browser**: Backends with `kind: web` (sd-server, ComfyUI, …) get their full web UI proxied through the gateway — open `http://<gateway>/`, click the app, and it loads like llama-server loads for a chat request, including websockets.
 
@@ -61,7 +62,7 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
 - **`auth_token`**: Required. Bearer token for every route except `/health`. Set it to a long random string; `""` explicitly disables auth (trusted-LAN only). API clients send `Authorization: Bearer <token>`; browsers authenticate once via `/app/<name>?token=<token>`. See [Security](#security).
 - **`allowed_hosts`**: Required. Host headers the gateway answers as — exact names (`gem12`, case-insensitive, ports ignored when matching) or CIDR ranges (`192.168.50.0/24`) that accept any address in the range as the Host, so a whole home VLAN can be allowed without enumerating IPs. Requests with any other `Host` get 403 — this defeats DNS rebinding. `[]` disables the check (warns at startup on non-loopback binds).
 - **`max_body_size`**: Required. Request-body limit, e.g. `64MB` (units B/KB/MB/GB, binary). Oversized bodies get 413.
-- **`auto_unload`**: Idle duration after which the active model is shut down to free VRAM (e.g. `2h`). The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
+- **`auto_unload`**: Idle duration, counted from the end of the last request, after which the active model is shut down to free VRAM (e.g. `2h`); a request still in flight is never cut off by it. The model is reloaded automatically on the next request. Should be equal to or greater than the longest `ready_timeout` to avoid unloading a model that is still starting up.
 - **`drain_timeout`**: Maximum time to wait for active requests (e.g. streaming responses) to finish before forcing the current model to shut down during a model switch (e.g. `30s`). Increase this if long generations are being interrupted by model switches.
 - **`models`**: Model configurations.
     - The key (e.g., `ornith-1.5-35b-a3b`) is the model name used in API requests.
@@ -69,13 +70,14 @@ The gateway is configured via `config.yaml`. Copy `config/example.yaml` to `conf
     - **`command`**: Full command to run (as a multiline string, passed via `sh -c`). Line breaks are collapsed into spaces, so the whole block runs as a single command; quote any argument that contains spaces (e.g. `--chat-template-kwargs '{"enable_thinking": true}'`).
     - **`host`**: The `host:port` address the model will listen on.
     - **`ready_timeout`**: How long the gateway waits for the backend to become ready before failing the request.
+    - **`image_chat`**: Optional, `kind: web` only. Lets chat clients use the model as a chat model that answers with an image — see [Image models in chat](#image-models-in-chat-image_chat).
     - **`health_endpoint`**: Optional readiness probe path; defaults to `/health` (llama-server). vLLM uses `/v1/models`, web apps (sd-server, ComfyUI) use `/` (their UI page).
 
 > **Important**: The model backend port must differ from the gateway port. If they match, the gateway's health-check would hit itself (passing instantly) and the reverse-proxy would loop. The example config uses `:1234` for the gateway and `:1235` for all backends. Ensure the ports are different to avoid this.
 
 ### OpenCode language support
 
-The bundled [`config/opencode.json`](config/opencode.json) configures LSP servers for Go, JavaScript/TypeScript, Vue, ESLint, Bash, YAML, and PHP. This gives OpenCode compiler-aware diagnostics, symbol navigation, references, completions, and formatting context. Each server declares its executable and file extensions explicitly. The Go configuration also enables `gopls`'s `staticcheck`, `nilness`, `shadow`, and `unusedparams` analyses.
+The bundled [`config/opencode/opencode.json`](config/opencode/opencode.json) configures LSP servers for Go, JavaScript/TypeScript, Vue, ESLint, Bash, YAML, and PHP. This gives OpenCode compiler-aware diagnostics, symbol navigation, references, completions, and formatting context. Each server declares its executable and file extensions explicitly. The Go configuration also enables `gopls`'s `staticcheck`, `nilness`, `shadow`, and `unusedparams` analyses.
 
 Install the servers you need if they are not already available:
 
@@ -89,17 +91,21 @@ For JetBrains LSP, go to IDE Settings > MCP Server > Enabler MCP Server.
 
 Use the same scheduling settings in every Oh My Pi profile: disable asynchronous task agents and limit task concurrency to one. This makes the main agent wait for each delegated agent. Cap only the `network-gem12` provider at one in-flight request (including streamed responses); other providers are not request-capped.
 
-[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. All roles ride one model and vary only the reasoning effort (`default:medium`, `plan`/`slow:xhigh`, `task`/`smol`/`tiny`/`commit:low`) — switching models would reload llama-server. Tool output spills to a file above 10 KB, compaction waits until ~100K tokens, and stream timeouts are raised to 15 minutes to survive slow cold-cache prefill (following the "tuning a local coding agent" playbook).
+[`config/omp/profiles/gem12/agent/config.yml`](config/omp/profiles/gem12/agent/config.yml) and [`config/omp/profiles/gem12/project/config.yml`](config/omp/profiles/gem12/project/config.yml) provide the reusable configuration. All roles ride one model and vary only the reasoning effort (`default:medium`, `plan`/`slow:xhigh`, `task`/`smol`/`tiny`/`commit:low`) — switching models would reload llama-server. Tool output spills to a file above 10 KB, compaction waits until 82% of each window (~107K tokens on the 131072-token models; replies are capped at `maxTokens: 20480`, so a reply at the trigger still fits), and stream timeouts are raised to 15 minutes to survive slow cold-cache prefill (following the "tuning a local coding agent" playbook).
 
 ### Oh My Pi reasoning levels
 
 The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, or `xhigh` (plus thinking fully off via `enable_thinking: false`). The bundled [`config/omp/profiles/gem12/agent/models.yml`](config/omp/profiles/gem12/agent/models.yml) declares exactly those levels for `qwen-3.8-27b` and routes both through `chat_template_kwargs`, which llama-server merges over its startup `--chat-template-kwargs` per request. The `medium` effort baked into the gateway's model command remains the default for non-Oh-My-Pi clients only.
 
+### OpenCode compaction
+
+OpenCode compacts when the token count reaches `context − min(output limit, 32000)` (its `compaction.reserved` only applies when a model declares an input limit). The bundled config sets `limit.output: 20480` on the 131072- and 98304-token Qwen models, so compaction waits until ~110K and ~78K tokens — in line with the dsh and Oh My Pi settings, and the same 20480-token reply cap.
+
 ### DeepSeek Harness (dsh)
 
-[`config/dsh/profiles/web/cordis.patch.yml`](config/dsh/profiles/web/cordis.patch.yml) mirrors the live `~/.dsh/profiles/web/cordis.patch.yml` patch layer. It configures the `llm-pi-ai` adapter with the same `network-gem12` and `local-laptop` routes as the other clients, including the Qwen 3.8 dialect: `thinkingFormat: chat-template` sends `enable_thinking` and `reasoning_effort` as `chat_template_kwargs` (with `omitWhenOff`, so the effort key disappears when thinking is off), `thinkingTokenBudgetField: thinking_budget_tokens` caps thinking at a flat 7500 tokens like Oh My Pi, and `supportsDeveloperRole: false` plus `maxTokensField: max_tokens` keep the request bodies llama-server-native. The gateway is keyless on the trusted LAN, but pi-ai insists on some credential for OpenAI-compatible endpoints — a placeholder `Authorization` header satisfies it. Note that dsh's settings UI rewrites this file (dropping YAML comments) when you save model or general settings; re-sync from the repo copy afterwards.
+[`config/dsh/profiles/web/cordis.patch.yml`](config/dsh/profiles/web/cordis.patch.yml) mirrors the live `~/.dsh/profiles/web/cordis.patch.yml` patch layer. It configures the `llm-pi-ai` adapter with the same `network-gem12` and `local-laptop` routes as the other clients, including the Qwen 3.8 dialect: `thinkingFormat: chat-template` sends `enable_thinking` and `reasoning_effort` as `chat_template_kwargs` (with `omitWhenOff`, so the effort key disappears when thinking is off), `thinkingTokenBudgetField: thinking_budget_tokens` (the alias every llama.cpp build honours) caps thinking per effort level — 4000 for minimal/low, 7500 for medium, 12000 for xhigh, and `supportsDeveloperRole: false` plus `maxTokensField: max_tokens` keep the request bodies llama-server-native. The gateway is keyless on the trusted LAN, but pi-ai insists on some credential for OpenAI-compatible endpoints — a placeholder `Authorization` header satisfies it. Note that dsh's settings UI rewrites this file (dropping YAML comments) when you save model or general settings; re-sync from the repo copy afterwards.
 
-The [`gem12` profile](config/dsh/profiles/gem12/cordis.patch.yml) (mirrors `~/.dsh/profiles/gem12/`) is the safe setup for the single-slot llama-server: `subagent.maxActiveSubagents: 1` runs subagents sequentially, and the stock `standard` agent preset is replaced wholesale with a copy carrying `compaction-basic.headroomTokens: 8192` — moving the automatic-compaction trigger from ~33K to ~90K tokens on the 131072-token models (~57K on the 98304 uncensored, whose stock pressure budget is exactly zero, i.e. proactive compaction silently disabled). Sessions pin the preset *name* at creation, so replacing `standard` retro-fits sessions created before this config; a `gem12` preset insert is kept for sessions pinned to that id while it was the registry default. Preset plugin rows are not addressable by patch id (the loader patch map only indexes top-level rows, and the host-plane `compaction-basic` row is disabled by dsh-web-app), which is why the tuning rides on full preset copies — regenerate them from the installed `presets/standard.patch.yml` after a dsh update.
+The [`gem12` profile](config/dsh/profiles/gem12/cordis.patch.yml) (mirrors `~/.dsh/profiles/gem12/`) is the safe setup for the single-slot llama-server: `subagent.maxActiveSubagents: 1` runs subagents sequentially, and the stock `standard` agent preset is replaced wholesale with a copy that tunes `compaction-basic` for small local windows. dsh's proactive trigger is `floor(min(W × thresholdRatio, W − O − headroomTokens))` — `W` the model's context window, `O` its `maxTokens` (the output reserve). The stock ratio 0.8 and headroom 65536 compact at ~33K on a 131072-token window (and never on the 98304 uncensored model, whose budget is exactly zero). The profile uses ratio 0.9, headroom 4096 and `maxTokens` 20480, which moves the trigger to ~106K on the 131072-token models (~74K on the 98304 uncensored, ~236K on Ornith's 262144 window); the summary call is capped at 20480 tokens (thinking included — a truncated summary is discarded, so the cap equals the output reserve), and a context-overflow error from the server still triggers one reactive compaction. The dials: every 4096 tokens of `maxTokens` moves the trigger by the same amount, and the thinking budgets (4000/7500/12000) are sized to leave 8K+ of answer room under that cap — raise `maxTokens` first if large file writes get truncated. Sessions pin the preset *name* at creation, so replacing `standard` retro-fits sessions created before this config; a `gem12` preset insert is kept for sessions pinned to that id while it was the registry default. Preset plugin rows are not addressable by patch id (the loader patch map only indexes top-level rows, and the host-plane `compaction-basic` row is disabled by dsh-web-app), which is why the tuning rides on full preset copies — regenerate them from the installed `presets/standard.patch.yml` after a dsh update.
 
 ## Endpoints
 
@@ -109,16 +115,20 @@ The [`gem12` profile](config/dsh/profiles/gem12/cordis.patch.yml) (mirrors `~/.d
 | `/app/<name>` | GET | Pin the browser to a `kind: web` model (sets a cookie, redirects to `/`); `/app/` unpins |
 | `/v1/chat/completions` | POST | Proxy request (supports model switching) |
 | `/v1/completions` | POST | Legacy proxy request (supports model switching) |
+| `/v1/messages`, `/v1/messages/count_tokens` | POST | Anthropic Messages API, served by llama-server (supports model switching) |
+| `/v1/responses` | POST | OpenAI Responses API, served by llama-server (supports model switching) |
 | `/v1/systemone` | POST | Proxy decision request to a `kind: decision` model (supports model switching) |
 | `/v1/images/generations` | POST | Proxy image-generation request (supports model switching) |
-| `/v1/models` | GET | List available **API** and **decision** models (web apps are excluded — they are browser-only via `/app/<name>`) |
+| `/v1/images/edits` | POST | Proxy image-edit request — JSON or `multipart/form-data` with a `model` field (supports model switching) |
+| `/v1/models` | GET | List available **API** and **decision** models, plus web apps flagged `image_chat` (other web apps are excluded — they are browser-only via `/app/<name>`) |
 | `/health` | GET | Gateway health check (always answers for the gateway itself, never for an app) |
 
 ### Request handling
 
-- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`, `/v1/systemone`, `/v1/images/generations`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
+- **Serialization**: Proxied requests (`/v1/chat/completions`, `/v1/completions`, `/v1/messages`, `/v1/responses`, `/v1/systemone`, `/v1/images/*`) hold a single slot: the next request is not forwarded until the previous response (including SSE streams) has finished. Clients that disconnect while queued are dropped.
 - **Web apps bypass the slot**: browser traffic to a `kind: web` backend is not serialized (UI assets and polls are concurrent-safe, and an open websocket must never block API generation). Websocket connections do keep the auto-unload timer reset while open, but they do not block model switches.
 - **Shared single slot**: there is still only one loaded backend at a time. A chat request switches away from a running image app (killing it mid-generation) and vice versa — keep `drain_timeout` in mind.
+- **Anthropic clients**: point them at the gateway with `ANTHROPIC_BASE_URL=http://<gateway>:1234` and `ANTHROPIC_AUTH_TOKEN=<auth_token>` (sent as a Bearer token; `x-api-key` is not accepted). The `model` field must be a gateway model name.
 - **Transparency**: Request bodies are proxied untouched. The gateway does not rewrite model-specific parameters — clients are expected to send values the backend chat template supports (e.g. Qwen3 GGUF templates only accept `reasoning_effort` of `xhigh`, `medium`, or `low`; see [`config/omp/`](config/omp/) for a client setup that matches).
 
 ## Security
@@ -132,6 +142,8 @@ The gateway is built for a **trusted home LAN** behind a router firewall. There 
 With `auth_token: ""` anyone who can reach the port can run models and open the apps — a deliberate choice for the LAN, but it also means any page open in your browser can fire cross-site requests at the gateway (spend GPU, switch models). The startup log warns about both disabled checks when the bind address isn't loopback-only.
 
 Enabling the token means every API client needs it: opencode/omp provider configs (`api_key`), and Open WebUI — its installer reads `auth_token` from `/etc/llm-gateway/config.yaml` automatically; re-run the installer after changing the token.
+
+The bundled configs never pass llama-server's `--tools`/`--agent`: they expose a file read/write API (`/tools`) on the backend port, which no harness here needs.
 
 Other hardening in the box: the systemd units run the gateway as a regular user under `NoNewPrivileges`, `ProtectSystem=full`, `PrivateTmp`, an empty capability set, and a device allowlist; the installer writes the config and Open WebUI's secret key with `0600` permissions (secrets live in a 0600 `EnvironmentFile`, never in the world-readable unit file); the installer scripts pin and checksum the binaries they download. Deliberate non-goals: per-user identity, rate limiting, IP allowlists (they break behind proxies and introduce `X-Forwarded-For` trust — which is why that header is never used for auth decisions), and built-in TLS.
 
@@ -216,22 +228,31 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 | Component | File | Size |
 |---|---|---|
 | Diffusion model (GGUF Q4_0) | [`leejet/Qwen-Image-2.1-GGUF`](https://huggingface.co/leejet/Qwen-Image-2.1-GGUF) | 4.2 GB |
-| Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~4.9 GB |
-| Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | ~2.5 GB |
+| Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 5.0 GB |
+| Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 1.2 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
-| **Total** | | **~13.7 GB** |
+| **Total** | | **~10.8 GB** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 12 GB — fits entirely in the 16 GB VRAM with ~4 GB headroom, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB, sd.cpp's native INT8 tensor-core format) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it and drop `--llm_vision` to stay in VRAM. If 2048×2048 ever hits CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 10.8 GB — fits entirely in the 16 GB VRAM with ~5 GB headroom, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB, sd.cpp's native INT8 tensor-core format) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it and drop `--llm_vision` to stay in VRAM. If 2048×2048 ever hits CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
 
 Other GGUF quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — with that, `--offload-to-cpu` becomes necessary), or down to Q5_0/Q2_K for lighter footprints; `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
 ### Install & use
 
 ```bash
-sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~14 GB of models into /opt/sdcpp
+sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~18 GB of models into /opt/sdcpp (Turbo included)
 ```
 
-Then uncomment the `qwen-image-2.1` entry in the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway.
+Then add the `qwen-image-2.1` and `qwen-image-2.1-turbo` entries to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_TURBO=0` skips the Turbo weights.
+
+### Turbo: 8-step Qwen-Image-2.1 ([`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF))
+
+`qwen-image-2.1-turbo` is a distilled checkpoint of the same 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It reuses the text encoder, mmproj and VAE above — only the diffusion file differs, which is what the second gateway entry swaps. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident, ~3 GiB left for 1024² compute.
+
+- Steps, CFG, sampler and sigmas come from the gateway command line. sd-server's OpenAI endpoints (`/v1/images/generations`, `/v1/images/edits`) only take `prompt`, `size` and `n` from the request, so Open WebUI and API clients cannot push Turbo off its schedule. In sd-server's own web UI keep steps at 8 and CFG at 1.0 — 20–40 steps or CFG > 1 degrade a distilled model.
+- Turbo and the regular model share the single VRAM slot like any other pair of models: switching between them reloads sd-server (a few seconds). Keep `qwen-image-2.1` for the quality reference (more steps, raise `--cfg-scale` for prompt adherence); use Turbo for iteration speed.
+- If many edit references or 2048² hit CUDA OOM, drop to `TURBO_QUANT=Q4_K_M` (same footprint as the regular model) or add `--offload-to-cpu`.
+- Licence: Qwen Research License, non-commercial, like the base model.
 
 > The browser UI is compiled **into** the sd-server binary (`SD_SERVER_BUILD_FRONTEND=ON`, needs Node ≥ 20 + pnpm ≥ 10, installed automatically). If you ever see a plain *"Stable Diffusion Server is running"* text instead of the UI, the binary was built without the frontend — re-run the installer and it will rebuild with it.
 
@@ -263,8 +284,10 @@ Composition = the Editing workflow with several reference images (up to 10); "re
 [`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
 - **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
-- **Images**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) and send with a **regular chat model selected** — never pick `qwen-image-2.1` in the model picker; it is not a chat model (and since it's a web app, the gateway doesn't even list it). The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1` — model and endpoint are preconfigured via environment variables. Set the resolution in *Admin Settings → Images* (width/height in multiples of 32, e.g. 1024×1024 or 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
-- **Editing** (reference images) stays in sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1`.
+- **Images (toggle)**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) with a regular chat model selected. The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1-turbo` (8 steps, 1024×1024) — model, size and endpoint are preconfigured via environment variables; switch to `qwen-image-2.1` or another sd-server model in *Admin Settings → Images* (width/height in multiples of 32, e.g. 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
+- **Images (as a model)**: the image models are in the model picker too (`qwen-image-2.1-turbo`, `qwen-image-2.1`). Pick one, describe the image in the message, and the reply is the image; attach a picture and the message becomes an edit. See [Image models in chat](#image-models-in-chat-image_chat) for what to know before using it.
+- **Editing** (reference images) works in Open WebUI too: Image Edit is enabled with the same gateway and model, so uploading an image and asking for a change goes through `/v1/images/edits` (multipart; the gateway reads the `model` form field and forwards the upload untouched). sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1` remains available for multi-image composition.
+- **Persistent settings**: Open WebUI stores these in its database after the first start, so the installer's values only seed a fresh install; existing installs keep theirs until changed in the admin panel. Steps, CFG and sampler always come from the gateway command line, never from Open WebUI.
 
 ```bash
 sudo ./scripts/install-open-webui.sh          # OPEN_WEBUI_PORT=8081 to override the port
@@ -273,6 +296,17 @@ sudo ./scripts/install-open-webui.sh          # OPEN_WEBUI_PORT=8081 to override
 Open `http://<host>:8080`; the first account created becomes admin. Mixed chat-and-image conversations work, but remember there is still one backend slot: each switch between a chat model and sd-server reloads a model (~10–30 s). The same caveat applies as with any client — an incoming image request kills a loaded chat model mid-stream only after `drain_timeout`.
 
 Manage with `systemctl {status|restart|stop} open-webui`, logs via `journalctl -u open-webui -f`; re-run the installer to upgrade.
+
+### Image models in chat (`image_chat`)
+
+A `kind: web` model with `image_chat: true` (both bundled sd-server entries) is listed in `/v1/models` and accepted by `/v1/chat/completions`. The gateway reads only the **last user message**: its text becomes the prompt for `/v1/images/generations`, or — when the message carries images as `data:` URLs — for `/v1/images/edits` with those images as references. The reply is one assistant message whose content is the image as a markdown data URL (`![Generated image](data:image/png;base64,…)`), streamed as SSE when the client asks for a stream (with keep-alive comments while the image renders). Steps, CFG and sampler come from the model's command line, like every other image path; `/v1/completions`, `/v1/messages` and `/v1/responses` stay closed to web models.
+
+Things worth knowing:
+
+- **Background tasks are answered without rendering.** Open WebUI sends title, tag and follow-up prompts to the selected model. Prompts starting with `### Task:` (Open WebUI's template marker) get a small JSON stub (`{"title": "Image", ...}`) instead of a generation, so a chat with an image model is titled "Image" and costs no GPU time. A customised task template that drops the marker would trigger a render per task — set a chat model as the task model then.
+- **Keep image chats separate.** The image lives inline in the conversation, so continuing the same chat with a *text* model sends the base64 along as tokens and overflows its context. Start a new chat for text. Chat UIs also resend the whole history on every message: after roughly twenty generated images the request exceeds `max_body_size` (64MB) and the gateway answers 413.
+- **One slot.** Rendering holds the same single generation slot as chat requests; opening an image model kills the loaded chat model and the next chat message reloads it (see Caveats).
+- **Only data-URL images** are used as edit references; remote image URLs are ignored.
 
 #### Using Makefile (recommended)
 

@@ -41,14 +41,15 @@
               $var: thinking.effort
               omitWhenOff: true
             preserve_thinking: true
-          # llama.cpp's native thinking-budget request field; flat 7500 cap
-          # like omp (xhigh reads the "high" bucket).
+          # llama.cpp's thinking-budget request field (the alias honoured by
+          # every build). Budget per effort level: xhigh reads the "high"
+          # bucket and gets room for plan/slow work; low stays quick.
           thinkingTokenBudgetField: thinking_budget_tokens
         thinkingBudgets:
-          minimal: 7500
-          low: 7500
+          minimal: 4000
+          low: 4000
           medium: 7500
-          high: 7500
+          high: 12000
         models:
           - id: ornith-1.5-35b-a3b
             name: Ornith 1.5 35B A3B
@@ -57,8 +58,9 @@
           - id: qwen-3.8-27b
             name: Qwen 3.8 27B
             contextWindow: 131072
-            # Room for thinking (budget-capped) plus large file writes.
-            maxTokens: 32768
+            # Room for thinking (budget-capped) plus large file writes;
+            # matches the gem12 profile, where it sets the compaction reserve.
+            maxTokens: 20480
             # Vision via mmproj encoded on the CPU.
             input: [text, image]
             reasoningEfforts:
@@ -66,15 +68,10 @@
               low: low
               medium: medium
               xhigh: xhigh
-          - id: qwen-3.8-27b-instruct
-            name: Qwen 3.8 27B Instruct
-            contextWindow: 131072
-            maxTokens: 16384
-            input: [text, image]
           - id: qwen-3.8-27b-uncensored
             name: Qwen 3.8 27B Uncensored
             contextWindow: 98304
-            maxTokens: 32768
+            maxTokens: 20480
             input: [text, image]
             reasoningEfforts:
               off:

@@ -23,7 +23,15 @@ models:
   # Machine: gem12 — AMD Ryzen 7 8845HS (8c/16t) + 32GB RAM.
   # eGPU:   16GB NVIDIA RTX 5060 Ti over OCuLink (PCIe direct, high bandwidth).
 
-  # MoE (35B A3B): --fit puts as many expert tensors in VRAM as fit and
+  # MoE (35B A3B): AD-Q4_K-IQ4_XS (20.1 GB) — the card's mixed-precision
+  # layout: mean KLD vs BF16 0.032 against 0.054 for the plain IQ4_XS (18.7
+  # GB), and better than Q4_K_M (0.048, 21.2 GB). Sampling follows the
+  # authors' coding-agent runs (SWE-bench, DeepSWE, Terminal-Bench: temp 1.0,
+  # top-p 0.95; the card's temp 0.6 is its "general tasks" line) with top-k 20
+  # from the card and no presence penalty — a penalty on repeated tokens hurts
+  # code. A thinking model by default: --reasoning-budget 8192 bounds it so a
+  # 16K reply cap always leaves room for the answer.
+  # --fit puts as many expert tensors in VRAM as fit and
   # streams the rest from RAM over OCuLink; --fit-target keeps 768 MiB free.
   # Large ubatch amortizes that streaming in prefill — measured on gem12
   # (PCIe x4): ubatch 4096 = ~1716 t/s pp4096 vs ~1403 at 2048.
@@ -33,14 +41,14 @@ models:
   ornith-1.5-35b-a3b:
     command: |
       GGML_OP_OFFLOAD_MIN_BATCH=1024 llama-server
-      -hf AtomicChat/Ornith-1.5-35B-A3B-GGUF:IQ4_XS
+      -hf AtomicChat/Ornith-1.5-35B-A3B-GGUF -hff Ornith-1.5-35B-A3B-AD-Q4_K-IQ4_XS.gguf
       --fit on --fit-target 768 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 262144 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --load-mode none --no-mmproj --jinja --tools all
+      --flash-attn on --load-mode none --no-mmproj --jinja
       --batch-size 4096 --ubatch-size 4096
-      --checkpoint-min-step 2048
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
+      --checkpoint-min-step 2048 --reasoning-budget 8192
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --host 127.0.0.1 --port 1235 --alias ornith-1.5-35b-a3b
     host: 127.0.0.1:1235
     ready_timeout: 2h
@@ -53,6 +61,9 @@ models:
   # -8% prefill, -1.1 LCB): GSQ IQ3_XXS + DFlash2 Q4_K_M drafter,
   # draft-dflash n-max 7, ubatch 256. -hff selects the exact file;
   # "-hf repo:file.gguf" fails (suffix = quant name).
+  # Non-thinking use (instruct) rides this same server per request —
+  # chat_template_kwargs {"enable_thinking": false}, temp 0.7, top-p 0.8,
+  # presence 1.5 per the Qwen3.8 card — so switching never reloads weights.
   qwen-3.8-27b:
     command: |
       llama-server
@@ -61,31 +72,12 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 131072 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja
       --batch-size 256 --ubatch-size 256
       --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
       --chat-template-kwargs '{"reasoning_effort":"medium"}'
       --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
-  # Same GSQ IQ3_S-mtp stack as qwen-3.8-27b above (quant, ubatch 256
-  # ceiling, n-max 4) with thinking disabled and chattier sampling.
-  qwen-3.8-27b-instruct:
-    command: |
-      llama-server
-      -hf ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF -hff Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
-      --spec-type draft-mtp --spec-draft-n-max 4
-      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
-      --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
-      --batch-size 256 --ubatch-size 256
-      --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
-      --temp 0.7 --top-p 0.80 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0
-      --chat-template-kwargs '{"enable_thinking":false}'
-      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b-instruct
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
@@ -103,7 +95,7 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 98304 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja --tools all
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja
       --batch-size 2048 --ubatch-size 512
       --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
       --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
@@ -128,7 +120,7 @@ models:
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 262144 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja --tools all
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --jinja
       --batch-size 2048 --ubatch-size 2048
       --temp 0.6 --top-p 0.9 --top-k 64 --min-p 0.05 --presence-penalty 0.0 --repeat-penalty 1.1
       --host 127.0.0.1 --port 1235 --alias gemma-4-12b
@@ -139,14 +131,15 @@ models:
   # Read a state + question schema, return per-option probabilities in one
   # forward pass — no text generation. llama-server >= b11430 serves them via
   # /v1/systemone; the gateway routes by the extra "model" body field.
-  # Sub-4-bit quants lose extra quality: no imatrix is possible for decision
-  # models. clef-flash measured on gem12: 5.56 GiB VRAM with mmproj, ~130 ms
-  # per decision over LAN, ~324 input tokens.
+  # Quantization costs extra quality here: no imatrix is possible for decision
+  # models, so clef-flash takes Q8_0 (9.7 GB, ~9 GiB resident; the Q4_K_M it
+  # replaces measured 5.56 GiB with mmproj, ~130 ms per decision over LAN,
+  # ~324 input tokens) — the card has no use for the spare VRAM otherwise.
   clef-flash:
     kind: decision
     command: |
       llama-server
-      -hf bartowski/Cloudflare_clef-flash-GGUF:Q4_K_M
+      -hf bartowski/Cloudflare_clef-flash-GGUF:Q8_0
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 32768 --cont-batching
       --cache-type-k q8_0 --cache-type-v q8_0
@@ -157,17 +150,17 @@ models:
     ready_timeout: 2h
 
   # 27B clef (Qwen3.8-27B base, text-only — mmproj would OOM beside its
-  # weights): Q4_K_M is 17.65 GB and doesn't fit 16 GB VRAM; Q3_K_M loads at
-  # 13.77 GiB (decision heads skip the vocab logits buffer). q4_0 KV is
-  # bit-identical to q8_0 for decisions as long as the state fits one ubatch
-  # (measured @335 tok: same probabilities, same VRAM) — longer states would
-  # read the quantized cache back. Q3_K_L (15.15 GB) is the quality-up option
-  # that still fits.
+  # weights): Q4_K_M is 17.65 GB and doesn't fit 16 GB VRAM; Q3_K_M loaded at
+  # 13.77 GiB (decision heads skip the vocab logits buffer), so Q3_K_L (15.15
+  # GB, ~14.4 GiB) is the largest quant that fits; IQ4_XS (15.56 GB) is too
+  # tight. q4_0 KV is bit-identical to q8_0 for decisions as long as the state
+  # fits one ubatch (measured @335 tok: same probabilities, same VRAM) —
+  # longer states would read the quantized cache back.
   clef:
     kind: decision
     command: |
       llama-server
-      -hf bartowski/Cloudflare_clef-GGUF:Q3_K_M
+      -hf bartowski/Cloudflare_clef-GGUF:Q3_K_L
       --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
       --ctx-size 16384 --cont-batching
       --cache-type-k q4_0 --cache-type-v q4_0
@@ -181,16 +174,19 @@ models:
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
   # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). Q4_0
-  # diffusion 4.2 GB + Qwen3-VL TE Q4_K_M 4.9 GB + mmproj ~2.5 GB + VAE 0.4 GB
-  # ≈ 12 GB resident in VRAM (no PCIe streaming): 40 steps @1024² in well
+  # diffusion 4.2 GB + Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB + VAE 0.4
+  # GB ≈ 10.8 GB resident in VRAM (no PCIe streaming): 40 steps @1024² in well
   # under a minute. --cfg-scale 1.0 skips the guidance pass (~2x faster,
   # weaker prompt adherence; doc value 6.0). Near-lossless alt: INT8 convrot
   # (DOWNLOAD_INT8=1 in the installer, ~6.8 GB, drop --llm_vision); GGUF Q6_K
   # sits between. If OOMs: re-add --offload-to-cpu (~5x slower per step).
   # Browser: http://<host>:1234/ → app below.  API: POST /v1/images/generations
+  # image_chat: true also lists it in /v1/models as a chat model — pick it in
+  # Open WebUI (or any chat client), describe the image, get the image back.
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
   qwen-image-2.1:
     kind: web
+    image_chat: true
     command: |
       /opt/sdcpp/bin/sd-server
       --diffusion-model /opt/sdcpp/models/qwen_image_2.1-Q4_0.gguf
@@ -199,6 +195,31 @@ models:
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
       --diffusion-fa --cfg-scale 1.0 --sampling-method euler
       --steps 40 --width 1024 --height 1024
+      --listen-ip 127.0.0.1 --listen-port 1235
+    host: 127.0.0.1:1235
+    health_endpoint: /
+    ready_timeout: 30m
+
+  # Qwen-Image-2.1-Turbo (unsloth GGUF): 8-step distilled DiT — same TE, mmproj
+  # and VAE as above, ~5x fewer steps. Q6_K_XL 6.7 GB (LPIPS 0.050 vs the bf16
+  # Turbo; Q4_K_M 0.153) + TE 5.0 + mmproj 1.2 + VAE 0.4 ≈ 13.3 GB resident,
+  # ~3 GiB left for 1024² compute. Steps/cfg/sampler/sigmas come from this
+  # command line: OpenAI-API clients (Open WebUI, curl) only send prompt, size
+  # and n; in the web UI keep steps 8 and CFG 1.0. If OOM (many edit refs, 2K):
+  # Q4_K_M (4.2 GB, same footprint as qwen-image-2.1) or --offload-to-cpu.
+  # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
+  qwen-image-2.1-turbo:
+    kind: web
+    image_chat: true
+    command: |
+      /opt/sdcpp/bin/sd-server
+      --diffusion-model /opt/sdcpp/models/qwen-image-2.1-turbo-Q6_K_XL.gguf
+      --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
+      --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
+      --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
+      --diffusion-fa --cfg-scale 1.0 --sampling-method euler
+      --sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0
+      --steps 8 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235
     host: 127.0.0.1:1235
     health_endpoint: /
