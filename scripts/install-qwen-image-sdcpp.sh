@@ -369,9 +369,9 @@ fetch_model \
 	"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
 	"${MODEL_DIR}/${DIFFUSION_NAME}"
 
-# Optional: INT8 convrot safetensors — sd.cpp's native accelerated format
-# (INT8 weights + Hadamard rotation executed directly on INT8 tensor cores,
-# no dequantization), near-lossless quality. Off by default (6.8 GB disk);
+# Optional: INT8 convrot safetensors — near-lossless quality, executed
+# natively by sd.cpp but not faster than GGUF at 1024² (upstream PR #1857
+# benchmark). Off by default (6.8 GB disk);
 # enable with DOWNLOAD_INT8=1 and point the gateway config's
 # --diffusion-model at qwen_image_2.1_int8_convrot.safetensors.
 if [ "${DOWNLOAD_INT8:-0}" = "1" ]; then
@@ -437,7 +437,8 @@ echo "      --diffusion-model ${MODEL_DIR}/${DIFFUSION_NAME}"
 echo "      --llm ${MODEL_DIR}/${TE_NAME}"
 echo "      --llm_vision ${MODEL_DIR}/${MMPROJ_NAME}"
 echo "      --vae ${MODEL_DIR}/$(basename "${VAE_NAME}")"
-echo "      --diffusion-fa --cfg-scale 1.0 --sampling-method euler"
+echo "      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16"
+echo "      --cfg-scale 1.0 --sampling-method euler"
 echo "      --steps 40 --width 1024 --height 1024"
 echo "      --listen-ip 127.0.0.1 --listen-port 1235"
 echo "    host: 127.0.0.1:1235"
@@ -447,7 +448,8 @@ if [ -n "${TURBO_NAME}" ]; then
 	echo
 	echo "  qwen-image-2.1-turbo:   # same as above, with:"
 	echo "      --diffusion-model ${MODEL_DIR}/${TURBO_NAME}"
-	echo "      --diffusion-fa --cfg-scale 1.0 --sampling-method euler"
+	echo "      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16"
+	echo "      --cfg-scale 1.0 --sampling-method euler"
 	echo "      --sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0"
 	echo "      --steps 8 --width 1024 --height 1024"
 fi
@@ -457,5 +459,5 @@ echo "  Web UI: http://<gateway-host>:1234/  → click 'qwen-image-2.1' (or '-tu
 echo "  API:    POST /v1/images/generations  {\"model\": \"qwen-image-2.1\", \"prompt\": \"...\"}"
 echo
 echo "Editing is on: --llm_vision loads the mmproj. Steps, cfg and sampler come"
-echo "from the command line (the OpenAI endpoints only take prompt/size/n). If a"
-echo "larger quant or 2048 px hits CUDA OOM, add --offload-to-cpu (~5x slower/step)."
+echo "from the command line (the OpenAI endpoints only take prompt/size/n). sd.cpp"
+echo "auto-fit moves the text encoder to RAM when a larger quant or 2048 px needs VRAM."

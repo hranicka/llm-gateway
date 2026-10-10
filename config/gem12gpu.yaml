@@ -175,11 +175,16 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). Q4_0
   # diffusion 4.2 GB + Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB + VAE 0.4
-  # GB ≈ 10.8 GB resident in VRAM (no PCIe streaming): 40 steps @1024² in well
-  # under a minute. --cfg-scale 1.0 skips the guidance pass (~2x faster,
-  # weaker prompt adherence; doc value 6.0). Near-lossless alt: INT8 convrot
-  # (DOWNLOAD_INT8=1 in the installer, ~6.8 GB, drop --llm_vision); GGUF Q6_K
-  # sits between. If OOMs: re-add --offload-to-cpu (~5x slower per step).
+  # GB ≈ 10.8 GB: 40 steps @1024² in well under a minute. --cfg-scale 1.0
+  # skips the guidance pass (~2x faster, weaker prompt adherence; doc value
+  # 6.0). sd.cpp auto-fit keeps diffusion weights in VRAM first and moves the
+  # TE to RAM only when VRAM runs short — no offload flags needed.
+  # --sage-attn: SageAttention2++ (INT8 Q/K, FP8 PV) in the DiT on sm_120;
+  # --fa covers the TE and any attention Sage cannot run. Sage makes the
+  # prefix KV cache (text/reference tokens computed once per run, ~1.9x faster
+  # edits) default to FP32 — 4 GiB per 1024² reference — so it is pinned to
+  # f16 (2 GiB). INT8 convrot (DOWNLOAD_INT8=1) is not faster than GGUF in
+  # sd.cpp at 1024² (upstream PR #1857 bench), only a quality option.
   # Browser: http://<host>:1234/ → app below.  API: POST /v1/images/generations
   # image_chat: true also lists it in /v1/models as a chat model — pick it in
   # Open WebUI (or any chat client), describe the image, get the image back.
@@ -193,7 +198,8 @@ models:
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --diffusion-fa --cfg-scale 1.0 --sampling-method euler
+      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16
+      --cfg-scale 1.0 --sampling-method euler
       --steps 40 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235
     host: 127.0.0.1:1235
@@ -205,8 +211,8 @@ models:
   # Turbo; Q4_K_M 0.153) + TE 5.0 + mmproj 1.2 + VAE 0.4 ≈ 13.3 GB resident,
   # ~3 GiB left for 1024² compute. Steps/cfg/sampler/sigmas come from this
   # command line: OpenAI-API clients (Open WebUI, curl) only send prompt, size
-  # and n; in the web UI keep steps 8 and CFG 1.0. If OOM (many edit refs, 2K):
-  # Q4_K_M (4.2 GB, same footprint as qwen-image-2.1) or --offload-to-cpu.
+  # and n; in the web UI keep steps 8 and CFG 1.0. Attention/offload flags as
+  # above (auto-fit moves the TE to RAM when 2K or many edit refs need VRAM).
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
   qwen-image-2.1-turbo:
     kind: web
@@ -217,7 +223,8 @@ models:
       --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
       --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --diffusion-fa --cfg-scale 1.0 --sampling-method euler
+      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16
+      --cfg-scale 1.0 --sampling-method euler
       --sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0
       --steps 8 --width 1024 --height 1024
       --listen-ip 127.0.0.1 --listen-port 1235

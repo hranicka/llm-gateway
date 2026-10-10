@@ -233,9 +233,14 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
 | **Total** | | **~10.8 GB** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 10.8 GB — fits entirely in the 16 GB VRAM with ~5 GB headroom, so the bundled config keeps every weight GPU-resident: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB, sd.cpp's native INT8 tensor-core format) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it and drop `--llm_vision` to stay in VRAM. If 2048×2048 ever hits CUDA OOM, add `--offload-to-cpu` to the command: the weights then stream from system RAM, roughly 5× slower per step but OOM-proof.
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 10.8 GB — fits in the 16 GB VRAM with ~5 GB headroom. sd.cpp's auto-fit keeps the diffusion weights in VRAM first and moves the text encoder to RAM only when a larger quant, 2048² or many edit references need the space, so no offload flags are set: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it. sd.cpp runs it natively but not faster than GGUF at 1024² (upstream benchmark in stable-diffusion.cpp PR #1857).
 
-Other GGUF quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — with that, `--offload-to-cpu` becomes necessary), or down to Q5_0/Q2_K for lighter footprints; `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
+Speed flags in both bundled entries:
+
+- `--sage-attn` — SageAttention2++ (INT8 Q/K, FP8 P·V) in the diffusion transformer; needs the installer's native sm_120 build with CUDA ≥ 12.8. `--fa` keeps flash attention for the text encoder and for attention Sage cannot run. Sage quantizes attention, so compare text rendering against a run without it.
+- `--model-args qwen_image_2_1_prefix_cache_type=f16` — the prefix KV cache computes text and reference-image tokens once per run (upstream: ~15% faster text-to-image, ~1.9× faster edits). With Sage on it would default to FP32 (4 GiB per 1024² reference); f16 halves that.
+
+Other GGUF quants: `DIFFUSION_QUANT=Q8_0` for maximum quality (7.7 GB — auto-fit then moves the text encoder to RAM), or down to Q5_0/Q2_K for lighter footprints; `DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switches to a community re-quant of the same weights (adds Q4_K_M/Q5_K_M).
 
 ### Install & use
 
@@ -253,7 +258,7 @@ The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master)
 
 - Steps, CFG, sampler and sigmas come from the gateway command line. sd-server's OpenAI endpoints (`/v1/images/generations`, `/v1/images/edits`) only take `prompt`, `size` and `n` from the request, so Open WebUI and API clients cannot push Turbo off its schedule. In sd-server's own web UI keep steps at 8 and CFG at 1.0 — 20–40 steps or CFG > 1 degrade a distilled model.
 - Turbo and the regular model share the single VRAM slot like any other pair of models: switching between them reloads sd-server (a few seconds). Keep `qwen-image-2.1` for the quality reference (more steps, raise `--cfg-scale` for prompt adherence); use Turbo for iteration speed.
-- If many edit references or 2048² hit CUDA OOM, drop to `TURBO_QUANT=Q4_K_M` (same footprint as the regular model) or add `--offload-to-cpu`.
+- Many edit references or 2048² need more VRAM; auto-fit then moves the text encoder to RAM. `TURBO_QUANT=Q4_K_M` (same footprint as the regular model) keeps everything resident.
 - Licence: Qwen Research License, non-commercial, like the base model.
 
 > The browser UI is compiled **into** the sd-server binary (`SD_SERVER_BUILD_FRONTEND=ON`, needs Node ≥ 20 + pnpm ≥ 10, installed automatically). If you ever see a plain *"Stable Diffusion Server is running"* text instead of the UI, the binary was built without the frontend — re-run the installer and it will rebuild with it.
