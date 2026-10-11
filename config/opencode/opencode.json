@@ -47,8 +47,8 @@
       "extensions": [".php"]
     }
   },
-  "model": "network-gem12/qwen-3.8-27b",
-  "small_model": "network-gem12/qwen-3.8-27b",
+  "model": "network-gem12/qwen-3.8-27b-exl3",
+  "small_model": "network-gem12/qwen-3.8-27b-exl3",
   "default_agent": "plan",
   "compaction": {
     "auto": true,
@@ -62,28 +62,28 @@
   "agent": {
     "qwen-3.8-xhigh": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b",
+      "model": "network-gem12/qwen-3.8-27b-exl3",
       "variant": "xhigh",
       "description": "Top tier model: architect, orchestrator, deep thinker",
       "prompt": "You are a top-tier system architect, orchestrator, and deep thinker.\n\nRules:\n- Handle complex architecture, system design, and orchestration of multi-step work.\n- Reason thoroughly before acting; prioritize design quality over speed.\n- Delegate search to @explore , create a todo list for items needed to be done, orchestrate subagents - one at a time, no concurrency.\n- Run /review once done for verification."
     },
     "qwen-3.8-medium": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b",
+      "model": "network-gem12/qwen-3.8-27b-exl3",
       "variant": "medium",
       "description": "Senior software developer, code reviews",
       "prompt": "You are a senior software developer.\n\nRules:\n- Handle core feature building, refactoring, and implementation with solid engineering judgment.\n- Delegate search to @explore , create a todo list for items needed to be done, orchestrate subagents - one at a time, no concurrency.\n- Run /review once done for verification."
     },
     "qwen-3.8-low": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b",
+      "model": "network-gem12/qwen-3.8-27b-exl3",
       "variant": "low",
       "description": "Fast worker, junior developer",
       "prompt": "You are a fast worker and junior developer.\n\nRules:\n- Execute straightforward coding tasks quickly and efficiently.\n- Keep changes simple and follow existing conventions."
     },
     "qwen-3.8-instruct": {
       "mode": "all",
-      "model": "network-gem12/qwen-3.8-27b",
+      "model": "network-gem12/qwen-3.8-27b-exl3",
       "variant": "instruct",
       "description": "Exploration, exact instruction following, basic tasks, commands",
       "prompt": "You are a precise instruction-following assistant.\n\nRules:\n- Follow exact instructions and explore codebases without improvisation.\n- Handle basic, well-defined tasks and running commands."

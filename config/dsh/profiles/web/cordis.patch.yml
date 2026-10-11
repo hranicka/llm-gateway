@@ -122,5 +122,5 @@
 #   name: "@deepseek-ai/dsh-agent-default-model"
 #   config:
 #     provider: network-gem12
-#     model: qwen-3.8-27b
+#     model: qwen-3.8-27b-exl3
 #     reasoningEffort: medium

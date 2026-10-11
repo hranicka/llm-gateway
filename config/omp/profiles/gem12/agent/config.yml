@@ -1,21 +1,21 @@
 modelRoles:
-  # Every role rides the single-slot qwen-3.8-27b; only the reasoning effort
-  # varies (a model switch would reload llama-server, ~2.5 min).
-  default: network-gem12/qwen-3.8-27b:medium
-  plan: network-gem12/qwen-3.8-27b:xhigh
-  slow: network-gem12/qwen-3.8-27b:xhigh
-  task: network-gem12/qwen-3.8-27b:low
-  smol: network-gem12/qwen-3.8-27b:low
-  tiny: network-gem12/qwen-3.8-27b:low
-  commit: network-gem12/qwen-3.8-27b:low
-  # Vision role: qwen-3.8-27b loads its mmproj on the CPU, so images no
-  # longer swap models. Fallback if vision misbehaves: network-gem12/gemma-4-12b.
-  vision: network-gem12/qwen-3.8-27b:low
+  # Every role rides the single-slot qwen-3.8-27b-exl3; only the reasoning
+  # effort varies (a model switch would reload the backend, ~1-2.5 min).
+  default: network-gem12/qwen-3.8-27b-exl3:medium
+  plan: network-gem12/qwen-3.8-27b-exl3:xhigh
+  slow: network-gem12/qwen-3.8-27b-exl3:xhigh
+  task: network-gem12/qwen-3.8-27b-exl3:low
+  smol: network-gem12/qwen-3.8-27b-exl3:low
+  tiny: network-gem12/qwen-3.8-27b-exl3:low
+  commit: network-gem12/qwen-3.8-27b-exl3:low
+  # Vision role: qwen-3.8-27b-exl3 runs its vision tower on the GPU, so images
+  # never swap models. Fallback if vision misbehaves: network-gem12/qwen-3.8-27b.
+  vision: network-gem12/qwen-3.8-27b-exl3:low
 
 providers:
   # Serialize all llm-gateway traffic: per-provider limit, shared across omp
-  # processes, held until the streamed response finishes — one llama-server
-  # slot (--parallel 1), concurrency would re-prefill.
+  # processes, held until the streamed response finishes — one backend
+  # slot, concurrency would re-prefill.
   maxInFlightRequests:
     network-gem12: 1
   # Cold 100K prefill ~3 min; 15 min timeout for the first token and stream
@@ -24,11 +24,11 @@ providers:
   streamIdleTimeoutSeconds: 900
 
 async:
-  # A task call blocks the main agent (one llama-server slot, no concurrency).
+  # A task call blocks the main agent (one backend slot, no concurrency).
   enabled: false
 
 task:
-  # At most one agent at a time: gem12 serves llama-server with --parallel 1.
+  # At most one agent at a time: gem12 serves one request at a time.
   maxConcurrency: 1
 
 # Requests with no role run "gold middle path"; roles above pin their own levels.
@@ -47,5 +47,5 @@ compaction:
   thresholdPercent: 82
 
 provider:
-  # llama-server caches the KV prefix; append-only keeps turns fast.
+  # The backend caches the KV prefix; append-only keeps turns fast.
   appendOnlyContext: "on"

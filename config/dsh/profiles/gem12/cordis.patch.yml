@@ -6,7 +6,7 @@
   config:
     welcomeNoticeVersion: 2026-09-28.1
 
-# gem12 serves one llama-server slot: subagents must run sequentially.
+# gem12 serves one request at a time: subagents must run sequentially.
 # Default maxActiveSubagents is 8 — parallel subagents would queue at the
 # gateway's single generation slot (stall) or swap models mid-task.
 # maxDepth stays at its default 1. Patch ids must match existing row ids —
@@ -131,7 +131,7 @@
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
     provider: network-gem12
-    model: qwen-3.8-27b
+    model: qwen-3.8-27b-exl3
     reasoningEffort: medium
 
 # Agent presets. Preset plugin rows are NOT reachable by patch id (the loader
