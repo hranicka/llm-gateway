@@ -6,7 +6,7 @@
 #   - ExLlamaV3 engine (prebuilt release wheel) + CUDA torch in /opt/exllamav3/venv
 #   - the OpenAI-compatible server from MiaAI-Lab's Qwen3.8-27B kit
 #     (serve_openai.py + token_budget.py, MIT) in /opt/exllamav3/server,
-#     patched by patches/exl3-serve-openai-effort.patch
+#     patched by patches/exl3-serve-openai.patch
 #   - turboderp's Qwen3.8-27B EXL3 quant in /opt/exllamav3/models
 #
 # The server speaks /v1/chat/completions, /v1/models and /health only — no
@@ -47,7 +47,7 @@ fi
 RUN_USER="${SUDO_USER:-$(id -nu 1000 2>/dev/null || echo root)}"
 
 echo "======================================================"
-echo " ExLlamaV3 — Qwen3.8-27B EXL3 3.0 bpw chat backend"
+echo " ExLlamaV3 — Qwen3.8-27B EXL3 3.0 bpw chat + vision backend"
 echo "------------------------------------------------------"
 echo " install: ${INSTALL_DIR} (venv + server + model, ~21 GB)"
 echo " engine:  exllamav3 ${ENGINE_VERSION}, torch ${TORCH_VERSION}+cu128"
@@ -133,8 +133,9 @@ fetch_verified() {
 fetch_verified serve_openai.py "$SERVE_SHA256"
 fetch_verified token_budget.py "$BUDGET_SHA256"
 # Honour chat_template_kwargs.reasoning_effort (how the bundled clients send
-# it) and default to medium like llama-server; the template's own default is xhigh.
-patch -s -d "${INSTALL_DIR}/server" -p1 < "${SCRIPT_DIR}/../patches/exl3-serve-openai-effort.patch"
+# it), default to medium like llama-server (the template's default is xhigh),
+# and accept only data: image URLs (no server-side fetches).
+patch -s -d "${INSTALL_DIR}/server" -p1 < "${SCRIPT_DIR}/../patches/exl3-serve-openai.patch"
 
 # ── 4. Model (resumable; --local-dir keeps it out of the HF hub cache) ───────
 echo "[4/5] Downloading ${MODEL_REPO} 3.00bpw (13.8 GB, resumable)..."
@@ -154,8 +155,8 @@ echo "  qwen-3.8-27b-exl3:"
 echo "    command: |"
 echo "      ${INSTALL_DIR}/venv/bin/python -u ${INSTALL_DIR}/server/serve_openai.py"
 echo "      --model ${MODEL_DIR} --model_id qwen-3.8-27b-exl3"
-echo "      --cache_size 163840 --grid_size 15.2 --cache_quant 4"
-echo "      --draft_model mtp --vision off --ui off --progress_every 0"
+echo "      --cache_size 131072 --grid_size 15.2 --cache_quant 4"
+echo "      --draft_model mtp --vision auto --ui off --progress_every 0"
 echo "      --host 127.0.0.1 --port 1235"
 echo "    host: 127.0.0.1:1235"
 echo "    ready_timeout: 30m"

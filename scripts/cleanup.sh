@@ -7,11 +7,16 @@
 #   - image model files in /opt/sdcpp/models and ComfyUI's diffusion_models,
 #     text_encoders and vae dirs whose file name appears neither in the
 #     gateway config nor in a saved ComfyUI workflow
-#   - interrupted downloads (*.part) and dangling ComfyUI model symlinks
+#   - EXL3 model dirs in /opt/exllamav3/models the config doesn't name
+#   - interrupted downloads (*.part, *.incomplete) and dangling ComfyUI
+#     model symlinks
 #   - llama.cpp `-hf` downloads (HF hub cache and legacy ~/.cache/llama.cpp)
 #     of GGUF repos no `-hf` / `--spec-draft-hf` in the config names
-#   - --caches: also clears the uv package cache (re-downloaded on demand)
+#   - --caches: also clears the uv package cache and the Hugging Face Xet
+#     chunk caches (re-downloaded on demand)
 #
+# Sync the gateway config before running it after an install — a model the
+# config doesn't name yet counts as unused.
 # Comment lines in the config don't count as references. Models used only in
 # unsaved ComfyUI graphs look unused — save the workflow first.
 
@@ -32,6 +37,7 @@ done
 [ -f "$CONFIG" ] || { echo "ERROR: config not found: $CONFIG (use --config)"; exit 1; }
 
 SDCPP_MODELS="${SDCPP_MODELS:-/opt/sdcpp/models}"
+EXL3_MODELS="${EXL3_MODELS:-/opt/exllamav3/models}"
 COMFY="${COMFY_DIR:-/opt/comfyui/ComfyUI}"
 COMFY_MODEL_DIRS=("${COMFY}/models/diffusion_models" "${COMFY}/models/text_encoders" "${COMFY}/models/vae")
 
@@ -72,11 +78,19 @@ for dir in "$SDCPP_MODELS" "${COMFY_MODEL_DIRS[@]}"; do
 done
 
 echo
-echo "Interrupted downloads (*.part):"
-for dir in "$SDCPP_MODELS" "${COMFY}/models" "${GATEWAY_HOME}/.cache"; do
+echo "Unreferenced EXL3 models:"
+if [ -d "$EXL3_MODELS" ]; then
+	while IFS= read -r -d '' d; do
+		grep -qF "$(basename "$d")" "$REFS" || candidate "$d"
+	done < <(find "$EXL3_MODELS" -mindepth 1 -maxdepth 1 -type d -print0)
+fi
+
+echo
+echo "Interrupted downloads (*.part, *.incomplete):"
+for dir in "$SDCPP_MODELS" "${COMFY}/models" "$EXL3_MODELS" "${GATEWAY_HOME}/.cache"; do
 	[ -d "$dir" ] || continue
 	while IFS= read -r -d '' f; do candidate "$f"; done \
-		< <(find "$dir" -type f \( -name '*.part' -o -name '*.downloadInProgress' \) -print0)
+		< <(find "$dir" -type f \( -name '*.part' -o -name '*.incomplete' -o -name '*.downloadInProgress' \) -print0)
 done
 
 echo
@@ -126,6 +140,9 @@ if [ "$CACHES" = 1 ]; then
 			if [ "$APPLY" = 1 ]; then uv cache clean >/dev/null; fi
 		fi
 	fi
+	while IFS= read -r xet; do
+		[ -d "$xet" ] && candidate "$xet"
+	done < <(printf '%s\n' "${GATEWAY_HOME}/.cache/huggingface/xet" "${HOME}/.cache/huggingface/xet" | sort -u)
 fi
 
 echo

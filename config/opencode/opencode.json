@@ -142,10 +142,10 @@
         },
         "qwen-3.8-27b-exl3": {
           "name": "Qwen 3.8 27B EXL3",
-          "attachment": false,
-          "modalities": {"input": ["text"], "output": ["text"]},
+          "attachment": true,
+          "modalities": {"input": ["text", "image"], "output": ["text"]},
           "limit": {
-            "context": 163840,
+            "context": 131072,
             "output": 20480
           },
           "options": {

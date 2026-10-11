@@ -1,0 +1,31 @@
+--- a/serve_openai.py
++++ b/serve_openai.py
+@@ -473,14 +473,10 @@
+     if url.startswith("data:"):
+         _, _, b64 = url.partition(",")
+         raw = base64.b64decode(b64)
+-    elif url.startswith(("http://", "https://")):
+-        req = urllib.request.Request(url, headers = {"User-Agent": "simplex-kit/1.0"})
+-        with urllib.request.urlopen(req, timeout = 20) as r:
+-            raw = r.read(48 * 1024 * 1024 + 1)
+-        if len(raw) > 48 * 1024 * 1024:
+-            raise ValueError("image larger than 48 MB")
+     else:
+-        raise ValueError("image_url must be a data: URL or an http(s) URL")
++        # No server-side fetches: behind the gateway any LAN client could
++        # make this host request internal URLs.
++        raise ValueError("image_url must be a data: URL")
+     img = Image.open(io.BytesIO(raw))
+     img.load()
+     if img.mode != "RGB":
+@@ -979,7 +975,9 @@
+     # keeps the UI from promising a hard limit it cannot deliver.
+     kwargs = body.get("chat_template_kwargs") or {}
+     enable_thinking = kwargs.get("enable_thinking")
+-    effort = str(body.get("reasoning_effort") or "").strip().lower()
++    # Qwen3.8's template defaults to xhigh; match llama-server's medium.
++    effort = str(body.get("reasoning_effort") or kwargs.get("reasoning_effort")
++                 or "medium").strip().lower()
+     if enable_thinking is None:
+         enable_thinking = effort not in ("none", "off", "minimal")
+     return dict(

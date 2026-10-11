@@ -99,7 +99,7 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 
 ### OpenCode compaction
 
-OpenCode compacts when the token count reaches `context − min(output limit, 32000)` (its `compaction.reserved` only applies when a model declares an input limit). The bundled config sets `limit.output: 20480` on the 163840-, 131072- and 98304-token Qwen models, so compaction waits until ~143K, ~110K and ~78K tokens — in line with the dsh and Oh My Pi settings, and the same 20480-token reply cap.
+OpenCode compacts when the token count reaches `context − min(output limit, 32000)` (its `compaction.reserved` only applies when a model declares an input limit). The bundled config sets `limit.output: 20480` on the 131072- and 98304-token Qwen models, so compaction waits until ~110K and ~78K tokens — in line with the dsh and Oh My Pi settings, and the same 20480-token reply cap.
 
 ### DeepSeek Harness (dsh)
 
@@ -201,7 +201,7 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 |---|---|---|
 | [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
 | [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
-| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (EXL3) | Faster decode/prefill and longer context than GGUF at a similar size on NVIDIA; chat completions only | [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) |
+| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (EXL3) | Faster decode/prefill than GGUF at a similar size on NVIDIA, vision; chat completions only | [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) |
 | [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/install-qwen-image-sdcpp.sh`](scripts/install-qwen-image-sdcpp.sh) |
 | [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) |
 
@@ -223,7 +223,7 @@ The vLLM installer (`scripts/install-vllm-globally.sh`) creates a uv-managed ven
 
 ## Qwen3.8-27B on ExLlamaV3 (EXL3)
 
-`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) (text-only, MTP drafting, int4 KV) at **163840 tokens** of context on the RTX 5060 Ti — next to the GGUF `qwen-3.8-27b` (131072), not instead of it. [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai-effort.patch`](patches/exl3-serve-openai-effort.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium`; the template's own default is `xhigh`.
+`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) with images, MTP drafting and int4 KV at **131072 tokens** of context on the RTX 5060 Ti — next to the GGUF `qwen-3.8-27b`, not instead of it. [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai.patch`](patches/exl3-serve-openai.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium` (the template's own default is `xhigh`), and accept images only as `data:` URLs, so a client cannot make gem12 fetch arbitrary URLs.
 
 ```bash
 sudo ./scripts/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
@@ -231,19 +231,18 @@ sudo ./scripts/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
 
 Measured on gem12 against the GGUF model (same prompts, thinking off):
 
-| | GGUF IQ3_S (131K) | EXL3 3.0 bpw (163K) |
+| | GGUF IQ3_S | EXL3 3.0 bpw |
 |---|---|---|
 | Decode, code / prose | 65 / 42 t/s | 71 / 48 t/s |
 | Prefill @2K / @34K | 789 / 796 t/s | ~990 / 900 t/s |
 | Decode @34K | 40 t/s | ~53 t/s |
-| ~105–120K prompt | 567–597 t/s prefill, 22–25 t/s decode | 642 t/s prefill, ~41 t/s decode (105K) |
-| 157K prompt | — | 526 t/s prefill, ~43 t/s decode |
+| ~105–127K prompt | 567–597 t/s prefill, 22–25 t/s decode | 588–642 t/s prefill, 33–41 t/s decode |
 | Perplexity, code (lower is better) | **2.213** | 2.278 |
 | Recall, 10 facts in a 115K prompt ×3 | 30/30 | 30/30 |
 
-It is faster, especially deep into a long context, and slightly weaker. The 163840 setting held through a soak of 21 mixed requests including five 157K prompts, at ~15.8 GB of the 16 GB card; `--grid_size 15.2` keeps room for ExLlamaV3's CUDA graphs, which are allocated outside that cap. The 3.5 bpw quant does not fit ≥120K context on 16 GB: it loads at 131072 only with 3-bit KV and then returns empty replies and aborts with a `graph.cu` out-of-memory assert.
+It is faster, especially deep into a long context, and slightly weaker. The vision tower (0.87 GiB, on the GPU) sets the context: 131072 held a soak of mixed requests with images, ~120K-token prompts carrying an image and 127K text prompts, peaking at 15.9 of the card's 16 GB — do not raise it. At 139264 long prompts come back empty, and at 147456 the tower no longer loads — the server then runs text-only without an error, so watch for `Images: ON` in its log after raising the context. Text-only (`--vision off`), the same weights hold 163840. `--grid_size 15.2` keeps room for ExLlamaV3's CUDA graphs, which are allocated outside that cap. The 3.5 bpw quant does not fit ≥120K context on 16 GB: it loads at 131072 only with 3-bit KV and then returns empty replies and aborts with a `graph.cu` out-of-memory assert.
 
-Limits: chat completions only (Claude Code and other `/v1/messages` or `/v1/responses` clients stay on the GGUF model), no images, effort levels are template hints rather than enforced budgets (`maxTokens` bounds thinking), and the server ignores `presence_penalty` and `min_p`. Prompt prefixes are reused from the KV cache in VRAM; there is no equivalent of llama-server's `--cache-ram` or context checkpoints.
+Limits: chat completions only (Claude Code and other `/v1/messages` or `/v1/responses` clients stay on the GGUF model), images are downscaled to 1 MP (~1024 tokens each), effort levels are template instructions rather than enforced budgets (`maxTokens` bounds thinking), and the server ignores `presence_penalty` and `min_p`. Prompt prefixes are reused from the KV cache in VRAM; there is no equivalent of llama-server's `--cache-ram` or context checkpoints.
 
 ## Image generation & editing: Qwen-Image-2.1 on 16 GB VRAM
 
@@ -404,9 +403,12 @@ sudo ./scripts/cleanup.sh --apply    # delete
 ```
 
 - Image models in `/opt/sdcpp/models` and ComfyUI's `diffusion_models`, `text_encoders`, `vae` whose file name is in neither the gateway config (`/etc/llm-gateway/config.yaml`, comment lines ignored; `--config` overrides) nor a saved ComfyUI workflow. Models used only in unsaved ComfyUI graphs look unused — save the workflow first.
-- Interrupted downloads (`*.part`) and dangling ComfyUI model symlinks.
+- EXL3 model directories in `/opt/exllamav3/models` whose name the config doesn't contain (e.g. a previous quant after a bump).
+- Interrupted downloads (`*.part`, Hugging Face `*.incomplete`) and dangling ComfyUI model symlinks.
 - llama.cpp `-hf` downloads of GGUF repos no `-hf` / `--spec-draft-hf` in the config names, in the gateway user's HF hub cache and legacy `~/.cache/llama.cpp`. Non-GGUF repos (e.g. Open WebUI's embedding models) are left alone.
-- `--caches` also clears the uv package cache.
+- `--caches` also clears the uv package cache and the Hugging Face Xet chunk caches (the gateway user's and root's — the installers download as root).
+
+Run it after syncing `/etc/llm-gateway/config.yaml` with a newly installed model; until the config names it, the model counts as unused.
 
 ## Build & Run
 

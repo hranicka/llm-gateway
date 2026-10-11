@@ -81,22 +81,24 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # Same weights as EXL3 3.0 bpw (turboderp, mean KL 0.11) on ExLlamaV3
-  # (scripts/install-exllamav3.sh), text-only. Faster than the GGUF above,
-  # slightly weaker: code-corpus perplexity 2.278 vs 2.213. Measured on gem12:
-  # decode ~71 t/s (code) vs 65, prefill 900 t/s @34K vs 796, decode at 34K
-  # ~53 vs 40, 157K prompt 526 t/s prefill / ~43 t/s decode. 163840 ctx soaked
-  # (21 mixed requests incl. five 157K prompts, 30/30 recall @115K) at
-  # ~15.8 GB; grid 15.2 GiB leaves room for the CUDA graphs outside the cap
-  # (3.5 bpw does not fit >=120K: empty replies, then a graph.cu OOM abort).
-  # Chat completions only — no /v1/messages, /v1/responses or images; thinking
-  # budgets are not enforced (effort levels are template hints).
+  # Same model as EXL3 3.0 bpw (turboderp, mean KL 0.11) on ExLlamaV3
+  # (scripts/install-exllamav3.sh). Faster than the GGUF above, slightly
+  # weaker: code-corpus perplexity 2.278 vs 2.213. Measured on gem12: decode
+  # ~71 t/s (code) vs 65, prefill 900 t/s @34K vs 796, decode at 34K ~53 vs
+  # 40, ~127K prompt ~590 t/s prefill / ~33 t/s decode. Vision tower (0.87
+  # GiB) on the GPU caps context at 131072: soaked with images, ~120K image
+  # prompts and 127K text, peak 15.9 of 16 GB; at 139264 long prompts come back empty,
+  # at 147456 the tower no longer loads (the server then silently runs
+  # text-only). Text-only, the same weights hold 163840. Grid 15.2 GiB leaves
+  # room for the CUDA graphs outside the cap (3.5 bpw does not fit >=120K).
+  # Chat completions only — no /v1/messages or /v1/responses; thinking budgets
+  # are not enforced (effort levels are template instructions).
   qwen-3.8-27b-exl3:
     command: |
       /opt/exllamav3/venv/bin/python -u /opt/exllamav3/server/serve_openai.py
       --model /opt/exllamav3/models/Qwen3.8-27B-EXL3-3.00bpw --model_id qwen-3.8-27b-exl3
-      --cache_size 163840 --grid_size 15.2 --cache_quant 4
-      --draft_model mtp --vision off --ui off --progress_every 0
+      --cache_size 131072 --grid_size 15.2 --cache_quant 4
+      --draft_model mtp --vision auto --ui off --progress_every 0
       --host 127.0.0.1 --port 1235
     host: 127.0.0.1:1235
     ready_timeout: 30m

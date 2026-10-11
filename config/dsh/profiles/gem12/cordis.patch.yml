@@ -81,10 +81,10 @@
               xhigh: xhigh
           - id: qwen-3.8-27b-exl3
             name: Qwen 3.8 27B EXL3
-            contextWindow: 163840
+            contextWindow: 131072
             # The EXL3 server ignores thinking budgets; the output cap bounds them.
             maxTokens: 20480
-            input: [text]
+            input: [text, image]
             reasoningEfforts:
               off:
               low: low
@@ -144,8 +144,7 @@
 # window, O = the route's maxTokens (output reserve). Stock (ratio 0.8,
 # headroom 65536) compacts at ~33K on a 131K window. Here: ratio 0.9,
 # headroom 4096, O 20480:
-#   131072 windows (qwen-3.8-27b)  -> 106496
-#   163840 (qwen-3.8-27b-exl3)     -> 139264
+#   131072 windows (qwen-3.8-27b, -exl3) -> 106496
 #    98304 (uncensored)            ->  73728
 #   262144 (ornith, O 16384)       -> 235929 (the ratio binds)
 # Each 4096 tokens of maxTokens moves the trigger by 4096; thinking budgets
