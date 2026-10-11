@@ -26,7 +26,7 @@ Running on consumer hardware typically means only one single quantized model can
 2. **Model Switch**:
     - If the model is already running, the request is proxied immediately.
     - If not, the gateway shuts down the current backend process (using `SIGTERM`, falling back to `SIGKILL`), waits for it to exit, and then starts the new one.
-3. **Readiness**: The gateway polls the model's health endpoint (default `/health`) before proxying the request. If the endpoint returns 404, it automatically falls back to `/v1/models` (for backends like vLLM that lack a `/health` route).
+3. **Readiness**: The gateway polls the model's health endpoint (default `/health`) before proxying the request. If the endpoint returns 404, it automatically falls back to `/v1/models` (for backends like vLLM that lack a `/health` route). A backend that exits before becoming ready is started once more after the usual GPU cooldown — an occasional startup crash right after another model freed the GPU then never reaches the client.
 4. **Monitoring**: If a model process exits unexpectedly, the gateway resets its state and will reload it on the next request.
 
 **Web apps** (`kind: web`) work the same way, but the trigger is a browser: opening `/app/<name>` pins the app via cookie and redirects to `/`, from where every request — page, assets, API calls, websocket — is reverse-proxied to the app backend. Loading it kills whatever chat model currently holds the VRAM, exactly like a chat request would.

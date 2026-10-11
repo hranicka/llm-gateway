@@ -2,8 +2,13 @@ package manager
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -292,5 +297,60 @@ func TestAutoUnload_SparesInFlightRequest(t *testing.T) {
 			t.Fatal("model not unloaded after the request ended and the idle window elapsed")
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// newFileGatedBackend returns a stub backend that answers 200 only once the
+// file at ready exists, so readiness depends on what the model command did.
+func newFileGatedBackend(t *testing.T, ready string) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat(ready); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.Listener.Addr().String()
+}
+
+func TestStart_RetriesOnceAfterEarlyExit(t *testing.T) {
+	resetState(t)
+	dir := t.TempDir()
+	tried, ready := filepath.Join(dir, "tried"), filepath.Join(dir, "ready")
+	addr := newFileGatedBackend(t, ready)
+	// First run exits at once; the second stays up and becomes ready.
+	cmd := fmt.Sprintf("if [ -e %s ]; then touch %s; exec sleep 30; else touch %s; exit 0; fi", tried, ready, tried)
+	setTestConfig(map[string]config.ModelConf{
+		"m": {Command: cmd, Host: addr, ReadyTimeout: "20s"},
+	})
+
+	_, release, err := SwitchModel("m")
+	if err != nil {
+		t.Fatalf("SwitchModel = %v, want success on the retry", err)
+	}
+	release()
+	if got := ModelState("m"); got != "ready" {
+		t.Errorf("ModelState = %q, want ready", got)
+	}
+}
+
+func TestStart_GivesUpAfterSecondEarlyExit(t *testing.T) {
+	resetState(t)
+	dir := t.TempDir()
+	attempts := filepath.Join(dir, "attempts")
+	addr := newFileGatedBackend(t, filepath.Join(dir, "never"))
+	setTestConfig(map[string]config.ModelConf{
+		"m": {Command: fmt.Sprintf("echo x >> %s; exit 0", attempts), Host: addr, ReadyTimeout: "20s"},
+	})
+
+	_, _, err := SwitchModel("m")
+	if !errors.Is(err, errExitedEarly) {
+		t.Fatalf("SwitchModel = %v, want errExitedEarly", err)
+	}
+	data, _ := os.ReadFile(attempts)
+	if n := strings.Count(string(data), "x"); n != 2 {
+		t.Errorf("attempts = %d, want 2", n)
 	}
 }

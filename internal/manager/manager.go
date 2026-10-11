@@ -3,6 +3,7 @@ package manager
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -293,6 +294,35 @@ func startModelLocked(modelName string) (retErr error) {
 
 	shutdownCurrentModelLocked()
 
+	// A backend that dies during startup (seen right after another model
+	// freed the GPU) usually comes up on the next try, so retry that once.
+	err = launchLocked(modelName, cmdStr, backendURL)
+	if errors.Is(err, errExitedEarly) && ShutdownCtx().Err() == nil {
+		slog.Warn("model exited during startup, retrying once", "model", modelName)
+		err = launchLocked(modelName, cmdStr, backendURL)
+	}
+	if err != nil {
+		return err
+	}
+
+	slog.Info("model ready", "model", modelName, "url", backendURL)
+	statusMu.Lock()
+	readyModel = modelName
+	readyCmd = activeCmd
+	switchTarget = ""
+	switchErr = nil
+	statusMu.Unlock()
+	return nil
+}
+
+// errExitedEarly reports a backend process that exited before its health
+// endpoint answered.
+var errExitedEarly = errors.New("process exited before becoming ready")
+
+// launchLocked starts the backend process after the GPU cooldown and waits for
+// it to become ready. On failure it kills the process group and clears the
+// active state. Caller must hold mu.
+func launchLocked(modelName, cmdStr, backendURL string) error {
 	// Cooldown: ensure several seconds have passed since the previous process
 	// (if any) finished, to allow the GPU driver to fully recover.
 	if wait := 5*time.Second - time.Since(lastExit); wait > 0 {
@@ -338,14 +368,6 @@ func startModelLocked(modelName string) (retErr error) {
 		lastExit = time.Now()
 		return fmt.Errorf("server failed to become ready: %w", err)
 	}
-
-	slog.Info("model ready", "model", modelName, "url", backendURL)
-	statusMu.Lock()
-	readyModel = modelName
-	readyCmd = cmd
-	switchTarget = ""
-	switchErr = nil
-	statusMu.Unlock()
 	return nil
 }
 
@@ -485,7 +507,7 @@ func waitForServerOrExit(ctx context.Context, cmd *exec.Cmd, healthURL string, t
 			return fmt.Errorf("shutdown requested")
 		}
 		if !processAlive(cmd) {
-			return fmt.Errorf("process exited before becoming ready")
+			return errExitedEarly
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sURL, nil)
 		if err == nil {
