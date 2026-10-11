@@ -4,18 +4,17 @@
 # Installs stable-diffusion.cpp's sd-server (single C++ binary with an
 # embedded web UI and OpenAI-compatible images API) plus the Qwen-Image-2.1
 # models into /opt/sdcpp, sized for a 16 GB VRAM GPU (RTX 5060 Ti) with 32 GB
-# RAM. Then add the `qwen-image-2.1` (and `qwen-image-2.1-turbo`) models from
-# config/gem12gpu.yaml to the gateway config — the gateway launches/kills
-# sd-server like llama-server and proxies its web UI at /app/<model>.
+# RAM. Then add the `qwen-image-2.1-turbo` model from config/gem12gpu.yaml to
+# the gateway config — the gateway launches/kills sd-server like llama-server
+# and proxies its web UI at /app/<model>.
 #
-# Quant override: DIFFUSION_QUANT=Q4_K_M sudo -E ./scripts/install-qwen-image-sdcpp.sh
-# (default Q6_K_XL 6.7 GB — the file gem12gpu.yaml references, same size as
-# the Turbo one; also Q4_K_M 4.2 GB, Q5_K_M 5.4 GB, Q8_0 7.6 GB)
-# Repo override: DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF (Q4_0/Q6_K/Q8_0,
-# underscore naming) or abenzerps/Qwen-Image-2.1-Uncensored-GGUF
 # Turbo (8-step distilled, unsloth GGUF): installed by default as
 # TURBO_QUANT=Q6_K_XL (6.7 GB; Q4_K_M 4.2 GB, Q8_0 7.6 GB). Skip it with
 # DOWNLOAD_TURBO=0; point at another repo with TURBO_REPO.
+# Base 40-step model: DOWNLOAD_BASE=1 (DIFFUSION_QUANT default Q6_K_XL 6.7 GB;
+# also Q4_K_M 4.2 GB, Q5_K_M 5.4 GB, Q8_0 7.6 GB). Repo override:
+# DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF (Q4_0/Q6_K/Q8_0, underscore
+# naming) or abenzerps/Qwen-Image-2.1-Uncensored-GGUF.
 
 set -euo pipefail
 
@@ -29,6 +28,7 @@ DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K_XL}"
 TURBO_REPO="${TURBO_REPO:-unsloth/Qwen-Image-2.1-Turbo-GGUF}"
 TURBO_QUANT="${TURBO_QUANT:-Q6_K_XL}"
 DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-0}"
 
 # Pinned upstream release (supply chain): both the prebuilt download and the
 # source build use this revision. SDCPP_RELEASE=latest (scripts/update.sh)
@@ -48,10 +48,10 @@ fi
 echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
-echo " Installs to ${INSTALL_DIR} (binary + ~13 GB of models,"
-echo " +~7 GB with the Turbo DiT)."
-echo " Resident set ≈ 13.3 GB (${DIFFUSION_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
-echo " + mmproj + VAE) — fully in 16 GB VRAM; Turbo ${TURBO_QUANT} the same."
+echo " Installs to ${INSTALL_DIR} (binary + ~13 GB of models with the"
+echo " Turbo DiT; DOWNLOAD_BASE=1 adds the 40-step base, ~7 GB)."
+echo " Resident set ≈ 13.3 GB (Turbo ${TURBO_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
+echo " + mmproj + VAE) — fully in 16 GB VRAM."
 echo "======================================================"
 echo
 
@@ -362,12 +362,15 @@ hf_resolve() {
 
 echo "[2/3] Downloading models to ${MODEL_DIR} (resumable)..."
 
-DIFFUSION_NAME="$(hf_resolve "${DIFFUSION_REPO}" \
-	'qwen[-_]image[-_]2\.1-[^"]*'"${DIFFUSION_QUANT}"'\.gguf' \
-	"qwen-image-2.1-${DIFFUSION_QUANT}.gguf")"
-fetch_model \
-	"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
-	"${MODEL_DIR}/${DIFFUSION_NAME}"
+DIFFUSION_NAME=""
+if [ "${DOWNLOAD_BASE}" = "1" ]; then
+	DIFFUSION_NAME="$(hf_resolve "${DIFFUSION_REPO}" \
+		'qwen[-_]image[-_]2\.1-[^"]*'"${DIFFUSION_QUANT}"'\.gguf' \
+		"qwen-image-2.1-${DIFFUSION_QUANT}.gguf")"
+	fetch_model \
+		"https://huggingface.co/${DIFFUSION_REPO}/resolve/main/${DIFFUSION_NAME}" \
+		"${MODEL_DIR}/${DIFFUSION_NAME}"
+fi
 
 # Optional: INT8 convrot safetensors — near-lossless quality, executed
 # natively by sd.cpp but not faster than GGUF at 1024² (upstream PR #1857
@@ -396,7 +399,7 @@ fi
 # switching leejet → abenzerps) so the user can reclaim the disk.
 for f in "${MODEL_DIR}"/qwen*image*2.1-*.gguf; do
 	[ -e "$f" ] || continue
-	[ "$(basename "$f")" = "${DIFFUSION_NAME}" ] && continue
+	[ -n "${DIFFUSION_NAME}" ] && [ "$(basename "$f")" = "${DIFFUSION_NAME}" ] && continue
 	[ -n "${TURBO_NAME}" ] && [ "$(basename "$f")" = "${TURBO_NAME}" ] && continue
 	echo "  NOTE: $(basename "$f") is no longer referenced by the config — delete it to reclaim disk."
 done
@@ -429,34 +432,40 @@ du -sh "$MODEL_DIR" "$BIN_DIR"
 df -h "$INSTALL_DIR" | tail -1
 echo
 echo "Add these models to the gateway config (see config/gem12gpu.yaml):"
-echo "  qwen-image-2.1:"
-echo "    kind: web"
-echo "    command: |"
-echo "      ${BIN_DIR}/sd-server"
-echo "      --diffusion-model ${MODEL_DIR}/${DIFFUSION_NAME}"
-echo "      --llm ${MODEL_DIR}/${TE_NAME}"
-echo "      --llm_vision ${MODEL_DIR}/${MMPROJ_NAME}"
-echo "      --vae ${MODEL_DIR}/$(basename "${VAE_NAME}")"
-echo "      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16"
-echo "      --cfg-scale 1.0 --sampling-method euler"
-echo "      --steps 40 --width 1024 --height 1024"
-echo "      --listen-ip 127.0.0.1 --listen-port 1235"
-echo "    host: 127.0.0.1:1235"
-echo "    health_endpoint: /"
-echo "    ready_timeout: 30m"
-if [ -n "${TURBO_NAME}" ]; then
-	echo
-	echo "  qwen-image-2.1-turbo:   # same as above, with:"
-	echo "      --diffusion-model ${MODEL_DIR}/${TURBO_NAME}"
+print_entry() {
+	local name="$1" file="$2"; shift 2
+	echo "  ${name}:"
+	echo "    kind: web"
+	echo "    image_chat: true"
+	echo "    command: |"
+	echo "      ${BIN_DIR}/sd-server"
+	echo "      --diffusion-model ${MODEL_DIR}/${file}"
+	echo "      --llm ${MODEL_DIR}/${TE_NAME}"
+	echo "      --llm_vision ${MODEL_DIR}/${MMPROJ_NAME}"
+	echo "      --vae ${MODEL_DIR}/$(basename "${VAE_NAME}")"
 	echo "      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16"
 	echo "      --cfg-scale 1.0 --sampling-method euler"
-	echo "      --sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0"
-	echo "      --steps 8 --width 1024 --height 1024"
+	for line in "$@"; do echo "      ${line}"; done
+	echo "      --listen-ip 127.0.0.1 --listen-port 1235"
+	echo "    host: 127.0.0.1:1235"
+	echo "    health_endpoint: /"
+	echo "    ready_timeout: 30m"
+}
+FIRST_MODEL=""
+if [ -n "${TURBO_NAME}" ]; then
+	print_entry qwen-image-2.1-turbo "${TURBO_NAME}" \
+		"--sigmas 1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0" \
+		"--steps 8 --width 1024 --height 1024"
+	FIRST_MODEL="qwen-image-2.1-turbo"
+fi
+if [ -n "${DIFFUSION_NAME}" ]; then
+	print_entry qwen-image-2.1 "${DIFFUSION_NAME}" "--steps 40 --width 1024 --height 1024"
+	FIRST_MODEL="${FIRST_MODEL:-qwen-image-2.1}"
 fi
 echo
 echo "Then restart the gateway and open:"
-echo "  Web UI: http://<gateway-host>:1234/  → click 'qwen-image-2.1' (or '-turbo')"
-echo "  API:    POST /v1/images/generations  {\"model\": \"qwen-image-2.1\", \"prompt\": \"...\"}"
+echo "  Web UI: http://<gateway-host>:1234/  → click '${FIRST_MODEL}'"
+echo "  API:    POST /v1/images/generations  {\"model\": \"${FIRST_MODEL}\", \"prompt\": \"...\"}"
 echo
 echo "Editing is on: --llm_vision loads the mmproj. Steps, cfg and sampler come"
 echo "from the command line (the OpenAI endpoints only take prompt/size/n). sd.cpp"

@@ -65,20 +65,6 @@
             name: Ornith 1.5 35B A3B
             contextWindow: 262144
             maxTokens: 16384
-          - id: qwen-3.8-27b
-            name: Qwen 3.8 27B
-            contextWindow: 131072
-            # Output cap = reserve in the compaction trigger (see the preset
-            # below): thinking is budget-capped at 4000/7500/12000, leaving
-            # 8K+ for tool calls and file writes.
-            maxTokens: 20480
-            # Vision via mmproj encoded on the CPU.
-            input: [text, image]
-            reasoningEfforts:
-              off:
-              low: low
-              medium: medium
-              xhigh: xhigh
           - id: qwen-3.8-27b-exl3
             name: Qwen 3.8 27B EXL3
             contextWindow: 131072
@@ -144,7 +130,7 @@
 # window, O = the route's maxTokens (output reserve). Stock (ratio 0.8,
 # headroom 65536) compacts at ~33K on a 131K window. Here: ratio 0.9,
 # headroom 4096, O 20480:
-#   131072 windows (qwen-3.8-27b, -exl3) -> 106496
+#   131072 (qwen-3.8-27b-exl3)    -> 106496
 #    98304 (uncensored)            ->  73728
 #   262144 (ornith, O 16384)       -> 235929 (the ratio binds)
 # Each 4096 tokens of maxTokens moves the trigger by 4096; thinking budgets

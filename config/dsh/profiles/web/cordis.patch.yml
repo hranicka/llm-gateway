@@ -55,19 +55,6 @@
             name: Ornith 1.5 35B A3B
             contextWindow: 262144
             maxTokens: 16384
-          - id: qwen-3.8-27b
-            name: Qwen 3.8 27B
-            contextWindow: 131072
-            # Room for thinking (budget-capped) plus large file writes;
-            # matches the gem12 profile, where it sets the compaction reserve.
-            maxTokens: 20480
-            # Vision via mmproj encoded on the CPU.
-            input: [text, image]
-            reasoningEfforts:
-              off:
-              low: low
-              medium: medium
-              xhigh: xhigh
           - id: qwen-3.8-27b-exl3
             name: Qwen 3.8 27B EXL3
             contextWindow: 131072

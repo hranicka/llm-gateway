@@ -223,13 +223,13 @@ The vLLM installer (`scripts/install-vllm-globally.sh`) creates a uv-managed ven
 
 ## Qwen3.8-27B on ExLlamaV3 (EXL3)
 
-`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) with images, MTP drafting and int4 KV at **131072 tokens** of context on the RTX 5060 Ti. It is the default model of the bundled OpenCode, Oh My Pi and dsh configs; the GGUF `qwen-3.8-27b` stays available for clients that need `/v1/messages` or `/v1/responses` (e.g. Claude Code). [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai.patch`](patches/exl3-serve-openai.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium` (the template's own default is `xhigh`), and accept images only as `data:` URLs, so a client cannot make gem12 fetch arbitrary URLs.
+`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) with images, MTP drafting and int4 KV at **131072 tokens** of context on the RTX 5060 Ti. It is the default model of the bundled OpenCode, Oh My Pi and dsh configs and replaced the GGUF Qwen3.8-27B on llama-server; clients that need `/v1/messages` or `/v1/responses` (e.g. Claude Code) use a llama-server model such as `qwen-3.8-27b-uncensored`. [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai.patch`](patches/exl3-serve-openai.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium` (the template's own default is `xhigh`), and accept images only as `data:` URLs, so a client cannot make gem12 fetch arbitrary URLs.
 
 ```bash
 sudo ./scripts/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
 ```
 
-Measured on gem12 against the GGUF model (same prompts, thinking off):
+Measured on gem12 against the GGUF it replaced (ISTA-DASLab GSQ-RCO IQ3_S on llama-server, same prompts, thinking off):
 
 | | GGUF IQ3_S | EXL3 3.0 bpw |
 |---|---|---|
@@ -242,7 +242,7 @@ Measured on gem12 against the GGUF model (same prompts, thinking off):
 
 It is faster, especially deep into a long context, and slightly weaker. The vision tower (0.87 GiB, on the GPU) sets the context: 131072 held a soak of mixed requests with images, ~120K-token prompts carrying an image and 127K text prompts, peaking at 15.9 of the card's 16 GB — do not raise it. At 139264 long prompts come back empty, and at 147456 the tower no longer loads — the server then runs text-only without an error, so watch for `Images: ON` in its log after raising the context. Text-only (`--vision off`), the same weights hold 163840. `--grid_size 15.2` keeps room for ExLlamaV3's CUDA graphs, which are allocated outside that cap. The 3.5 bpw quant does not fit ≥120K context on 16 GB: it loads at 131072 only with 3-bit KV and then returns empty replies and aborts with a `graph.cu` out-of-memory assert.
 
-Limits: chat completions only (Claude Code and other `/v1/messages` or `/v1/responses` clients stay on the GGUF model), images are downscaled to 1 MP (~1024 tokens each), effort levels are template instructions rather than enforced budgets (`maxTokens` bounds thinking), and the server ignores `presence_penalty` and `min_p`. Prompt prefixes are reused from the KV cache in VRAM; there is no equivalent of llama-server's `--cache-ram` or context checkpoints.
+Limits: chat completions only (Claude Code and other `/v1/messages` or `/v1/responses` clients need a llama-server model), images are downscaled to 1 MP (~1024 tokens each), effort levels are template instructions rather than enforced budgets (`maxTokens` bounds thinking), and the server ignores `presence_penalty` and `min_p`. Prompt prefixes are reused from the KV cache in VRAM; there is no equivalent of llama-server's `--cache-ram` or context checkpoints.
 
 ## Image generation & editing: Qwen-Image-2.1 on 16 GB VRAM
 
@@ -252,44 +252,44 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 | Component | File | Size |
 |---|---|---|
-| Diffusion model (GGUF Q6_K_XL) | [`unsloth/Qwen-Image-2.1-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF) | 6.7 GB |
+| Diffusion model, Turbo (GGUF Q6_K_XL) | [`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF) | 6.7 GB |
 | Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 5.0 GB |
 | Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 1.2 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
 | **Total** | | **~13.3 GB** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.3 GB — fits in the 16 GB VRAM with ~3 GiB left for 1024² compute; base and Turbo use the same Q6_K_XL size, so both stay fully resident. sd.cpp's auto-fit keeps the diffusion weights in VRAM first and moves the text encoder to RAM only when a larger quant, 2048² or many edit references need the space, so no offload flags are set: at the defaults (**1024×1024, 40 steps, euler sampling** with guidance per the config comment) generation runs in well under a minute on the RTX 5060 Ti, and image editing with reference images is enabled by default (`--llm_vision`). The sd.cpp guide's quality reference is `--cfg-scale 6.0`; lowering it to `1.0` (as the bundled config does) skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Near-lossless quality alternative: the INT8 convrot safetensors (6.8 GB) — `DOWNLOAD_INT8=1` in the installer, then point `--diffusion-model` at it. sd.cpp runs it natively but not faster than GGUF at 1024² (upstream benchmark in stable-diffusion.cpp PR #1857).
+The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.3 GB — fits in the 16 GB VRAM with ~3 GiB left for 1024² compute. sd.cpp's auto-fit keeps the diffusion weights in VRAM first and moves the text encoder to RAM only when a larger quant, 2048² or many edit references need the space, so no offload flags are set. Image editing with reference images is enabled by default (`--llm_vision`). The bundled gateway entry is the 8-step Turbo model (below); the 40-step base model is optional (`DOWNLOAD_BASE=1`, another 6.7 GB at Q6_K_XL — the installer prints its gateway entry). For the base model the sd.cpp guide's quality reference is `--cfg-scale 6.0`; `1.0` skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Its near-lossless alternative, the INT8 convrot safetensors (6.8 GB, `DOWNLOAD_INT8=1`), runs natively in sd.cpp but not faster than GGUF at 1024² (upstream benchmark in stable-diffusion.cpp PR #1857).
 
-Speed flags in both bundled entries:
+Speed flags in the bundled entry:
 
 - `--sage-attn` — SageAttention2++ (INT8 Q/K, FP8 P·V) in the diffusion transformer; needs the installer's native sm_120 build with CUDA ≥ 12.8. `--fa` keeps flash attention for the text encoder and for attention Sage cannot run. Sage quantizes attention, so compare text rendering against a run without it.
 - `--model-args qwen_image_2_1_prefix_cache_type=f16` — the prefix KV cache computes text and reference-image tokens once per run (upstream: ~15% faster text-to-image, ~1.9× faster edits). With Sage on it would default to FP32 (4 GiB per 1024² reference); f16 halves that.
 
-Other GGUF quants: `DIFFUSION_QUANT=Q8_0` (7.6 GB — auto-fit then moves the text encoder to RAM), or `Q4_K_M` (4.2 GB) for more headroom; `DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF` (Q4_0/Q6_K/Q8_0) or `abenzerps/Qwen-Image-2.1-Uncensored-GGUF` switch to other quants of the same weights.
+Other GGUF quants: `TURBO_QUANT=Q8_0` (7.6 GB — auto-fit then moves the text encoder to RAM), or `Q4_K_M` (4.2 GB) for more headroom. For the optional base model, `DIFFUSION_QUANT` picks the quant and `DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF` (Q4_0/Q6_K/Q8_0) or `abenzerps/Qwen-Image-2.1-Uncensored-GGUF` other quants of the same weights.
 
 ### Install & use
 
 ```bash
-sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~18 GB of models into /opt/sdcpp (Turbo included)
+sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~13 GB of models into /opt/sdcpp (Turbo)
 ```
 
-Then add the `qwen-image-2.1` and `qwen-image-2.1-turbo` entries to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_TURBO=0` skips the Turbo weights.
+Then add the `qwen-image-2.1-turbo` entry to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_BASE=1` also fetches the 40-step base model; `DOWNLOAD_TURBO=0` skips the Turbo weights.
 
 The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master). No Linux CUDA binaries are published, so it builds that tag from source; re-running it after the pin changes rebuilds sd-server, otherwise the existing binary is kept.
 
 ### Turbo: 8-step Qwen-Image-2.1 ([`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF))
 
-`qwen-image-2.1-turbo` is a distilled checkpoint of the same 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It reuses the text encoder, mmproj and VAE above — only the diffusion file differs, which is what the second gateway entry swaps. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident, the same as the regular model.
+`qwen-image-2.1-turbo` is a distilled checkpoint of the same 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It shares the text encoder, mmproj and VAE with the base model — only the diffusion file differs. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident.
 
 - Steps, CFG, sampler and sigmas come from the gateway command line. sd-server's OpenAI endpoints (`/v1/images/generations`, `/v1/images/edits`) only take `prompt`, `size` and `n` from the request, so Open WebUI and API clients cannot push Turbo off its schedule. In sd-server's own web UI keep steps at 8 and CFG at 1.0 — 20–40 steps or CFG > 1 degrade a distilled model.
-- Turbo and the regular model share the single VRAM slot like any other pair of models: switching between them reloads sd-server (a few seconds). Keep `qwen-image-2.1` for the quality reference (more steps, raise `--cfg-scale` for prompt adherence); use Turbo for iteration speed.
-- Many edit references or 2048² need more VRAM; auto-fit then moves the text encoder to RAM. `DIFFUSION_QUANT=Q4_K_M TURBO_QUANT=Q4_K_M` frees ~2.5 GB for those cases.
+- Turbo is the bundled default; it is good enough for everyday generation and edits. For a 40-step quality reference (higher `--cfg-scale` for prompt adherence) install the base model with `DOWNLOAD_BASE=1` and add its entry, or use ComfyUI's NVFP4 base workflows.
+- Many edit references or 2048² need more VRAM; auto-fit then moves the text encoder to RAM. `TURBO_QUANT=Q4_K_M` frees ~2.5 GB for those cases.
 - Licence: Qwen Research License, non-commercial, like the base model.
 
 > The browser UI is compiled **into** the sd-server binary (`SD_SERVER_BUILD_FRONTEND=ON`, needs Node ≥ 20 + pnpm ≥ 10, installed automatically). If you ever see a plain *"Stable Diffusion Server is running"* text instead of the UI, the binary was built without the frontend — re-run the installer and it will rebuild with it.
 
-- **Browser**: open `http://<gem12>:1234/` — the landing page lists web apps and API models; click **qwen-image-2.1**. The gateway starts sd-server (first load takes a few seconds) and proxies its embedded web UI, including websockets.
-- **API**: `POST /v1/images/generations` with `{"model": "qwen-image-2.1", "prompt": "..."}` — same on-demand loading as chat models.
+- **Browser**: open `http://<gem12>:1234/` — the landing page lists web apps and API models; click **qwen-image-2.1-turbo**. The gateway starts sd-server (first load takes a few seconds) and proxies its embedded web UI, including websockets.
+- **API**: `POST /v1/images/generations` with `{"model": "qwen-image-2.1-turbo", "prompt": "..."}` — same on-demand loading as chat models.
 - **Image editing**: enabled by default — the config ships with `--llm_vision` (mmproj), so reference images work out of the box, in the UI or via the API.
 
 > **Note:** Make sure the sd-server port differs from the gateway port (`--listen-port 1235` vs gateway `1234` in the bundled configs) — the loop protection applies to image backends too.
@@ -315,10 +315,10 @@ Composition = the Editing workflow with several reference images (up to 10); "re
 
 [`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
-- **Chat**: the model picker lists every gateway model (`qwen-3.8-27b`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
-- **Images (toggle)**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) with a regular chat model selected. The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1-turbo` (8 steps, 1024×1024) — model, size and endpoint are preconfigured via environment variables; switch to `qwen-image-2.1` or another sd-server model in *Admin Settings → Images* (width/height in multiples of 32, e.g. 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
-- **Images (as a model)**: the image models are in the model picker too (`qwen-image-2.1-turbo`, `qwen-image-2.1`). Pick one, describe the image in the message, and the reply is the image; attach a picture and the message becomes an edit. See [Image models in chat](#image-models-in-chat-image_chat) for what to know before using it.
-- **Editing** (reference images) works in Open WebUI too: Image Edit is enabled with the same gateway and model, so uploading an image and asking for a change goes through `/v1/images/edits` (multipart; the gateway reads the `model` form field and forwards the upload untouched). sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1` remains available for multi-image composition.
+- **Chat**: the model picker lists every gateway model (`qwen-3.8-27b-exl3`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history.
+- **Images (toggle)**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) with a regular chat model selected. The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1-turbo` (8 steps, 1024×1024) — model, size and endpoint are preconfigured via environment variables; switch to another sd-server model in *Admin Settings → Images* (width/height in multiples of 32, e.g. 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
+- **Images (as a model)**: the image models are in the model picker too (`qwen-image-2.1-turbo`). Pick one, describe the image in the message, and the reply is the image; attach a picture and the message becomes an edit. See [Image models in chat](#image-models-in-chat-image_chat) for what to know before using it.
+- **Editing** (reference images) works in Open WebUI too: Image Edit is enabled with the same gateway and model, so uploading an image and asking for a change goes through `/v1/images/edits` (multipart; the gateway reads the `model` form field and forwards the upload untouched). sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1-turbo` remains available for multi-image composition.
 - **Persistent settings**: Open WebUI stores these in its database after the first start, so the installer's values only seed a fresh install; existing installs keep theirs until changed in the admin panel. Steps, CFG and sampler always come from the gateway command line, never from Open WebUI.
 
 ```bash
@@ -405,8 +405,20 @@ sudo ./scripts/cleanup.sh --apply    # delete
 - Image models in `/opt/sdcpp/models` and ComfyUI's `diffusion_models`, `text_encoders`, `vae` whose file name is in neither the gateway config (`/etc/llm-gateway/config.yaml`, comment lines ignored; `--config` overrides) nor a saved ComfyUI workflow. Models used only in unsaved ComfyUI graphs look unused — save the workflow first.
 - EXL3 model directories in `/opt/exllamav3/models` whose name the config doesn't contain (e.g. a previous quant after a bump).
 - Interrupted downloads (`*.part`, Hugging Face `*.incomplete`) and dangling ComfyUI model symlinks.
-- llama.cpp `-hf` downloads of GGUF repos no `-hf` / `--spec-draft-hf` in the config names, in the gateway user's HF hub cache and legacy `~/.cache/llama.cpp`. Non-GGUF repos (e.g. Open WebUI's embedding models) are left alone.
-- `--caches` also clears the uv package cache and the Hugging Face Xet chunk caches (the gateway user's and root's — the installers download as root).
+- llama.cpp `-hf` downloads of GGUF repos no `-hf` / `--spec-draft-hf` in the config names, in the gateway user's HF hub cache and legacy `~/.cache/llama.cpp` — including the shared `hub/blobs/xx/<sha>` files newer `huggingface_hub` versions keep outside the repo folder, once no kept repo links to them. Non-GGUF repos (e.g. Open WebUI's embedding models) are left alone.
+
+Optional extras, each re-created on demand:
+
+| Flag | Clears |
+|---|---|
+| `--caches` | uv package caches (root's and the gateway user's), Hugging Face Xet chunk caches, `~/.cache/ccache`, `~/.cache/vllm` |
+| `--build` | `~/llama_build` — the llama.cpp checkout; `install-llama.sh` re-clones it on every run and `llama-server` does not use it |
+| `--backends` | `/opt/vllm` (with its `/usr/local/bin/vllm` wrapper and `python3-vllm` link) and `/opt/exllamav3` when no config entry runs them |
+
+```bash
+sudo ./scripts/cleanup.sh --caches --build --backends            # dry run
+sudo ./scripts/cleanup.sh --caches --build --backends --apply    # delete
+```
 
 Run it after syncing `/etc/llm-gateway/config.yaml` with a newly installed model; until the config names it, the model counts as unused.
 

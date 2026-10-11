@@ -13,10 +13,10 @@
 #                        both with an sd-server model (default
 #                        qwen-image-2.1-turbo, 8 steps)
 # sd-server's own UI stays available for graph-style control:
-#   http://<host>:1234/app/qwen-image-2.1
+#   http://<host>:1234/app/qwen-image-2.1-turbo
 #
 # Port override: OPEN_WEBUI_PORT=8081 sudo -E ./scripts/install-open-webui.sh
-# Image model:   IMAGE_MODEL=qwen-image-2.1 (generation), IMAGE_EDIT_MODEL=...
+# Image model:   IMAGE_MODEL=qwen-image-2.1-turbo (generation), IMAGE_EDIT_MODEL=...
 # Open WebUI stores these as persistent settings: the env values seed the
 # first start only; change later via Admin Settings → Images.
 # Upgrade:      re-run the script (upgrades the package in place and restarts
@@ -240,12 +240,12 @@ echo
 echo " Open the UI at:  http://<host>:${PORT}"
 echo " The first account you create becomes the admin."
 echo
-echo " Chat:    model picker lists every gateway model (qwen-3.8-27b, gemma-4,"
+echo " Chat:    model picker lists every gateway model (qwen-3.8-27b-exl3, gemma-4,"
 echo "          ...); the gateway loads/switches them on demand."
 echo " Images:  in a chat, the image button (or /image <prompt>) generates via"
 echo "          ${IMAGE_MODEL}; uploading an image and asking for a change edits it"
-echo "          via ${IMAGE_EDIT_MODEL}. Pick any other sd-server model (e.g."
-echo "          qwen-image-2.1) in Admin Settings → Images; resolution is there"
+echo "          via ${IMAGE_EDIT_MODEL}. Pick any other sd-server model in Admin"
+echo "          Settings → Images; resolution is there"
 echo "          too (multiples of 32, default 1024x1024)."
 echo " Picker:  the gateway also lists its image models (image_chat) — pick one in"
 echo "          the model picker, describe the image, get the image back. Keep"

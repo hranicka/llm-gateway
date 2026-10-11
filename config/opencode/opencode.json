@@ -119,27 +119,6 @@
             "output": 16384
           }
         },
-        "qwen-3.8-27b": {
-          "name": "Qwen 3.8 27B",
-          "attachment": true,
-          "modalities": {"input": ["text", "image"], "output": ["text"]},
-          "limit": {
-            "context": 131072,
-            "output": 20480
-          },
-          "options": {
-            "chat_template_kwargs": {"reasoning_effort": "medium"},
-            "reasoning_budget_tokens": 7500,
-            "thinking_budget_tokens": 7500
-          },
-          "variants": {
-            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}, "reasoning_budget_tokens": 12000, "thinking_budget_tokens": 12000},
-            "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
-            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}, "reasoning_budget_tokens": 4000, "thinking_budget_tokens": 4000},
-            "none": {"chat_template_kwargs": {"enable_thinking": false}},
-            "instruct": {"chat_template_kwargs": {"enable_thinking": false}, "temperature": 0.7, "top_p": 0.8, "presence_penalty": 1.5}
-          }
-        },
         "qwen-3.8-27b-exl3": {
           "name": "Qwen 3.8 27B EXL3",
           "attachment": true,

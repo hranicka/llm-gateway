@@ -53,39 +53,12 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # GSQ-RCO IQ3_S-mtp (11.16 GiB): task-lossless coding quant fitting 128K
-  # (AIME 100.0, LCB 85.7, GPQA 89.4). Measured on gem12: prefill 755 t/s
-  # @34K, decode 47.8 t/s. ubatch must stay <= 256: at 512 the GSQ mix
-  # core-dumps on the first prefill (cublas workspace OOM) — also at
-  # spec-draft-n-max >= 6. Decode-first alternative (measured: +8% decode,
-  # -8% prefill, -1.1 LCB): GSQ IQ3_XXS + DFlash2 Q4_K_M drafter,
-  # draft-dflash n-max 7, ubatch 256. -hff selects the exact file;
-  # "-hf repo:file.gguf" fails (suffix = quant name).
-  # Non-thinking use (instruct) rides this same server per request —
-  # chat_template_kwargs {"enable_thinking": false}, temp 0.7, top-p 0.8,
-  # presence 1.5 per the Qwen3.8 card — so switching never reloads weights.
-  qwen-3.8-27b:
-    command: |
-      llama-server
-      -hf ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF -hff Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
-      --spec-type draft-mtp --spec-draft-n-max 4
-      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 131072 --cont-batching
-      --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja
-      --batch-size 256 --ubatch-size 256
-      --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
-      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
-      --chat-template-kwargs '{"reasoning_effort":"medium"}'
-      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
-  # Same model as EXL3 3.0 bpw (turboderp, mean KL 0.11) on ExLlamaV3
-  # (scripts/install-exllamav3.sh). Faster than the GGUF above, slightly
-  # weaker: code-corpus perplexity 2.278 vs 2.213. Measured on gem12: decode
-  # ~71 t/s (code) vs 65, prefill 900 t/s @34K vs 796, decode at 34K ~53 vs
-  # 40, ~127K prompt ~590 t/s prefill / ~33 t/s decode. Vision tower (0.87
+  # Qwen3.8-27B as EXL3 3.0 bpw (turboderp, mean KL 0.11) on ExLlamaV3
+  # (scripts/install-exllamav3.sh). Replaced the GSQ-RCO IQ3_S GGUF on
+  # llama-server: faster, slightly weaker — code-corpus perplexity 2.278 vs
+  # 2.213. Measured on gem12: decode ~71 t/s (code) vs 65, prefill 900 t/s
+  # @34K vs 796, decode at 34K ~53 vs 40, ~127K prompt ~590 t/s prefill /
+  # ~33 t/s decode. Vision tower (0.87
   # GiB) on the GPU caps context at 131072: soaked with images, ~120K image
   # prompts and 127K text, peak 15.9 of 16 GB; at 139264 long prompts come back empty,
   # at 147456 the tower no longer loads (the server then silently runs
@@ -103,10 +76,10 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 30m
 
-  # Fine-tune, so no GSQ swap: IQ3_M (12.8 GB) keeps ctx at 96K; conventional
-  # quant tolerates ubatch 512 (no GSQ workspace trap). Mirrors the
-  # qwen-3.8-27b stack; n-max 4 is the VRAM ceiling (GSQ sibling core-dumps
-  # at n-max 6, n-max 8 OOMs at load). Sampling per the repo's thinking
+  # The Qwen 3.8 for /v1/messages and /v1/responses clients (llama-server).
+  # Fine-tune, so no GSQ quant: IQ3_M (12.8 GB) keeps ctx at 96K; a
+  # conventional quant tolerates ubatch 512. MTP n-max 4 is the VRAM ceiling
+  # (n-max 6 core-dumped on the base model's GSQ quant, n-max 8 OOMs at load). Sampling per the repo's thinking
   # preset; batch 2048/ubatch 512 per its example launch. Measured: decode
   # 36.7 t/s, prefill ~807 t/s @2K.
   qwen-3.8-27b-uncensored:
@@ -157,6 +130,10 @@ models:
   # models, so clef-flash takes Q8_0 (9.7 GB, ~9 GiB resident; the Q4_K_M it
   # replaces measured 5.56 GiB with mmproj, ~130 ms per decision over LAN,
   # ~324 input tokens) — the card has no use for the spare VRAM otherwise.
+  # The 27B clef was dropped: at full precision the two trade wins on
+  # Cloudflare's benchmarks (clef leads on CLINC150 OOS, RAGTruth, GSM8K,
+  # invoice workflows), but 16 GB only fits clef at Q3_K_L (15 GB, no
+  # imatrix possible) against Q8_0 here, and clef-flash is ~5x faster.
   clef-flash:
     kind: decision
     command: |
@@ -171,71 +148,27 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 2h
 
-  # 27B clef (Qwen3.8-27B base, text-only — mmproj would OOM beside its
-  # weights): Q4_K_M is 17.65 GB and doesn't fit 16 GB VRAM; Q3_K_M loaded at
-  # 13.77 GiB (decision heads skip the vocab logits buffer), so Q3_K_L (15.15
-  # GB, ~14.4 GiB) is the largest quant that fits; IQ4_XS (15.56 GB) is too
-  # tight. q4_0 KV is bit-identical to q8_0 for decisions as long as the state
-  # fits one ubatch (measured @335 tok: same probabilities, same VRAM) —
-  # longer states would read the quantized cache back.
-  clef:
-    kind: decision
-    command: |
-      llama-server
-      -hf bartowski/Cloudflare_clef-GGUF:Q3_K_L
-      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
-      --ctx-size 16384 --cont-batching
-      --cache-type-k q4_0 --cache-type-v q4_0
-      --flash-attn on --load-mode none --no-mmproj
-      --batch-size 512 --ubatch-size 512
-      --host 127.0.0.1 --port 1235 --alias clef
-    host: 127.0.0.1:1235
-    ready_timeout: 2h
-
   # ══════════════════════════════════════════════════════════════════════════
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
-  # Qwen-Image-2.1: 7B DiT, text-to-image + editing (up to 10 refs). unsloth
-  # Q6_K_XL diffusion 6.7 GB (same size as the Turbo one) + Qwen3-VL TE Q4_K_M
-  # 5.0 GB + mmproj F16 1.2 GB + VAE 0.4 GB ≈ 13.3 GB, ~3 GiB left for 1024²
-  # compute: 40 steps @1024² in well under a minute. --cfg-scale 1.0
-  # skips the guidance pass (~2x faster, weaker prompt adherence; doc value
-  # 6.0). sd.cpp auto-fit keeps diffusion weights in VRAM first and moves the
-  # TE to RAM only when VRAM runs short — no offload flags needed.
+  # Qwen-Image-2.1-Turbo (unsloth GGUF): 8-step distilled 7B DiT,
+  # text-to-image + editing (up to 10 refs). Q6_K_XL 6.7 GB (LPIPS 0.050 vs the
+  # bf16 Turbo; Q4_K_M 0.153) + Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB +
+  # VAE 0.4 GB ≈ 13.3 GB resident, ~3 GiB left for 1024² compute. The 40-step
+  # base model is not installed by default (DOWNLOAD_BASE=1 in the installer);
+  # ComfyUI keeps its NVFP4 base workflows. Steps/cfg/sampler/sigmas come from
+  # this command line: OpenAI-API clients (Open WebUI, curl) only send prompt,
+  # size and n; in the web UI keep steps 8 and CFG 1.0. sd.cpp auto-fit keeps
+  # the diffusion weights in VRAM first and moves the TE to RAM only when 2K or
+  # many edit refs need the space — no offload flags needed.
   # --sage-attn: SageAttention2++ (INT8 Q/K, FP8 PV) in the DiT on sm_120;
   # --fa covers the TE and any attention Sage cannot run. Sage makes the
   # prefix KV cache (text/reference tokens computed once per run, ~1.9x faster
   # edits) default to FP32 — 4 GiB per 1024² reference — so it is pinned to
-  # f16 (2 GiB). INT8 convrot (DOWNLOAD_INT8=1) is not faster than GGUF in
-  # sd.cpp at 1024² (upstream PR #1857 bench), only a quality option.
+  # f16 (2 GiB).
   # Browser: http://<host>:1234/ → app below.  API: POST /v1/images/generations
   # image_chat: true also lists it in /v1/models as a chat model — pick it in
   # Open WebUI (or any chat client), describe the image, get the image back.
-  # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
-  qwen-image-2.1:
-    kind: web
-    image_chat: true
-    command: |
-      /opt/sdcpp/bin/sd-server
-      --diffusion-model /opt/sdcpp/models/qwen-image-2.1-Q6_K_XL.gguf
-      --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
-      --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
-      --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
-      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16
-      --cfg-scale 1.0 --sampling-method euler
-      --steps 40 --width 1024 --height 1024
-      --listen-ip 127.0.0.1 --listen-port 1235
-    host: 127.0.0.1:1235
-    health_endpoint: /
-    ready_timeout: 30m
-
-  # Qwen-Image-2.1-Turbo (unsloth GGUF): 8-step distilled DiT — same TE, mmproj
-  # and VAE as above, ~5x fewer steps. Q6_K_XL 6.7 GB (LPIPS 0.050 vs the bf16
-  # Turbo; Q4_K_M 0.153) + TE 5.0 + mmproj 1.2 + VAE 0.4 ≈ 13.3 GB resident,
-  # ~3 GiB left for 1024² compute. Steps/cfg/sampler/sigmas come from this
-  # command line: OpenAI-API clients (Open WebUI, curl) only send prompt, size
-  # and n; in the web UI keep steps 8 and CFG 1.0. Attention/offload flags as
-  # above (auto-fit moves the TE to RAM when 2K or many edit refs need VRAM).
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
   qwen-image-2.1-turbo:
     kind: web
