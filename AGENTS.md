@@ -21,6 +21,7 @@ Makefile              — build, test, lint targets
 scripts/install-qwen-image-sdcpp.sh — sd-server + Qwen-Image-2.1 models installer
 scripts/install-open-webui.sh — Open WebUI front-end (own systemd service, gateway API client)
 scripts/install-comfyui.sh — ComfyUI graph-workflow app (gateway-managed kind: web, symlinked models)
+scripts/install-exllamav3.sh — ExLlamaV3 engine + EXL3 Qwen3.8-27B + OpenAI server (kind: api, patched via patches/)
 scripts/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui)
 scripts/cleanup.sh    — dry-run/--apply removal of model downloads the config and ComfyUI workflows no longer reference
 .github/workflows/ci.yml — CI: lint, vet, test, build

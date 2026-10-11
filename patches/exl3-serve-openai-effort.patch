@@ -1,0 +1,13 @@
+--- a/serve_openai.py
++++ b/serve_openai.py
+@@ -979,7 +979,9 @@
+     # keeps the UI from promising a hard limit it cannot deliver.
+     kwargs = body.get("chat_template_kwargs") or {}
+     enable_thinking = kwargs.get("enable_thinking")
+-    effort = str(body.get("reasoning_effort") or "").strip().lower()
++    # Qwen3.8's template defaults to xhigh; match llama-server's medium.
++    effort = str(body.get("reasoning_effort") or kwargs.get("reasoning_effort")
++                 or "medium").strip().lower()
+     if enable_thinking is None:
+         enable_thinking = effort not in ("none", "off", "minimal")
+     return dict(

@@ -46,6 +46,28 @@ providers:
             # reasoning_ field.
             reasoning_budget_tokens: 7500
             thinking_budget_tokens: 7500
+      - id: qwen-3.8-27b-exl3
+        name: Qwen 3.8 27B EXL3
+        reasoning: true
+        contextWindow: 163840
+        # The EXL3 server cannot cap thinking, so the reply cap bounds it.
+        maxTokens: 20480
+        # Pricing: 300 W @ 7 CZK/kWh, ~900 tok/s prefill (~$0.03/M), ~70 tok/s decode (~$0.40/M); KV hits ~ free.
+        cost: { input: 0.03, output: 0.4, cacheRead: 0.005, cacheWrite: 0 }
+        input: [text]
+        # Cold 157K prefill ~5 min (benchmarked).
+        timeout: 1800
+        thinking:
+          mode: effort
+          efforts: [low, medium, xhigh]
+          defaultLevel: medium
+          requiresEffort: false
+        compat:
+          qwenTemplateReasoningEffort: true
+          reasoningDisableMode: qwen-template-false
+          supportsReasoningEffort: true
+          supportsReasoningParams: true
+          thinkingFormat: qwen
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 262144

@@ -99,7 +99,7 @@ The Qwen 3.8 chat template only accepts `reasoning_effort` of `low`, `medium`, o
 
 ### OpenCode compaction
 
-OpenCode compacts when the token count reaches `context − min(output limit, 32000)` (its `compaction.reserved` only applies when a model declares an input limit). The bundled config sets `limit.output: 20480` on the 131072- and 98304-token Qwen models, so compaction waits until ~110K and ~78K tokens — in line with the dsh and Oh My Pi settings, and the same 20480-token reply cap.
+OpenCode compacts when the token count reaches `context − min(output limit, 32000)` (its `compaction.reserved` only applies when a model declares an input limit). The bundled config sets `limit.output: 20480` on the 163840-, 131072- and 98304-token Qwen models, so compaction waits until ~143K, ~110K and ~78K tokens — in line with the dsh and Oh My Pi settings, and the same 20480-token reply cap.
 
 ### DeepSeek Harness (dsh)
 
@@ -201,6 +201,7 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 |---|---|---|
 | [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
 | [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
+| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (EXL3) | Faster decode/prefill and longer context than GGUF at a similar size on NVIDIA; chat completions only | [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) |
 | [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/install-qwen-image-sdcpp.sh`](scripts/install-qwen-image-sdcpp.sh) |
 | [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) |
 
@@ -208,6 +209,7 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 
 - **GGUF (llama-server):** Faster cold-start loads (~10 s), lower VRAM overhead during loading, supports ROCm/Vulkan/iGPU, and has built-in speculative decoding via MTP (`--spec-draft-hf`). Models are downloaded automatically from HuggingFace by `--hf`/`-hf` flag. Uses quantized formats (Q4_K_M, Q8_0, etc.) that fit on smaller GPU VRAM.
 - **vLLM:** True NVFP4 and BF16 precision for safetensors models — no GGUF conversion quality loss. Ships its own CUDA runtime so it works alongside llama.cpp without conflicts. Supports fp8 KV cache with 131K context length even on 16 GB VRAM. Requires NVIDIA GPU with Open Kernel Modules and ≥ 8 GB VRAM for ~12 B parameter models. Cold-start is slower (~60–90 s loading safetensors into VRAM).
+- **ExLlamaV3 (EXL3):** NVIDIA-only engine with MTP drafting and quantized KV cache. Served by a small OpenAI-compatible server (`/v1/chat/completions`, `/v1/models`, `/health`) — no Anthropic `/v1/messages`, no `/v1/responses`, no thinking-budget cap. See [Qwen3.8-27B on ExLlamaV3](#qwen38-27b-on-exllamav3-exl3).
 - **sd-server (images):** A single llama.cpp-style C++ binary — no Python, no torch. Serves GGUF diffusion models (Qwen-Image-2.1, and more), loads in seconds, ships an embedded web UI, and exposes both OpenAI-compatible (`/v1/images/generations`) and A1111-style (`/sdapi/v1/`) APIs.
 - **ComfyUI:** The heavyweight option — Python + torch, graph workflows, huge node ecosystem. Use it when you need custom workflows (multi-step pipelines, ControlNet, LoRAs); use sd-server for simple prompt→image with GGUF quantization. For GGUF in ComfyUI install the [`leejet/ComfyUI-GGUF`](https://github.com/leejet/ComfyUI-GGUF) custom node (successor of the unmaintained city96 fork).
 
@@ -218,6 +220,30 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 The vLLM installer (`scripts/install-vllm-globally.sh`) creates a uv-managed venv at `/opt/vllm/venv` with torch + vLLM (pinned to CUDA 13.0 wheels for Blackwell support) and symlinks `vllm` into `/usr/local/bin`. PyTorch ships its own CUDA runtime (cu130) — it does not conflict with the system `cuda-toolkit-12`. The `nvidia-cuda-nvcc` package is also installed: NVFP4 models on Blackwell (sm_120) require FlashInfer to JIT-compile FP4 CUTLASS kernels at first run, which needs `nvcc`. The wrapper at `/usr/local/bin/vllm` sets `CUDA_HOME` and `PATH` so FlashInfer finds nvcc automatically. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
 
 > **Model naming:** Use `--served-model-name <gateway-model-name>` in the vLLM command so the `model` field in API requests matches the gateway's model key. This is the vLLM equivalent of llama-server's `--alias` flag. Without it, clients must send the full HuggingFace repo name (e.g. `unsloth/gemma-4-12b-it-NVFP4`) as the model field.
+
+## Qwen3.8-27B on ExLlamaV3 (EXL3)
+
+`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) (text-only, MTP drafting, int4 KV) at **163840 tokens** of context on the RTX 5060 Ti — next to the GGUF `qwen-3.8-27b` (131072), not instead of it. [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai-effort.patch`](patches/exl3-serve-openai-effort.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium`; the template's own default is `xhigh`.
+
+```bash
+sudo ./scripts/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
+```
+
+Measured on gem12 against the GGUF model (same prompts, thinking off):
+
+| | GGUF IQ3_S (131K) | EXL3 3.0 bpw (163K) |
+|---|---|---|
+| Decode, code / prose | 65 / 42 t/s | 71 / 48 t/s |
+| Prefill @2K / @34K | 789 / 796 t/s | ~990 / 900 t/s |
+| Decode @34K | 40 t/s | ~53 t/s |
+| ~105–120K prompt | 567–597 t/s prefill, 22–25 t/s decode | 642 t/s prefill, ~41 t/s decode (105K) |
+| 157K prompt | — | 526 t/s prefill, ~43 t/s decode |
+| Perplexity, code (lower is better) | **2.213** | 2.278 |
+| Recall, 10 facts in a 115K prompt ×3 | 30/30 | 30/30 |
+
+It is faster, especially deep into a long context, and slightly weaker. The 163840 setting held through a soak of 21 mixed requests including five 157K prompts, at ~15.8 GB of the 16 GB card; `--grid_size 15.2` keeps room for ExLlamaV3's CUDA graphs, which are allocated outside that cap. The 3.5 bpw quant does not fit ≥120K context on 16 GB: it loads at 131072 only with 3-bit KV and then returns empty replies and aborts with a `graph.cu` out-of-memory assert.
+
+Limits: chat completions only (Claude Code and other `/v1/messages` or `/v1/responses` clients stay on the GGUF model), no images, effort levels are template hints rather than enforced budgets (`maxTokens` bounds thinking), and the server ignores `presence_penalty` and `min_p`. Prompt prefixes are reused from the KV cache in VRAM; there is no equivalent of llama-server's `--cache-ram` or context checkpoints.
 
 ## Image generation & editing: Qwen-Image-2.1 on 16 GB VRAM
 
@@ -363,6 +389,8 @@ The installers pin upstream versions (sd.cpp release, ComfyUI release + GGUF nod
 | `sdcpp` | newest stable-diffusion.cpp release tag; rebuilds only when it changed | `SDCPP_RELEASE` |
 | `comfyui` | newest ComfyUI release + ComfyUI-GGUF default branch | `COMFY_REF`, `GGUF_NODE_REF` |
 | `openwebui` | newest open-webui on PyPI; the service is restarted | `OPEN_WEBUI_VERSION` |
+
+`exllamav3` is not part of it: the engine wheel, torch and the server are a matched, pinned set — bump the constants in [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) and re-run it.
 
 Run it as your normal user; it uses sudo where needed. Running backends are stopped and the gateway starts the new version on the next request; model files are kept. The same variables set to `latest` work with a single installer, e.g. `sudo env COMFY_REF=latest ./scripts/install-comfyui.sh`. If an update breaks something, re-run that installer without the variable to return to the pinned version — except Open WebUI, whose database migrations only go forward: back up `/opt/open-webui/data` before updating it.
 
