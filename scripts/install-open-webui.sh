@@ -16,6 +16,7 @@
 #   http://<host>:1234/app/qwen-image-2.1-turbo
 #
 # Port override: OPEN_WEBUI_PORT=8081 sudo -E ./scripts/install-open-webui.sh
+# Chat model:    DEFAULT_MODEL=qwen-3.8-27b-exl3 (preselected in new chats)
 # Image model:   IMAGE_MODEL=qwen-image-2.1-turbo (generation), IMAGE_EDIT_MODEL=...
 # Open WebUI stores these as persistent settings: the env values seed the
 # first start only; change later via Admin Settings → Images.
@@ -28,6 +29,7 @@ set -euo pipefail
 VENV_DIR="/opt/open-webui"
 PYVER="3.11"
 GATEWAY_API="${GATEWAY_API:-http://127.0.0.1:1234/v1}"
+DEFAULT_MODEL="${DEFAULT_MODEL:-qwen-3.8-27b-exl3}"
 IMAGE_MODEL="${IMAGE_MODEL:-qwen-image-2.1-turbo}"
 IMAGE_EDIT_MODEL="${IMAGE_EDIT_MODEL:-${IMAGE_MODEL}}"
 PORT="${OPEN_WEBUI_PORT:-8080}"
@@ -53,7 +55,7 @@ echo " Open WebUI — ChatGPT-style UI on top of llm-gateway"
 echo "------------------------------------------------------"
 echo " venv:   ${VENV_DIR}/venv (uv-managed Python ${PYVER})"
 echo " data:   ${VENV_DIR}/data (persists chats/accounts)"
-echo " API:    ${GATEWAY_API}  (models via llm-gateway)"
+echo " API:    ${GATEWAY_API}  (models via llm-gateway, default ${DEFAULT_MODEL})"
 echo " images: ${IMAGE_MODEL} (edit: ${IMAGE_EDIT_MODEL}) via the same gateway"
 echo " UI:     http://<host>:${PORT}"
 echo "======================================================"
@@ -202,6 +204,7 @@ Environment=DATA_DIR=${VENV_DIR}/data
 Environment=HF_HOME=${RUN_HOME}/.cache/huggingface
 Environment=OPENAI_API_BASE_URL=${GATEWAY_API}
 Environment=ENABLE_OLLAMA_API=false
+Environment=DEFAULT_MODELS=${DEFAULT_MODEL}
 Environment=ENABLE_IMAGE_GENERATION=true
 Environment=IMAGE_GENERATION_ENGINE=openai
 Environment=IMAGES_OPENAI_API_BASE_URL=${GATEWAY_API}
