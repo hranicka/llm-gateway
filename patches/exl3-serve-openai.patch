@@ -118,7 +118,7 @@
 +            input_ids = torch.cat([
 +                input_ids,
 +                tokenizer.encode("\n</think>\n\n", encode_special_tokens = True),
-+            ])
++            ], dim = 1)
 +            max_tokens = token_budget.clamp_max_tokens(
 +                prompt_toks + 8, max_tokens, stats.get("context_length"))
 +            run_max = max_tokens
