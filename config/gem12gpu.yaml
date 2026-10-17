@@ -151,16 +151,17 @@ models:
   # ══════════════════════════════════════════════════════════════════════════
   # ── IMAGE GENERATION + EDITING (sd-server from stable-diffusion.cpp, web UI)
   # ══════════════════════════════════════════════════════════════════════════
-  # Qwen-Image-2.1-Turbo (unsloth GGUF): 8-step distilled 7B DiT,
-  # text-to-image + editing (up to 10 refs). Q6_K_XL 6.7 GB (LPIPS 0.050 vs the
-  # bf16 Turbo; Q4_K_M 0.153) + Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB +
-  # VAE 0.4 GB ≈ 13.3 GB resident, ~3 GiB left for 1024² compute. The 40-step
-  # base model is not installed by default (DOWNLOAD_BASE=1 in the installer);
-  # ComfyUI keeps its NVFP4 base workflows. Steps/cfg/sampler/sigmas come from
-  # this command line: OpenAI-API clients (Open WebUI, curl) only send prompt,
-  # size and n; in the web UI keep steps 8 and CFG 1.0. sd.cpp auto-fit keeps
-  # the diffusion weights in VRAM first and moves the TE to RAM only when 2K or
-  # many edit refs need the space — no offload flags needed.
+  # Qwen-Image-2.1 (abenzerps uncensored GGUF): 40-step 7B DiT fine-tune,
+  # text-to-image + editing (up to 10 refs). UC Q6_K diffusion 5.9 GB +
+  # HauhauCS uncensored Qwen3-VL TE Q4_K_M 5.0 GB + mmproj F16 1.2 GB + VAE
+  # 0.4 GB ≈ 12.5 GB resident, ~3.5 GiB left for 1024² compute: 40 steps
+  # @1024² in well under a minute. --cfg-scale 1.0 skips the guidance pass
+  # (~2x faster, weaker prompt adherence; doc value 6.0). Steps/cfg/sampler
+  # come from this command line: OpenAI-API clients (Open WebUI, curl) only
+  # send prompt, size and n. sd.cpp auto-fit keeps the diffusion weights in
+  # VRAM first and moves the TE to RAM only when 2K or many edit refs need
+  # the space — no offload flags needed. Official weights via DIFFUSION_REPO
+  # in the installer.
   # --sage-attn: SageAttention2++ (INT8 Q/K, FP8 PV) in the DiT on sm_120;
   # --fa covers the TE and any attention Sage cannot run. Sage makes the
   # prefix KV cache (text/reference tokens computed once per run, ~1.9x faster
@@ -170,14 +171,36 @@ models:
   # image_chat: true also lists it in /v1/models as a chat model — pick it in
   # Open WebUI (or any chat client), describe the image, get the image back.
   # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
+  qwen-image-2.1:
+    kind: web
+    image_chat: true
+    command: |
+      /opt/sdcpp/bin/sd-server
+      --diffusion-model /opt/sdcpp/models/qwen-image-2.1-UC-Q6_K.gguf
+      --llm /opt/sdcpp/models/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
+      --llm_vision /opt/sdcpp/models/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive-mmproj-f16.gguf
+      --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
+      --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16
+      --cfg-scale 1.0 --sampling-method euler
+      --steps 40 --width 1024 --height 1024
+      --listen-ip 127.0.0.1 --listen-port 1235
+    host: 127.0.0.1:1235
+    health_endpoint: /
+    ready_timeout: 30m
+
+  # Turbo (unsloth GGUF, official weights): 8-step distilled DiT — same
+  # uncensored TE, mmproj and VAE as the base entry, ~5x fewer steps. No
+  # uncensored turbo DiT GGUF exists. Q6_K_XL LPIPS 0.050 vs the bf16 Turbo
+  # (Q4_K_M 0.153); the model card's sigma schedule is on the command line —
+  # in the web UI keep steps 8 and CFG 1.0.
   qwen-image-2.1-turbo:
     kind: web
     image_chat: true
     command: |
       /opt/sdcpp/bin/sd-server
       --diffusion-model /opt/sdcpp/models/qwen-image-2.1-turbo-Q6_K_XL.gguf
-      --llm /opt/sdcpp/models/Qwen3VL-8B-Instruct-Q4_K_M.gguf
-      --llm_vision /opt/sdcpp/models/mmproj-Qwen3VL-8B-Instruct-F16.gguf
+      --llm /opt/sdcpp/models/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf
+      --llm_vision /opt/sdcpp/models/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive-mmproj-f16.gguf
       --vae /opt/sdcpp/models/qwen_image_2.1_vae_bf16.safetensors
       --fa --sage-attn --model-args qwen_image_2_1_prefix_cache_type=f16
       --cfg-scale 1.0 --sampling-method euler

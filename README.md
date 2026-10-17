@@ -252,38 +252,39 @@ Weights on the gem12 (8845HS + 32 GB RAM + RTX 5060 Ti 16 GB eGPU):
 
 | Component | File | Size |
 |---|---|---|
-| Diffusion model, Turbo (GGUF Q6_K_XL) | [`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF) | 6.7 GB |
-| Text encoder Qwen3-VL-8B (Q4_K_M GGUF) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 5.0 GB |
-| Vision projector mmproj (F16, editing) | [`Qwen/Qwen3-VL-8B-Instruct-GGUF`](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF) | 1.2 GB |
+| Diffusion model, 40-step base (uncensored fine-tune, GGUF Q6_K) | [`abenzerps/Qwen-Image-2.1-Uncensored-GGUF`](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF) | 5.9 GB |
+| Diffusion model, Turbo (official weights, GGUF Q6_K_XL) | [`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF) | 6.7 GB |
+| Text encoder Qwen3-VL-8B, uncensored fine-tune (Q4_K_M GGUF) | [`HauhauCS/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive`](https://huggingface.co/HauhauCS/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive) | 5.0 GB |
+| Vision projector mmproj (F16, editing) | [`HauhauCS/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive`](https://huggingface.co/HauhauCS/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive) | 1.2 GB |
 | VAE (bf16) | `Comfy-Org/Qwen-Image-2.1` | ~0.4 GB |
-| **Total** | | **~13.3 GB** |
+| **Total** | | **~12.5–13.3 GB resident per model, ~19 GB on disk** |
 
-The full stack — diffusion + text encoder + mmproj + VAE ≈ 13.3 GB — fits in the 16 GB VRAM with ~3 GiB left for 1024² compute. sd.cpp's auto-fit keeps the diffusion weights in VRAM first and moves the text encoder to RAM only when a larger quant, 2048² or many edit references need the space, so no offload flags are set. Image editing with reference images is enabled by default (`--llm_vision`). The bundled gateway entry is the 8-step Turbo model (below); the 40-step base model is optional (`DOWNLOAD_BASE=1`, another 6.7 GB at Q6_K_XL — the installer prints its gateway entry). For the base model the sd.cpp guide's quality reference is `--cfg-scale 6.0`; `1.0` skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Its near-lossless alternative, the INT8 convrot safetensors (6.8 GB, `DOWNLOAD_INT8=1`), runs natively in sd.cpp but not faster than GGUF at 1024² (upstream benchmark in stable-diffusion.cpp PR #1857).
+The full stack — diffusion + text encoder + mmproj + VAE — fits in the 16 GB VRAM: 12.5 GB resident with the uncensored 40-step base (UC Q6_K), 13.3 GB with the Turbo, both fully resident. sd.cpp's auto-fit keeps the diffusion weights in VRAM first and moves the text encoder to RAM only when a larger quant, 2048² or many edit references need the space, so no offload flags are set. Image editing with reference images is enabled by default (`--llm_vision`). The bundled gateway entries are the 8-step Turbo (official weights) and the 40-step uncensored base (below); `DOWNLOAD_TURBO=0` / `DOWNLOAD_BASE=0` skip either. For the base model the sd.cpp guide's quality reference is `--cfg-scale 6.0`; `1.0` skips the guidance pass — roughly 2× faster per step, at the cost of prompt adherence and small-text rendering. Its near-lossless alternative in official weights, the INT8 convrot safetensors (6.8 GB, `DOWNLOAD_INT8=1`), runs natively in sd.cpp but not faster than GGUF at 1024² (upstream benchmark in stable-diffusion.cpp PR #1857).
 
-Speed flags in the bundled entry:
+Speed flags in both bundled entries:
 
 - `--sage-attn` — SageAttention2++ (INT8 Q/K, FP8 P·V) in the diffusion transformer; needs the installer's native sm_120 build with CUDA ≥ 12.8. `--fa` keeps flash attention for the text encoder and for attention Sage cannot run. Sage quantizes attention, so compare text rendering against a run without it.
 - `--model-args qwen_image_2_1_prefix_cache_type=f16` — the prefix KV cache computes text and reference-image tokens once per run (upstream: ~15% faster text-to-image, ~1.9× faster edits). With Sage on it would default to FP32 (4 GiB per 1024² reference); f16 halves that.
 
-Other GGUF quants: `TURBO_QUANT=Q8_0` (7.6 GB — auto-fit then moves the text encoder to RAM), or `Q4_K_M` (4.2 GB) for more headroom. For the optional base model, `DIFFUSION_QUANT` picks the quant and `DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF` (Q4_0/Q6_K/Q8_0) or `abenzerps/Qwen-Image-2.1-Uncensored-GGUF` other quants of the same weights.
+Other GGUF quants: `DIFFUSION_QUANT`/`TURBO_QUANT` pick the base/Turbo quant — `Q8_0` (7.6 GB — auto-fit then moves the text encoder to RAM) or the Q4 sizes for more headroom. `DIFFUSION_REPO=unsloth/Qwen-Image-2.1-GGUF` (with `DIFFUSION_QUANT=Q6_K_XL`) restores the official base weights, `leejet/Qwen-Image-2.1-GGUF` (Q4_0/Q6_K/Q8_0, underscore naming) other quants of them. The prompt processor swaps via `TE_REPO`/`TE_QUANT` — the mmproj follows the TE repo (`MMPROJ_REPO` overrides): the bundled HauhauCS uncensored fine-tune is a same-size drop-in for the official `Qwen/Qwen3-VL-8B-Instruct-GGUF` encoder, and `TE_REPO=unsloth/Qwen3-VL-8B-Instruct-GGUF TE_QUANT=UD-Q5_K_XL` (5.9 GB dynamic quant) is the fidelity bump at ~14.1 GB resident. A/B against `TE_REPO=Qwen/Qwen3-VL-8B-Instruct-GGUF` if prompt adherence drifts — the uncensored base DiT and the TE are fine-tunes of the weights the official DiTs were trained against.
 
 ### Install & use
 
 ```bash
-sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~13 GB of models into /opt/sdcpp (Turbo)
+sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~19 GB of models into /opt/sdcpp (uncensored base + Turbo)
 ```
 
-Then add the `qwen-image-2.1-turbo` entry to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_BASE=1` also fetches the 40-step base model; `DOWNLOAD_TURBO=0` skips the Turbo weights.
+Then add the `qwen-image-2.1` and `qwen-image-2.1-turbo` entries to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_BASE=0` / `DOWNLOAD_TURBO=0` skip either model's weights.
 
 The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master). No Linux CUDA binaries are published, so it builds that tag from source; re-running it after the pin changes rebuilds sd-server, otherwise the existing binary is kept.
 
 ### Turbo: 8-step Qwen-Image-2.1 ([`unsloth/Qwen-Image-2.1-Turbo-GGUF`](https://huggingface.co/unsloth/Qwen-Image-2.1-Turbo-GGUF))
 
-`qwen-image-2.1-turbo` is a distilled checkpoint of the same 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It shares the text encoder, mmproj and VAE with the base model — only the diffusion file differs. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident.
+`qwen-image-2.1-turbo` is a distilled checkpoint of the official 7B DiT: **8 steps at CFG 1.0** with the model card's sigma schedule instead of 40 steps, so a 1024² image takes roughly a fifth of the time. It shares the text encoder, mmproj and VAE with the base model — only the diffusion file differs. The bundled entry uses **Q6_K_XL** (6.7 GB, LPIPS 0.050 against the bf16 Turbo; the card's recommended Q4_K_M is 4.2 GB at 0.153, Q8_0 is 7.6 GB at 0.036): ~13.3 GB resident.
 
 - Steps, CFG, sampler and sigmas come from the gateway command line. sd-server's OpenAI endpoints (`/v1/images/generations`, `/v1/images/edits`) only take `prompt`, `size` and `n` from the request, so Open WebUI and API clients cannot push Turbo off its schedule. In sd-server's own web UI keep steps at 8 and CFG at 1.0 — 20–40 steps or CFG > 1 degrade a distilled model.
-- Turbo is the bundled default; it is good enough for everyday generation and edits. For a 40-step quality reference (higher `--cfg-scale` for prompt adherence) install the base model with `DOWNLOAD_BASE=1` and add its entry, or use ComfyUI's NVFP4 base workflows.
-- Many edit references or 2048² need more VRAM; auto-fit then moves the text encoder to RAM. `TURBO_QUANT=Q4_K_M` frees ~2.5 GB for those cases.
+- Turbo keeps the official weights and is good enough for everyday generation and edits; the uncensored 40-step base is the quality reference (higher `--cfg-scale` for prompt adherence). The two share the single VRAM slot like any model pair — switching reloads sd-server. ComfyUI adds official-weights NVFP4 base workflows.
+- Many edit references or 2048² need more VRAM; auto-fit then moves the text encoder to RAM. `DIFFUSION_QUANT=Q4_K_M TURBO_QUANT=Q4_K_M` frees ~2.5 GB for those cases.
 - Licence: Qwen Research License, non-commercial, like the base model.
 
 > The browser UI is compiled **into** the sd-server binary (`SD_SERVER_BUILD_FRONTEND=ON`, needs Node ≥ 20 + pnpm ≥ 10, installed automatically). If you ever see a plain *"Stable Diffusion Server is running"* text instead of the UI, the binary was built without the frontend — re-run the installer and it will rebuild with it.
@@ -302,7 +303,7 @@ The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master)
 sudo ./scripts/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
 ```
 
-Composition = the Editing workflow with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical. GGUF remains available as the fallback loader ( leejet/ComfyUI-GGUF node + the symlinked Q6_K_XL files).
+Composition = the Editing workflow with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical. GGUF remains available as the fallback loader ( leejet/ComfyUI-GGUF node + the symlinked sd-server GGUF files).
 
 ### Caveats
 
@@ -317,7 +318,7 @@ Composition = the Editing workflow with several reference images (up to 10); "re
 
 - **Chat**: the model picker lists every gateway model (`qwen-3.8-27b-exl3`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history. New chats preselect `qwen-3.8-27b-exl3` (`DEFAULT_MODEL=` overrides it at install).
 - **Images (toggle)**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) with a regular chat model selected. The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1-turbo` (8 steps, 1024×1024) — model, size and endpoint are preconfigured via environment variables; switch to another sd-server model in *Admin Settings → Images* (width/height in multiples of 32, e.g. 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
-- **Images (as a model)**: the image models are in the model picker too (`qwen-image-2.1-turbo`). Pick one, describe the image in the message, and the reply is the image; attach a picture and the message becomes an edit. See [Image models in chat](#image-models-in-chat-image_chat) for what to know before using it.
+- **Images (as a model)**: the image models are in the model picker too (`qwen-image-2.1`, `qwen-image-2.1-turbo`). Pick one, describe the image in the message, and the reply is the image; attach a picture and the message becomes an edit. See [Image models in chat](#image-models-in-chat-image_chat) for what to know before using it.
 - **Editing** (reference images) works in Open WebUI too: Image Edit is enabled with the same gateway and model, so uploading an image and asking for a change goes through `/v1/images/edits` (multipart; the gateway reads the `model` form field and forwards the upload untouched). sd-server's own UI at `http://<host>:1234/app/qwen-image-2.1-turbo` remains available for multi-image composition.
 - **Persistent settings**: Open WebUI stores these in its database after the first start, so the installer's values only seed a fresh install; existing installs keep theirs until changed in the admin panel. Steps, CFG and sampler always come from the gateway command line, never from Open WebUI.
 

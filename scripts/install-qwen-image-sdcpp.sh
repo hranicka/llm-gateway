@@ -4,17 +4,26 @@
 # Installs stable-diffusion.cpp's sd-server (single C++ binary with an
 # embedded web UI and OpenAI-compatible images API) plus the Qwen-Image-2.1
 # models into /opt/sdcpp, sized for a 16 GB VRAM GPU (RTX 5060 Ti) with 32 GB
-# RAM. Then add the `qwen-image-2.1-turbo` model from config/gem12gpu.yaml to
-# the gateway config — the gateway launches/kills sd-server like llama-server
-# and proxies its web UI at /app/<model>.
+# RAM. Then add the `qwen-image-2.1` (and `qwen-image-2.1-turbo`) models from
+# config/gem12gpu.yaml to the gateway config — the gateway launches/kills
+# sd-server like llama-server and proxies its web UI at /app/<model>.
 #
+# Base 40-step model: installed by default as the uncensored fine-tune,
+# DIFFUSION_REPO=abenzerps/Qwen-Image-2.1-Uncensored-GGUF DIFFUSION_QUANT=Q6_K
+# (5.9 GB; also Q8_0 7.6 GB, Q5_K_M 5.2 GB, Q4_K_M 4.6 GB). Official weights:
+# DIFFUSION_REPO=unsloth/Qwen-Image-2.1-GGUF DIFFUSION_QUANT=Q6_K_XL (6.7 GB;
+# Q4_K_M 4.2 GB, Q5_K_M 5.4 GB, Q8_0 7.6 GB), or leejet/Qwen-Image-2.1-GGUF
+# (Q4_0/Q6_K/Q8_0, underscore naming). Skip the base with DOWNLOAD_BASE=0.
 # Turbo (8-step distilled, unsloth GGUF): installed by default as
 # TURBO_QUANT=Q6_K_XL (6.7 GB; Q4_K_M 4.2 GB, Q8_0 7.6 GB). Skip it with
-# DOWNLOAD_TURBO=0; point at another repo with TURBO_REPO.
-# Base 40-step model: DOWNLOAD_BASE=1 (DIFFUSION_QUANT default Q6_K_XL 6.7 GB;
-# also Q4_K_M 4.2 GB, Q5_K_M 5.4 GB, Q8_0 7.6 GB). Repo override:
-# DIFFUSION_REPO=leejet/Qwen-Image-2.1-GGUF (Q4_0/Q6_K/Q8_0, underscore
-# naming) or abenzerps/Qwen-Image-2.1-Uncensored-GGUF.
+# DOWNLOAD_TURBO=0; point at another repo with TURBO_REPO. No uncensored
+# turbo DiT GGUF exists — the turbo always keeps official weights.
+# Prompt processor (text encoder + mmproj, shared by base and Turbo):
+# uncensored fine-tune by default, TE_REPO=HauhauCS/
+# Qwen3VL-8B-Uncensored-HauhauCS-Aggressive TE_QUANT=Q4_K_M (5.0 GB, own
+# mmproj-f16). Official encoder: TE_REPO=Qwen/Qwen3-VL-8B-Instruct-GGUF.
+# Higher fidelity: TE_REPO=unsloth/Qwen3-VL-8B-Instruct-GGUF
+# TE_QUANT=UD-Q5_K_XL (5.9 GB) — UD dynamic quants.
 
 set -euo pipefail
 
@@ -23,12 +32,15 @@ BIN_DIR="${INSTALL_DIR}/bin"
 MODEL_DIR="${INSTALL_DIR}/models"
 SRC_DIR="${INSTALL_DIR}/src"
 CUDA_ARCH="${CUDA_ARCH:-120}"            # 5060 Ti = Blackwell sm_120
-DIFFUSION_REPO="${DIFFUSION_REPO:-unsloth/Qwen-Image-2.1-GGUF}"
-DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K_XL}"
+DIFFUSION_REPO="${DIFFUSION_REPO:-abenzerps/Qwen-Image-2.1-Uncensored-GGUF}"
+DIFFUSION_QUANT="${DIFFUSION_QUANT:-Q6_K}"
 TURBO_REPO="${TURBO_REPO:-unsloth/Qwen-Image-2.1-Turbo-GGUF}"
 TURBO_QUANT="${TURBO_QUANT:-Q6_K_XL}"
+TE_REPO="${TE_REPO:-HauhauCS/Qwen3VL-8B-Uncensored-HauhauCS-Aggressive}"
+TE_QUANT="${TE_QUANT:-Q4_K_M}"
+MMPROJ_REPO="${MMPROJ_REPO:-${TE_REPO}}"
 DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-0}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-1}"
 
 # Pinned upstream release (supply chain): both the prebuilt download and the
 # source build use this revision. SDCPP_RELEASE=latest (scripts/update.sh)
@@ -48,10 +60,12 @@ fi
 echo "======================================================"
 echo " Qwen-Image-2.1 via sd-server (stable-diffusion.cpp)"
 echo "------------------------------------------------------"
-echo " Installs to ${INSTALL_DIR} (binary + ~13 GB of models with the"
-echo " Turbo DiT; DOWNLOAD_BASE=1 adds the 40-step base, ~7 GB)."
-echo " Resident set ≈ 13.3 GB (Turbo ${TURBO_QUANT} DiT + Qwen3-VL-8B Q4_K_M"
-echo " + mmproj + VAE) — fully in 16 GB VRAM."
+echo " Installs to ${INSTALL_DIR} (binary + ~19 GB of models: uncensored"
+echo " 40-step base (${DIFFUSION_QUANT}) and official Turbo (${TURBO_QUANT})"
+echo " DiT + shared uncensored TE/mmproj/VAE)."
+echo " Resident set ≈ 12.5-13.3 GB (DiT + TE ${TE_QUANT} + mmproj + VAE) —"
+echo " fully in 16 GB VRAM; skip either DiT with DOWNLOAD_BASE=0 /"
+echo " DOWNLOAD_TURBO=0."
 echo "======================================================"
 echo
 
@@ -404,18 +418,20 @@ for f in "${MODEL_DIR}"/qwen*image*2.1-*.gguf; do
 	echo "  NOTE: $(basename "$f") is no longer referenced by the config — delete it to reclaim disk."
 done
 
-TE_NAME="$(hf_resolve 'Qwen/Qwen3-VL-8B-Instruct-GGUF' \
-	'Qwen3VL-8B-Instruct-Q4_K_M\.gguf' \
-	'Qwen3VL-8B-Instruct-Q4_K_M.gguf')"
+# ^-anchored so a repo's mmproj-<quant> file (official Q8_0, unsloth UD-*)
+# can never match the TE pattern.
+TE_NAME="$(hf_resolve "${TE_REPO}" \
+	'^[Qq]wen[^"]*'"${TE_QUANT}"'\.gguf$' \
+	"Qwen3VL-8B-Instruct-${TE_QUANT}.gguf")"
 fetch_model \
-	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/${TE_NAME}" \
+	"https://huggingface.co/${TE_REPO}/resolve/main/${TE_NAME}" \
 	"${MODEL_DIR}/${TE_NAME}"
 
-MMPROJ_NAME="$(hf_resolve 'Qwen/Qwen3-VL-8B-Instruct-GGUF' \
-	'mmproj-[^"]*F16\.gguf' \
+MMPROJ_NAME="$(hf_resolve "${MMPROJ_REPO}" \
+	'mmproj[^"]*-[Ff]16\.gguf$' \
 	'mmproj-Qwen3VL-8B-Instruct-F16.gguf')"
 fetch_model \
-	"https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/${MMPROJ_NAME}" \
+	"https://huggingface.co/${MMPROJ_REPO}/resolve/main/${MMPROJ_NAME}" \
 	"${MODEL_DIR}/${MMPROJ_NAME}"
 
 VAE_NAME="$(hf_resolve 'Comfy-Org/Qwen-Image-2.1' \
