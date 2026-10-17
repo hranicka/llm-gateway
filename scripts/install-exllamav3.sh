@@ -134,7 +134,8 @@ fetch_verified serve_openai.py "$SERVE_SHA256"
 fetch_verified token_budget.py "$BUDGET_SHA256"
 # Honour chat_template_kwargs.reasoning_effort (how the bundled clients send
 # it), default to medium like llama-server (the template's default is xhigh),
-# and accept only data: image URLs (no server-side fetches).
+# accept only data: image URLs (no server-side fetches), and report the
+# cached prompt tokens in usage.prompt_tokens_details.cached_tokens.
 patch -s -d "${INSTALL_DIR}/server" -p1 < "${SCRIPT_DIR}/../patches/exl3-serve-openai.patch"
 
 # ── 4. Model (resumable; --local-dir keeps it out of the HF hub cache) ───────

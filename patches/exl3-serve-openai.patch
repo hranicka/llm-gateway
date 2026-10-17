@@ -43,7 +43,7 @@
      img = Image.open(io.BytesIO(raw))
      img.load()
      if img.mode != "RGB":
-@@ -737,7 +742,8 @@
+@@ -737,9 +742,10 @@
  def generate_full(generator, tokenizer, messages, max_tokens, temperature,
                    top_p, top_k, seed, tools, tool_choice = None, stop = None,
                    on_text = None, enable_thinking = True, should_stop = None,
@@ -51,8 +51,11 @@
 +                  reasoning_effort = None, thinking_budget = 0,
 +                  rid = None, streaming = False):
      """Blocking generation; returns (text, tool_calls, finish, p_toks, o_toks,
-     reasoning, content). rid/streaming only label the per-request stats line
+-    reasoning, content). rid/streaming only label the per-request stats line
++    reasoning, content, cached_toks). rid/streaming only label the per-request stats line
      (see _report_request); defaulted so existing callers are unaffected."""
+     schemas = build_tool_schemas(tools)
+     tools, directive = tool_choice_directive(tool_choice, tools)
 @@ -763,11 +769,21 @@
          if vm is None:
              raise ValueError(f"this server is running text-only ({vision['reason']}); "
@@ -99,10 +102,15 @@
                    stop_conditions = stop_conditions,
                    sampler = sampler, seed = seed,
                    embeddings = embeddings)
-@@ -864,6 +884,29 @@
+@@ -864,6 +884,34 @@
      retried = False
      try:
          job = run_once()
++        # Prompt tokens served from the KV cache, as the client's usage
++        # reports it: the first run only, since retries re-run a prompt the
++        # first run just cached.
++        cached = min(int((attempt.get("eos") or {}).get("cached_tokens") or 0),
++                     prompt_toks)
 +        # Hard thinking budget, two-phase: the engine cannot cap thinking
 +        # mid-generation, so if the output cap hit while still inside
 +        # <think>, close it and answer with a fresh output budget. The
@@ -129,7 +137,16 @@
          # Forced tool_choice is a prompt nudge; at temperature > 0 the model can
          # occasionally skip the call. One greedy retry makes it deterministic -
          # but not after a cancel, or Stop would start a second generation.
-@@ -979,9 +1022,15 @@
+@@ -896,7 +944,7 @@
+                   "stop_condition": "stop", "banned": "content_filter",
+                   "cancelled": "stop"}.get(reason, "stop")
+     reasoning, content = split_reasoning(content)
+-    return text, calls, finish, prompt_toks, out_toks, reasoning, content
++    return text, calls, finish, prompt_toks, out_toks, reasoning, content, cached
+ 
+ 
+ async def models(request):
+@@ -979,9 +1027,15 @@
      # keeps the UI from promising a hard limit it cannot deliver.
      kwargs = body.get("chat_template_kwargs") or {}
      enable_thinking = kwargs.get("enable_thinking")
@@ -146,7 +163,7 @@
      return dict(
          messages = normalize_messages(messages),
          max_tokens = max_tokens, temperature = temperature,
-@@ -994,6 +1043,7 @@
+@@ -994,6 +1048,7 @@
          include_usage = bool((body.get("stream_options") or {}).get("include_usage")),
          model_id = body.get("model", MODEL_ID),
          enable_thinking = bool(enable_thinking),
@@ -154,7 +171,13 @@
          reasoning_effort = effort or None,
      ), None
  
-@@ -1029,7 +1079,8 @@
+@@ -1024,12 +1079,13 @@
+         # generate_full can name the request; the response reuses it.
+         cid = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+         try:
+-            text, calls, finish, ptoks, otoks, reasoning, content = await asyncio.to_thread(
++            text, calls, finish, ptoks, otoks, reasoning, content, cached = await asyncio.to_thread(
+                 generate_full, generator, tokenizer, req["messages"],
                  req["max_tokens"], req["temperature"], req["top_p"], req["top_k"],
                  req["seed"], req["tools"], req["tool_choice"], req["stop"],
                  None, req["enable_thinking"], None,
@@ -164,7 +187,24 @@
          except AssertionError as e:
              return web.json_response(
                  {"error": {"message": f"context/cache: {e}", "type": "invalid_request_error"}},
-@@ -1084,6 +1135,7 @@
+@@ -1049,7 +1105,8 @@
+             "model": req["model_id"],
+             "choices": [{"index": 0, "message": msg, "finish_reason": finish}],
+             "usage": {"prompt_tokens": ptoks, "completion_tokens": otoks,
+-                      "total_tokens": ptoks + otoks},
++                      "total_tokens": ptoks + otoks,
++                      "prompt_tokens_details": {"cached_tokens": cached}},
+         })
+ 
+     # ---- streaming (SSE) ----
+@@ -1078,18 +1135,19 @@
+ 
+         def worker():
+             try:
+-                text, calls, finish, ptoks, otoks, reasoning, content = generate_full(
++                text, calls, finish, ptoks, otoks, reasoning, content, cached = generate_full(
+                     generator, tokenizer, req["messages"], req["max_tokens"],
+                     req["temperature"], req["top_p"], req["top_k"],
                      req["seed"], req["tools"], req["tool_choice"], req["stop"],
                      on_text = None if forced_choice else on_text,
                      enable_thinking = req["enable_thinking"],
@@ -172,3 +212,30 @@
                      reasoning_effort = req["reasoning_effort"],
                      should_stop = gone.is_set,
                      rid = cid, streaming = True)
+                 loop.call_soon_threadsafe(
+                     queue.put_nowait,
+-                    ("done", (calls, finish, reasoning, content, ptoks, otoks)))
++                    ("done", (calls, finish, reasoning, content, ptoks, otoks, cached)))
+             except Exception as e:
+                 loop.call_soon_threadsafe(queue.put_nowait, ("error", str(e)))
+         loop.run_in_executor(None, worker)
+@@ -1191,7 +1249,7 @@
+                     pending += payload
+                     await flush_pending()
+                 elif kind == "done":
+-                    calls, finish, reasoning, content, ptoks, otoks = payload
++                    calls, finish, reasoning, content, ptoks, otoks, cached = payload
+                     await flush_pending(final = True)
+                     if forced_choice:
+                         # Buffered path (no deltas were streamed): emit the
+@@ -1210,7 +1268,9 @@
+                                 "choices": [],
+                                 "usage": {"prompt_tokens": ptoks,
+                                           "completion_tokens": otoks,
+-                                          "total_tokens": ptoks + otoks}}
++                                          "total_tokens": ptoks + otoks,
++                                          "prompt_tokens_details":
++                                              {"cached_tokens": cached}}}
+                         await resp.write(f"data: {json.dumps(tail)}\n\n".encode())
+                     await resp.write(b"data: [DONE]\n\n")
+                     break
