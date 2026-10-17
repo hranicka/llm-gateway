@@ -76,6 +76,36 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 30m
 
+  # Stock llama.cpp Qwen3.8-27B, kept alongside the EXL3 server: no custom
+  # server patches — native per-request thinking budgets (thinking_budget_
+  # tokens) and llama.cpp prefix cache. GSQ-RCO IQ3_S-mtp (11.16 GiB):
+  # task-lossless coding quant fitting 128K (AIME 100.0, LCB 85.7, GPQA
+  # 89.4). Measured on gem12: prefill 755 t/s @34K, decode 47.8 t/s. ubatch
+  # must stay <= 256: at 512 the GSQ mix core-dumps on the first prefill
+  # (cublas workspace OOM) — also at spec-draft-n-max >= 6. Decode-first
+  # alternative (measured: +8% decode, -8% prefill, -1.1 LCB): GSQ IQ3_XXS +
+  # DFlash2 Q4_K_M drafter, draft-dflash n-max 7, ubatch 256. -hff selects
+  # the exact file; "-hf repo:file.gguf" fails (suffix = quant name).
+  # Non-thinking use (instruct) rides this same server per request —
+  # chat_template_kwargs {"enable_thinking": false}, temp 0.7, top-p 0.8,
+  # presence 1.5 per the Qwen3.8 card — so switching never reloads weights.
+  qwen-3.8-27b:
+    command: |
+      llama-server
+      -hf ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF -hff Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf
+      --spec-type draft-mtp --spec-draft-n-max 4
+      --n-gpu-layers 999 --parallel 1 --threads 8 --threads-batch 8
+      --ctx-size 131072 --cont-batching
+      --cache-type-k q4_0 --cache-type-v q4_0
+      --flash-attn on --load-mode none --mmproj-auto --no-mmproj-offload --image-max-tokens 1024 --image-min-tokens 1024 --jinja
+      --batch-size 256 --ubatch-size 256
+      --cache-ram 16384 --ctx-checkpoints 32 --checkpoint-min-step 2048
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 0.0 --repeat-penalty 1.0
+      --chat-template-kwargs '{"reasoning_effort":"medium"}'
+      --host 127.0.0.1 --port 1235 --alias qwen-3.8-27b
+    host: 127.0.0.1:1235
+    ready_timeout: 2h
+
   # The Qwen 3.8 for /v1/messages and /v1/responses clients (llama-server).
   # Fine-tune, so no GSQ quant: IQ3_M (12.8 GB) keeps ctx at 96K; a
   # conventional quant tolerates ubatch 512. MTP n-max 4 is the VRAM ceiling
