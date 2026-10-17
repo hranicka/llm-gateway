@@ -161,6 +161,24 @@
             "instruct": {"chat_template_kwargs": {"enable_thinking": false}, "temperature": 0.7, "top_p": 0.8}
           }
         },
+        "qwen-3.8-27b-exl3-text": {
+          "name": "Qwen 3.8 27B EXL3 (text, 160K)",
+          "modalities": {"input": ["text"], "output": ["text"]},
+          "limit": {
+            "context": 163840,
+            "output": 20480
+          },
+          "options": {
+            "chat_template_kwargs": {"reasoning_effort": "medium"}
+          },
+          "variants": {
+            "xhigh": {"chat_template_kwargs": {"reasoning_effort": "xhigh"}},
+            "medium": {"chat_template_kwargs": {"reasoning_effort": "medium"}},
+            "low": {"chat_template_kwargs": {"reasoning_effort": "low"}},
+            "none": {"chat_template_kwargs": {"enable_thinking": false}},
+            "instruct": {"chat_template_kwargs": {"enable_thinking": false}, "temperature": 0.7, "top_p": 0.8}
+          }
+        },
         "qwen-3.8-27b-uncensored": {
           "name": "Qwen 3.8 27B Uncensored",
           "attachment": true,

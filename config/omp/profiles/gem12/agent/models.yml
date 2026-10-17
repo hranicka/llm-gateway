@@ -69,6 +69,26 @@ providers:
           supportsReasoningEffort: true
           supportsReasoningParams: true
           thinkingFormat: qwen
+      - id: qwen-3.8-27b-exl3-text
+        name: Qwen 3.8 27B EXL3 (text, 160K)
+        reasoning: true
+        # Same weights without the vision tower: its VRAM buys 160K of context.
+        contextWindow: 163840
+        maxTokens: 20480
+        cost: { input: 0.03, output: 0.4, cacheRead: 0.005, cacheWrite: 0 }
+        input: [text]
+        timeout: 1800
+        thinking:
+          mode: effort
+          efforts: [low, medium, xhigh]
+          defaultLevel: medium
+          requiresEffort: false
+        compat:
+          qwenTemplateReasoningEffort: true
+          reasoningDisableMode: qwen-template-false
+          supportsReasoningEffort: true
+          supportsReasoningParams: true
+          thinkingFormat: qwen
       - id: gemma-4-12b
         name: Gemma 4 12B
         contextWindow: 262144

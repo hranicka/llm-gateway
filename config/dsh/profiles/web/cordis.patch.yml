@@ -81,6 +81,16 @@
               low: low
               medium: medium
               xhigh: xhigh
+          - id: qwen-3.8-27b-exl3-text
+            name: Qwen 3.8 27B EXL3 (text, 160K)
+            contextWindow: 163840
+            maxTokens: 20480
+            input: [ text ]
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              xhigh: xhigh
           - id: qwen-3.8-27b-uncensored
             name: Qwen 3.8 27B Uncensored
             contextWindow: 98304
@@ -139,6 +149,7 @@
 # 0.8, headroom 65536) compacts at ~33K on a 131K window. Here: ratio 0.9,
 # headroom 4096, O 20480:
 #   131072 (qwen-3.8-27b-exl3)    -> 106496
+#   163840 (qwen-3.8-27b-exl3-text) -> 139264 (the headroom binds)
 #    98304 (uncensored)            ->  73728
 #   262144 (ornith, O 16384)       -> 235929 (the ratio binds)
 # Each 4096 tokens of maxTokens moves the trigger by 4096; thinking budgets

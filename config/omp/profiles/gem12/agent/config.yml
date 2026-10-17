@@ -43,6 +43,7 @@ tools:
 compaction:
   # Summarize only near the window — compaction loses the warm KV prefix.
   # A percentage follows each model's contextWindow: ~107K qwen-3.8-27b-exl3,
+  # ~134K qwen-3.8-27b-exl3-text,
   # ~80K uncensored, ~215K Ornith.
   thresholdPercent: 82
 

@@ -76,6 +76,19 @@ models:
     host: 127.0.0.1:1235
     ready_timeout: 30m
 
+  # The same EXL3 weights without the vision tower (--vision off): the 0.87 GiB
+  # it holds goes to the KV cache, 163840 tokens instead of 131072. No extra
+  # download. Switching to or from qwen-3.8-27b-exl3 reloads the server.
+  qwen-3.8-27b-exl3-text:
+    command: |
+      /opt/exllamav3/venv/bin/python -u /opt/exllamav3/server/serve_openai.py
+      --model /opt/exllamav3/models/Qwen3.8-27B-EXL3-3.00bpw --model_id qwen-3.8-27b-exl3-text
+      --cache_size 163840 --grid_size 15.2 --cache_quant 4
+      --draft_model mtp --vision off --ui off --progress_every 0
+      --host 127.0.0.1 --port 1235
+    host: 127.0.0.1:1235
+    ready_timeout: 30m
+
   # Stock llama.cpp Qwen3.8-27B, kept alongside the EXL3 server: no custom
   # server patches — native per-request thinking budgets (thinking_budget_
   # tokens) and llama.cpp prefix cache. GSQ-RCO IQ3_S-mtp (11.16 GiB):
