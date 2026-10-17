@@ -79,7 +79,27 @@
          rendered = tokenizer.hf_render_chat_template(
              messages, add_generation_prompt = True,
              enable_thinking = enable_thinking, tools = tools,
-@@ -864,6 +880,28 @@
+@@ -797,6 +813,10 @@
+     reason = "max_new_tokens"
+     text = ""
+     attempt = {}   # metrics of the run that produced the reply: {"eos": {...}, "wall": s}
++    # Phase-1 output cap: the thinking budget when set. The engine cannot cap
++    # mid-generation; hitting the cap inside <think> triggers the two-phase
++    # retry after run_once (close the think, answer at the full budget).
++    run_max = min(max_tokens, thinking_budget) if thinking_budget else max_tokens
+ 
+     def run_once():
+         nonlocal text, reason, attempt
+@@ -804,7 +824,7 @@
+         reason = "max_new_tokens"
+         sampler = ComboSampler(temperature = temperature, top_k = top_k, top_p = top_p)
+         stop_conditions = ["<|im_end|>", tokenizer.eos_token_id] + (stop or [])
+-        job = Job(input_ids = input_ids, max_new_tokens = max_tokens,
++        job = Job(input_ids = input_ids, max_new_tokens = run_max,
+                   stop_conditions = stop_conditions,
+                   sampler = sampler, seed = seed,
+                   embeddings = embeddings)
+@@ -864,6 +884,29 @@
      retried = False
      try:
          job = run_once()
@@ -101,6 +121,7 @@
 +            ])
 +            max_tokens = token_budget.clamp_max_tokens(
 +                prompt_toks + 8, max_tokens, stats.get("context_length"))
++            run_max = max_tokens
 +            job = run_once()
 +            if on_text is None:
 +                text = think_text + "</think>\n\n" + text
@@ -108,7 +129,7 @@
          # Forced tool_choice is a prompt nudge; at temperature > 0 the model can
          # occasionally skip the call. One greedy retry makes it deterministic -
          # but not after a cancel, or Stop would start a second generation.
-@@ -979,9 +1017,15 @@
+@@ -979,9 +1022,15 @@
      # keeps the UI from promising a hard limit it cannot deliver.
      kwargs = body.get("chat_template_kwargs") or {}
      enable_thinking = kwargs.get("enable_thinking")
@@ -125,7 +146,7 @@
      return dict(
          messages = normalize_messages(messages),
          max_tokens = max_tokens, temperature = temperature,
-@@ -994,6 +1038,7 @@
+@@ -994,6 +1043,7 @@
          include_usage = bool((body.get("stream_options") or {}).get("include_usage")),
          model_id = body.get("model", MODEL_ID),
          enable_thinking = bool(enable_thinking),
@@ -133,7 +154,7 @@
          reasoning_effort = effort or None,
      ), None
  
-@@ -1084,6 +1129,7 @@
+@@ -1084,6 +1134,7 @@
                      req["seed"], req["tools"], req["tool_choice"], req["stop"],
                      on_text = None if forced_choice else on_text,
                      enable_thinking = req["enable_thinking"],
