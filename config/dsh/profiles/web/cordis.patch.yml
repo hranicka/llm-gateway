@@ -55,12 +55,27 @@
             name: Ornith 1.5 35B A3B
             contextWindow: 262144
             maxTokens: 16384
+          - id: qwen-3.8-27b
+            name: Qwen 3.8 27B
+            contextWindow: 131072
+            # Output cap = reserve in the compaction trigger (see the preset
+            # below): thinking is budget-capped at 4000/7500/12000, leaving
+            # 8K+ for tool calls and file writes.
+            maxTokens: 20480
+            # Vision via mmproj encoded on the CPU.
+            input: [text, image]
+            reasoningEfforts:
+              off:
+              low: low
+              medium: medium
+              xhigh: xhigh
           - id: qwen-3.8-27b-exl3
             name: Qwen 3.8 27B EXL3
             contextWindow: 131072
-            # The EXL3 server ignores thinking budgets; the output cap bounds them.
+            # Thinking budgets are enforced server-side (two-phase: cap the think,
+            # close it, answer).
             maxTokens: 20480
-            input: [text, image]
+            input: [ text, image ]
             reasoningEfforts:
               off:
               low: low
@@ -70,7 +85,7 @@
             name: Qwen 3.8 27B Uncensored
             contextWindow: 98304
             maxTokens: 20480
-            input: [text, image]
+            input: [ text, image ]
             reasoningEfforts:
               off:
               low: low
@@ -80,7 +95,7 @@
             name: Gemma 4 12B
             contextWindow: 262144
             maxTokens: 16384
-            input: [text, image]
+            input: [ text, image ]
       local-laptop:
         displayName: Local Laptop
         api: openai-completions
@@ -103,11 +118,190 @@
 # Optional: start fresh sessions on the local eGPU instead of the DeepSeek
 # account (dsh defaults new agents to deepseek-official/deepseek-flash).
 # Uncomment to apply; pick the effort in the model selector per session.
-# For the safe gem12 setup (sequential subagents, late compaction) use the
-# gem12 profile instead: dsh --profile gem12.
+# For the single-slot gem12 backend, pick the "gem12" agent preset below.
 # - id: agent-default-model
 #   name: "@deepseek-ai/dsh-agent-default-model"
 #   config:
 #     provider: network-gem12
 #     model: qwen-3.8-27b-exl3
 #     reasoningEffort: medium
+
+# ── gem12 preset ────────────────────────────────────────────────────────────
+# A copy of the installed dsh-web-app presets/standard.patch.yml tuned for the
+# single-slot gem12 backend (`dsh update` regenerates it from the installed
+# preset and re-applies the tuning). The stock `standard` preset stays untouched
+# for the DeepSeek account. Preset plugin rows are NOT reachable by patch id
+# (the loader patch map indexes top-level rows only, and the host-plane
+# compaction-basic row is disabled by dsh-web-app), hence the full copy.
+#
+# Compaction: trigger = floor(min(W * thresholdRatio, W - O - headroomTokens)),
+# W = context window, O = the route's maxTokens (output reserve). Stock (ratio
+# 0.8, headroom 65536) compacts at ~33K on a 131K window. Here: ratio 0.9,
+# headroom 4096, O 20480:
+#   131072 (qwen-3.8-27b-exl3)    -> 106496
+#    98304 (uncensored)            ->  73728
+#   262144 (ornith, O 16384)       -> 235929 (the ratio binds)
+# Each 4096 tokens of maxTokens moves the trigger by 4096; thinking budgets
+# (4000/7500/12000) are sized to leave 8K+ of answer room under that cap.
+# Compaction keeps the newest 16% of W - O verbatim (~17K) plus the summary
+# (cap 20480 = the output reserve, so the summary request at the trigger still
+# fits; thinking tokens count against it and a truncated summary is discarded).
+# Overflow errors from the server still trigger one reactive compaction.
+#
+# Delegation: gem12 serves one request at a time, and a parent alternating
+# requests with a running child misses the KV prefix cache on every turn. The
+# subagent rows therefore run one-shot in the foreground (parent waits, no
+# run_in_background), children cannot pick another model, and workflow fan-out
+# is capped at one agent. Tool calls other than read-only ones already run
+# exclusively, so no agent-loop cap is needed.
+- insert:
+  - id: preset-gem12
+    name: "@deepseek-ai/dsh-agent-preset"
+    config:
+      id: gem12
+      description: "Single-slot local backend (gem12): compaction late in the window, subagents run in the foreground one at a time, no workflow fan-out. Pick a local model (Ornith, Qwen) in the model selector."
+      order: 5
+      plugins:
+        - id: persona
+          name: '@deepseek-ai/dsh-persona'
+          config:
+            suffix: Your working directory is {{cwd}}.
+            prefix: You are a coding agent powered by the {{model}} model.
+        - id: agent-instructions
+          name: '@deepseek-ai/dsh-agent-instructions'
+          config:
+            maxBytes: 65536
+        - id: tool-bash
+          name: '@deepseek-ai/dsh-tool-bash'
+          disabled: !!js process.platform === 'win32'
+        - id: tool-pwsh
+          name: '@deepseek-ai/dsh-tool-pwsh'
+          disabled: !!js process.platform !== 'win32'
+        - id: tool-fs
+          name: '@deepseek-ai/dsh-tool-fs'
+        - id: tool-fs-search
+          name: '@deepseek-ai/dsh-tool-fs-search'
+          config:
+            sampleOverCapGlobResults: false
+        - id: tool-jobs
+          name: '@deepseek-ai/dsh-tool-jobs'
+        - id: skill-filesystem
+          name: '@deepseek-ai/dsh-skill-filesystem'
+        - id: tool-skill
+          name: '@deepseek-ai/dsh-tool-skill'
+        - id: command-goal
+          name: '@deepseek-ai/dsh-command-goal'
+        - id: tool-goal
+          name: '@deepseek-ai/dsh-tool-goal'
+        - id: planning
+          name: cordis:group
+          group: true
+          isolate:
+            planMode: true
+          config:
+            - id: plan-mode
+              name: '@deepseek-ai/dsh-plan-mode'
+              config:
+                section: |
+                  You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                  Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                  The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                  Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                  Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                  When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+        - id: compaction
+          name: cordis:group
+          group: true
+          isolate:
+            compaction: true
+            toolResultPruner: true
+          config:
+            - id: compaction-basic
+              name: '@deepseek-ai/dsh-compaction-basic'
+              config:
+                thresholdRatio: 0.9
+                headroomTokens: 4096
+                maxTokens: 20480
+            - id: command-compact
+              name: '@deepseek-ai/dsh-command-compact'
+            - id: tool-result-pruner
+              name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+              config:
+                thresholdChars: 8192
+                headChars: 4096
+                tailChars: 1024
+        - id: delegation
+          name: cordis:group
+          group: true
+          isolate:
+            workflowEngine: true
+          config:
+            - id: tool-subagent-control
+              name: '@deepseek-ai/dsh-tool-subagent-control'
+            - id: tool-subagent-list-agents
+              name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+            - id: tool-subagent
+              name: '@deepseek-ai/dsh-tool-subagent'
+              config:
+                provider: spawn
+                toolName: subagent
+                modelSelectionSettings: false
+                backgroundMode: one-shot
+                enableRunInBackground: false
+            - id: tool-subagent-fork
+              name: '@deepseek-ai/dsh-tool-subagent'
+              config:
+                provider: fork
+                toolName: subagent_fork
+                backgroundMode: one-shot
+                enableRunInBackground: false
+            - id: tool-subagent-codex
+              name: '@deepseek-ai/dsh-tool-subagent'
+              disabled: true
+              config:
+                provider: codex
+                toolName: subagent_codex
+                backgroundMode: one-shot
+                maxDepth: provider-managed
+            - id: tool-subagent-claude-code
+              name: '@deepseek-ai/dsh-tool-subagent'
+              disabled: true
+              config:
+                provider: claude-code
+                toolName: subagent_claude_code
+                backgroundMode: one-shot
+                maxDepth: provider-managed
+            - id: workflow-ptc
+              name: '@deepseek-ai/dsh-workflow-ptc'
+              config:
+                provider: spawn
+                maxConcurrentAgents: 1
+            - id: tool-workflow
+              name: '@deepseek-ai/dsh-tool-workflow'
+            - id: tool-ralph
+              name: '@deepseek-ai/dsh-tool-ralph'
+              disabled: true
+              config:
+                subagentProvider: spawn
+                maxRounds: 64
+        - id: tool-ask-user
+          name: '@deepseek-ai/dsh-tool-ask-user'
+        - id: tool-todo
+          name: '@deepseek-ai/dsh-tool-todo'
+          config:
+            allowParallelInProgress: true
+        - id: tool-web
+          name: '@deepseek-ai/dsh-tool-web'
+          config:
+            fetch: true
+            searchTimeoutMs: 60000
+        - id: present
+          name: '@deepseek-ai/dsh-tool-present'
+        - id: tool-plugin-manager
+          name: '@deepseek-ai/dsh-plugin-manager/tools'
+          disabled: true
