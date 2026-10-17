@@ -1,6 +1,31 @@
 --- a/serve_openai.py
 +++ b/serve_openai.py
-@@ -473,14 +473,10 @@
+@@ -60,7 +60,7 @@
+   .venv/bin/python tools/serve_openai.py \
+       -m models/Qwen3.8-27B-EXL3-2.0bpw -gs 14.7 -cs 199936 -cq 8,4 --port 8888
+ """
+-import argparse, asyncio, json, os, re, sys, time, threading, uuid
++import argparse, asyncio, hashlib, json, os, re, sys, time, threading, uuid
+ import token_budget          # tools/token_budget.py: cache-fit clamp on max_tokens
+ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from aiohttp import web
+@@ -73,6 +73,15 @@
+ gen_lock = threading.Lock()          # serialize generation (batch-1 draft)
+ vision = {"model": None, "max_pixels": 1048576, "reason": "not loaded"}
+ IMAGE_TRIPLE = "<|vision_start|><|image_pad|><|vision_end|>"   # what the chat template emits per image
++
++# Per-image embedding memo: content hash -> MMEmbedding with its allocated
++# placeholder ids (bounded LRU; see generate_full). ExLlamaV3 page-matches
++# prompts by token-id sequence and the global MM allocator mints fresh ids for
++# every get_image_embeddings() call, so re-encoding a repeated attachment
++# would break prompt-prefix caching for the whole history after the first
++# image. Reusing one object per content keeps the ids, and the prompt, stable.
++_image_embeddings: dict = {}
++_IMAGE_EMBEDDING_CACHE = 32
+ stats_lock = threading.Lock()
+ # Cumulative counters for sparkDash live tok/s (GET /health).
+ stats = {
+@@ -473,14 +482,10 @@
      if url.startswith("data:"):
          _, _, b64 = url.partition(",")
          raw = base64.b64decode(b64)
@@ -18,7 +43,72 @@
      img = Image.open(io.BytesIO(raw))
      img.load()
      if img.mode != "RGB":
-@@ -979,7 +975,9 @@
+@@ -737,7 +742,8 @@
+ def generate_full(generator, tokenizer, messages, max_tokens, temperature,
+                   top_p, top_k, seed, tools, tool_choice = None, stop = None,
+                   on_text = None, enable_thinking = True, should_stop = None,
+-                  reasoning_effort = None, rid = None, streaming = False):
++                  reasoning_effort = None, thinking_budget = 0,
++                  rid = None, streaming = False):
+     """Blocking generation; returns (text, tool_calls, finish, p_toks, o_toks,
+     reasoning, content). rid/streaming only label the per-request stats line
+     (see _report_request); defaulted so existing callers are unaffected."""
+@@ -763,11 +769,21 @@
+         if vm is None:
+             raise ValueError(f"this server is running text-only ({vision['reason']}); "
+                              "remove the image or restart with VISION=auto")
+-        images = [decode_image(u) for u in image_urls]
+-        # GPU work: keep it out of the way of a running generation.
++        # GPU work: keep it out of the way of a running generation. Memoize
++        # by image content (see _image_embeddings above) so the placeholder
++        # ids, and with them the prompt-prefix page hashes, stay stable.
+         with gen_lock:
+-            embeddings = [vm.get_image_embeddings(tokenizer = tokenizer, image = img)
+-                          for img in images]
++            embeddings = []
++            for u in image_urls:
++                key = hashlib.sha1(u.encode()).hexdigest()
++                e = _image_embeddings.pop(key, None)
++                if e is None:
++                    e = vm.get_image_embeddings(tokenizer = tokenizer,
++                                                image = decode_image(u))
++                    if len(_image_embeddings) >= _IMAGE_EMBEDDING_CACHE:
++                        _image_embeddings.pop(next(iter(_image_embeddings)))
++                _image_embeddings[key] = e
++                embeddings.append(e)
+         rendered = tokenizer.hf_render_chat_template(
+             messages, add_generation_prompt = True,
+             enable_thinking = enable_thinking, tools = tools,
+@@ -864,6 +880,28 @@
+     retried = False
+     try:
+         job = run_once()
++        # Hard thinking budget, two-phase: the engine cannot cap thinking
++        # mid-generation, so if the output cap hit while still inside
++        # <think>, close it and answer with a fresh output budget. The
++        # requeued prompt is the first attempt plus a short assistant prefill
++        # (a near-total page-cache hit); the client sees a well-formed
++        # reasoning block followed by the reply. Not after a cancel.
++        if (thinking_budget and reason == "max_new_tokens"
++                and enable_thinking and "</think>" not in text):
++            think_text = text
++            if on_text is not None:
++                on_text("</think>")     # close the reasoning block client-side
++            import torch
++            input_ids = torch.cat([
++                input_ids,
++                tokenizer.encode("\n</think>\n\n", encode_special_tokens = True),
++            ])
++            max_tokens = token_budget.clamp_max_tokens(
++                prompt_toks + 8, max_tokens, stats.get("context_length"))
++            job = run_once()
++            if on_text is None:
++                text = think_text + "</think>\n\n" + text
++            retried = True
+         # Forced tool_choice is a prompt nudge; at temperature > 0 the model can
+         # occasionally skip the call. One greedy retry makes it deterministic -
+         # but not after a cancel, or Stop would start a second generation.
+@@ -979,9 +1017,15 @@
      # keeps the UI from promising a hard limit it cannot deliver.
      kwargs = body.get("chat_template_kwargs") or {}
      enable_thinking = kwargs.get("enable_thinking")
@@ -28,4 +118,26 @@
 +                 or "medium").strip().lower()
      if enable_thinking is None:
          enable_thinking = effort not in ("none", "off", "minimal")
++    # llama.cpp-style hard thinking budget in tokens; 0 = uncapped. The engine
++    # cannot cap thinking mid-generation — generate_full implements the budget
++    # as a two-phase run: cap the think, then close it and answer.
++    thinking_budget = int(body.get("thinking_budget_tokens") or 0)
      return dict(
+         messages = normalize_messages(messages),
+         max_tokens = max_tokens, temperature = temperature,
+@@ -994,6 +1038,7 @@
+         include_usage = bool((body.get("stream_options") or {}).get("include_usage")),
+         model_id = body.get("model", MODEL_ID),
+         enable_thinking = bool(enable_thinking),
++        thinking_budget = thinking_budget,
+         reasoning_effort = effort or None,
+     ), None
+ 
+@@ -1084,6 +1129,7 @@
+                     req["seed"], req["tools"], req["tool_choice"], req["stop"],
+                     on_text = None if forced_choice else on_text,
+                     enable_thinking = req["enable_thinking"],
++                    thinking_budget = req["thinking_budget"],
+                     reasoning_effort = req["reasoning_effort"],
+                     should_stop = gone.is_set,
+                     rid = cid, streaming = True)
