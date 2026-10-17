@@ -292,6 +292,8 @@ The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master)
 - **Browser**: open `http://<gem12>:1234/` — the landing page lists web apps and API models; click **qwen-image-2.1-turbo**. The gateway starts sd-server (first load takes a few seconds) and proxies its embedded web UI, including websockets.
 - **API**: `POST /v1/images/generations` with `{"model": "qwen-image-2.1-turbo", "prompt": "..."}` — same on-demand loading as chat models.
 - **Image editing**: enabled by default — the config ships with `--llm_vision` (mmproj), so reference images work out of the box, in the UI or via the API.
+  - The output canvas of an edit is the **first reference image's own size** unless the request carries `size` (sd-server overrides `--width/--height` for edits) — read from the sd.cpp source, not measured. Large photos therefore render large (VRAM and time grow with the canvas; auto-fit moves the text encoder to RAM first); pass `size` (e.g. `1024x1536`) from API clients to choose the canvas. Open WebUI and the gateway's image-as-model chat path send no edit size (Open WebUI only with `IMAGE_EDIT_SIZE` set — a fixed square distorts portrait photos). ComfyUI scales references to the encoder's `resolution` itself.
+  - `/v1/images/edits` also accepts an OpenAI `mask` upload, parsed by sd-server; whether it confines a Qwen-Image edit has not been verified here — for guaranteed 1:1 outside a region use the ComfyUI masked workflows.
 
 > **Note:** Make sure the sd-server port differs from the gateway port (`--listen-port 1235` vs gateway `1234` in the bundled configs) — the loop protection applies to image backends too.
 
@@ -303,7 +305,24 @@ The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master)
 sudo ./scripts/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
 ```
 
-Composition = the Editing workflow with several reference images (up to 10); "remove this but keep the rest 1:1" = right-click the image → *Open in MaskEditor*, paint the region to regenerate — everything outside the mask stays pixel-identical. GGUF remains available as the fallback loader ( leejet/ComfyUI-GGUF node + the symlinked sd-server GGUF files).
+Plain editing (the upstream `02_Image_Editing` / `Turbo_02_Image_Editing`) re-renders the whole picture from the reference: faces and untouched areas drift slightly, and there is no mask input. For photo work that must keep people or places as they are, the repo ships its own workflows in [`config/comfyui-workflows/`](config/comfyui-workflows) (copied to the Workflows panel on every installer run, `Turbo_` variants for the 8-step model):
+
+| Workflow | Use |
+| --- | --- |
+| `Edit_01_Masked` | Right-click the loaded image → *Open in MaskEditor*, paint the area that may change, Save. The prompt describes the change; the result is pasted into the **original** through the feathered mask, so everything outside it is the original's pixels at the original resolution. |
+| `Edit_02_Keep_Subject_New_Scene` | Paint the people to keep; the prompt describes the new place. The painted people are pasted back from the original, everything else comes from the edit. |
+| `Edit_03_Multi_Reference` | Several references (`<image1>`, `<image2>`, …, up to 16 inputs, the model takes up to 10) — the 40-step base counterpart of `Turbo_04_Multiple_References`. |
+
+The installer overwrites these files on every run (`update.sh` included) — save customised copies under another name.
+
+How the masked workflows work and where they stop:
+
+- The edit runs on the reference downsized to about 1 MP (the encoder's `resolution` widget; the output takes the aspect ratio of the first image), is scaled back to the original's exact size, then composited. Large photos therefore get a soft edit inside a sharp original: the regenerated area has at most ~1 MP of detail.
+- *Grow* (mask spread in px) and the *blur radius* (seam softness) are the two knobs; the seam is blended over roughly the blur radius, so the painted subject is exact except for its outermost rim. With nothing painted, `Edit_01` returns the original and `Edit_02` returns the plain edit.
+- The model does not see the mask: the prompt must say what changes and what stays. Changing a pose or position comes from the prompt and the references only — the pasted subject keeps its original pose, so repositioning means regenerating it (use `Edit_03` or the plain editing workflow).
+- The pasted-back subject keeps its original lighting; ask for a matching light direction in the prompt.
+
+Composition without masks = the Editing workflow with several reference images. GGUF remains available as the fallback loader ( leejet/ComfyUI-GGUF node + the symlinked sd-server GGUF files).
 
 ### Caveats
 

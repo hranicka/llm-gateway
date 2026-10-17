@@ -258,6 +258,19 @@ if [ "${DOWNLOAD_TURBO}" = "1" ]; then
 		fetch_hf "${TURBO_REPO}" "input/${img}.png" "${INSTALL_DIR}/ComfyUI/input/${img}.png"
 	done
 fi
+# Gateway edit workflows (masked edit, keep subject, multi-reference) live in
+# the repo and are refreshed on every run, unlike the upstream files above.
+EDIT_WF_DIR="${SCRIPT_DIR}/../config/comfyui-workflows"
+if [ -d "$EDIT_WF_DIR" ]; then
+	mkdir -p "${INSTALL_DIR}/ComfyUI/user/default/workflows"
+	for wf in "${EDIT_WF_DIR}"/*.json; do
+		case "$(basename "$wf")" in Turbo_*) [ "${DOWNLOAD_TURBO}" = "1" ] || continue;; esac
+		install -m 0644 "$wf" "${INSTALL_DIR}/ComfyUI/user/default/workflows/$(basename "$wf")"
+		echo "  workflow: $(basename "$wf")"
+	done
+else
+	echo "  WARN: ${EDIT_WF_DIR} not found — gateway edit workflows skipped."
+fi
 echo "  NOTE: optional FP4 text-encoder acceleration patch + prompting guide:"
 echo "        ${NVFP4_REPO} (runtime/, PROMPTING.md)"
 
@@ -295,9 +308,12 @@ echo "    with the Q6_K_XL / Turbo Q6_K_XL gguf; CLIP loader type 'qwen_image'"
 echo "    (Qwen3VL gguf). Turbo needs the ManualSigmas schedule of a Turbo_ workflow."
 echo "  - Compose multiple photos: the Editing workflow accepts several"
 echo "    reference images (the model takes up to 10)."
-echo "  - Remove something but keep the rest 1:1: right-click the image →"
-echo "    'Open in MaskEditor', paint the region to regenerate — everything"
-echo "    outside the mask stays pixel-identical."
+echo "  - Edit_01_Masked / Turbo_Edit_01_Masked: right-click the image →"
+echo "    'Open in MaskEditor', paint the region that may change — everything"
+echo "    outside the (feathered) mask is copied back from the original."
+echo "  - Edit_02_Keep_Subject_New_Scene (+ Turbo_): paint the people to keep,"
+echo "    the prompt describes the new setting."
+echo "  - Edit_03_Multi_Reference: 40-step base counterpart of Turbo_04."
 echo "  - Prompting guide: PROMPTING.md in the NVFP4 repo."
 echo "  - ComfyUI shares the single VRAM slot through the gateway: opening it"
 echo "    unloads the chat/image model, and any chat request unloads ComfyUI."
