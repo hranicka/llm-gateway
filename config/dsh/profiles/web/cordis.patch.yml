@@ -63,7 +63,7 @@
             # 8K+ for tool calls and file writes.
             maxTokens: 20480
             # Vision via mmproj encoded on the CPU.
-            input: [text, image]
+            input: [ text, image ]
             reasoningEfforts:
               off:
               low: low
@@ -160,28 +160,35 @@
 # Overflow errors from the server still trigger one reactive compaction.
 #
 # Delegation: gem12 serves one request at a time, and a parent alternating
-# requests with a running child misses the KV prefix cache on every turn. The
-# subagent rows therefore run one-shot in the foreground (parent waits, no
-# run_in_background), children cannot pick another model, and workflow fan-out
-# is capped at one agent. Tool calls other than read-only ones already run
-# exclusively, so no agent-loop cap is needed.
+# requests with a running child misses the KV prefix cache on every turn. dsh
+# 0.2.1-rc.2 subagents always return at once (no foreground mode) and have no
+# per-preset concurrency cap (maxActiveSubagents is host-wide, so it would also
+# limit the DeepSeek presets). The preset therefore asks, in its persona
+# suffix, for strictly serial delegation: one child at a time, the parent ends
+# its turn and waits for the completion notice. Children cannot pick another
+# model and workflow fan-out is capped at one agent. Tool calls other than
+# read-only ones already run exclusively, so no agent-loop cap is needed.
 - insert:
   - id: preset-gem12
     name: "@deepseek-ai/dsh-agent-preset"
     config:
       id: gem12
-      description: "Single-slot local backend (gem12): compaction late in the window, subagents run in the foreground one at a time, no workflow fan-out. Pick a local model (Ornith, Qwen) in the model selector."
+      description: "Single-slot local backend (gem12): compaction late in the window,
+        subagents are delegated strictly one at a time, no workflow fan-out.
+        Pick a local model (Ornith, Qwen) in the model selector."
       order: 5
       plugins:
         - id: persona
           name: '@deepseek-ai/dsh-persona'
           config:
-            suffix: Your working directory is {{cwd}}.
             prefix: You are a coding agent powered by the {{model}} model.
+            suffix: "Your working directory is {{cwd}}. The model server has one slot, so delegate strictly one subagent at a time: never start a second while one is running, do no other work in parallel with it, and after starting it end your turn and wait for its completion notice."
         - id: agent-instructions
           name: '@deepseek-ai/dsh-agent-instructions'
           config:
             maxBytes: 65536
+        - id: time-context
+          name: '@deepseek-ai/dsh-time-context'
         - id: tool-bash
           name: '@deepseek-ai/dsh-tool-bash'
           disabled: !!js process.platform === 'win32'
@@ -196,6 +203,8 @@
             sampleOverCapGlobResults: false
         - id: tool-jobs
           name: '@deepseek-ai/dsh-tool-jobs'
+        - id: tool-schedule
+          name: '@deepseek-ai/dsh-tool-schedule'
         - id: skill-filesystem
           name: '@deepseek-ai/dsh-skill-filesystem'
         - id: tool-skill
@@ -214,7 +223,7 @@
               name: '@deepseek-ai/dsh-plan-mode'
               config:
                 section: |
-                  You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+                  You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
 
                   Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
 
@@ -262,31 +271,11 @@
                 provider: spawn
                 toolName: subagent
                 modelSelectionSettings: false
-                backgroundMode: one-shot
-                enableRunInBackground: false
             - id: tool-subagent-fork
               name: '@deepseek-ai/dsh-tool-subagent'
               config:
                 provider: fork
                 toolName: subagent_fork
-                backgroundMode: one-shot
-                enableRunInBackground: false
-            - id: tool-subagent-codex
-              name: '@deepseek-ai/dsh-tool-subagent'
-              disabled: true
-              config:
-                provider: codex
-                toolName: subagent_codex
-                backgroundMode: one-shot
-                maxDepth: provider-managed
-            - id: tool-subagent-claude-code
-              name: '@deepseek-ai/dsh-tool-subagent'
-              disabled: true
-              config:
-                provider: claude-code
-                toolName: subagent_claude_code
-                backgroundMode: one-shot
-                maxDepth: provider-managed
             - id: workflow-ptc
               name: '@deepseek-ai/dsh-workflow-ptc'
               config:
@@ -294,12 +283,6 @@
                 maxConcurrentAgents: 1
             - id: tool-workflow
               name: '@deepseek-ai/dsh-tool-workflow'
-            - id: tool-ralph
-              name: '@deepseek-ai/dsh-tool-ralph'
-              disabled: true
-              config:
-                subagentProvider: spawn
-                maxRounds: 64
         - id: tool-ask-user
           name: '@deepseek-ai/dsh-tool-ask-user'
         - id: tool-todo
@@ -316,3 +299,11 @@
         - id: tool-plugin-manager
           name: '@deepseek-ai/dsh-plugin-manager/tools'
           disabled: true
+        - id: tool-plugin-market
+          name: '@deepseek-ai/dsh-plugin-market/tools'
+          disabled: true
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: network-gem12
+    model: qwen-3.8-27b-exl3-text
