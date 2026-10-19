@@ -62,7 +62,7 @@ models:
   # GiB) on the GPU caps context at 131072: soaked with images, ~120K image
   # prompts and 127K text, peak 15.9 of 16 GB; at 139264 long prompts come back empty,
   # at 147456 the tower no longer loads (the server then silently runs
-  # text-only). Text-only, the same weights hold 172032 (180224 loads but returns empty replies). Grid 15.2 GiB leaves
+  # text-only). Text-only, the same weights hold 163840. Grid 15.2 GiB leaves
   # room for the CUDA graphs outside the cap (3.5 bpw does not fit >=120K).
   # Chat completions only — no /v1/messages or /v1/responses; thinking budgets
   # are not enforced (effort levels are template instructions).
@@ -77,13 +77,13 @@ models:
     ready_timeout: 30m
 
   # The same EXL3 weights without the vision tower (--vision off): the 0.87 GiB
-  # it holds goes to the KV cache, 172032 tokens instead of 131072. No extra
+  # it holds goes to the KV cache, 163840 tokens instead of 131072. No extra
   # download. Switching to or from qwen-3.8-27b-exl3 reloads the server.
   qwen-3.8-27b-exl3-text:
     command: |
       /opt/exllamav3/venv/bin/python -u /opt/exllamav3/server/serve_openai.py
       --model /opt/exllamav3/models/Qwen3.8-27B-EXL3-3.00bpw --model_id qwen-3.8-27b-exl3-text
-      --cache_size 172032 --grid_size 15.2 --cache_quant 4
+      --cache_size 163840 --grid_size 15.2 --cache_quant 4
       --draft_model mtp --vision off --ui off --progress_every 0
       --host 127.0.0.1 --port 1235
     host: 127.0.0.1:1235
