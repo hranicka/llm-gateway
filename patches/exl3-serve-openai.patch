@@ -25,7 +25,21 @@
  stats_lock = threading.Lock()
  # Cumulative counters for sparkDash live tok/s (GET /health).
  stats = {
-@@ -473,14 +482,10 @@
+@@ -85,6 +94,13 @@
+     "last_request": None,
+ }
+ 
++class EngineJobFailed(ValueError):
++    """The engine failed a job (or ended it without a result) and nobody
++    cancelled it. The wording matches the context-overflow patterns clients
++    look for, so they compact the conversation instead of treating the empty
++    reply as a finished one."""
++
++
+ def _bump_stats(prompt=0, completion=0):
+     if prompt <= 0 and completion <= 0:
+         return
+@@ -473,14 +489,10 @@
      if url.startswith("data:"):
          _, _, b64 = url.partition(",")
          raw = base64.b64decode(b64)
@@ -43,7 +57,7 @@
      img = Image.open(io.BytesIO(raw))
      img.load()
      if img.mode != "RGB":
-@@ -737,9 +742,10 @@
+@@ -737,9 +749,10 @@
  def generate_full(generator, tokenizer, messages, max_tokens, temperature,
                    top_p, top_k, seed, tools, tool_choice = None, stop = None,
                    on_text = None, enable_thinking = True, should_stop = None,
@@ -56,7 +70,7 @@
      (see _report_request); defaulted so existing callers are unaffected."""
      schemas = build_tool_schemas(tools)
      tools, directive = tool_choice_directive(tool_choice, tools)
-@@ -763,11 +769,21 @@
+@@ -763,11 +776,21 @@
          if vm is None:
              raise ValueError(f"this server is running text-only ({vision['reason']}); "
                               "remove the image or restart with VISION=auto")
@@ -82,7 +96,7 @@
          rendered = tokenizer.hf_render_chat_template(
              messages, add_generation_prompt = True,
              enable_thinking = enable_thinking, tools = tools,
-@@ -797,6 +813,10 @@
+@@ -797,6 +820,10 @@
      reason = "max_new_tokens"
      text = ""
      attempt = {}   # metrics of the run that produced the reply: {"eos": {...}, "wall": s}
@@ -93,7 +107,7 @@
  
      def run_once():
          nonlocal text, reason, attempt
-@@ -804,7 +824,7 @@
+@@ -804,12 +831,13 @@
          reason = "max_new_tokens"
          sampler = ComboSampler(temperature = temperature, top_k = top_k, top_p = top_p)
          stop_conditions = ["<|im_end|>", tokenizer.eos_token_id] + (stop or [])
@@ -102,7 +116,39 @@
                    stop_conditions = stop_conditions,
                    sampler = sampler, seed = seed,
                    embeddings = embeddings)
-@@ -864,6 +884,34 @@
+         prefill_seen = 0
+         eos = {}      # engine per-stage timings, filled from the final EOS result
++        failure = None   # exception the engine contained for this job
+         live = _LiveProgress(_req_tag(rid, streaming), prompt_toks)
+         t0 = time.time()   # before the lock: wall must include waiting for it
+         with gen_lock:
+@@ -840,6 +868,8 @@
+                         text += chunk
+                         if on_text is not None:
+                             on_text(chunk)
++                    if r.get("error") is not None:
++                        failure = r["error"]
+                     if r.get("eos"):
+                         reason = r.get("eos_reason", reason)
+                         # The EOS dict is the only place the engine reports
+@@ -858,12 +888,51 @@
+             if reason != "cancelled" and prefill_seen < prompt_toks:
+                 _bump_stats(prompt=prompt_toks - prefill_seen)
+         attempt = {"eos": eos, "wall": time.time() - t0}
++        # The engine contains a failed job (e.g. an exception during prefill)
++        # as an EOS result carrying `error` and no eos_reason, and `reason`
++        # starts as max_new_tokens: unchecked, such a job passes for a hit
++        # output cap (an empty reply, and it triggers the thinking retry).
++        if reason != "cancelled" and (failure is not None or not eos):
++            detail = (f"{type(failure).__name__}: {failure}" if failure is not None
++                      else "no result")
++            raise EngineJobFailed(
++                f"request exceeds the available context size: the engine failed "
++                f"the job ({detail}; prompt {prompt_toks} tokens); "
++                "compact the conversation")
+         return job
+ 
+     req_t0 = time.time()
      retried = False
      try:
          job = run_once()
@@ -137,7 +183,7 @@
          # Forced tool_choice is a prompt nudge; at temperature > 0 the model can
          # occasionally skip the call. One greedy retry makes it deterministic -
          # but not after a cancel, or Stop would start a second generation.
-@@ -896,7 +944,7 @@
+@@ -896,7 +965,7 @@
                    "stop_condition": "stop", "banned": "content_filter",
                    "cancelled": "stop"}.get(reason, "stop")
      reasoning, content = split_reasoning(content)
@@ -146,7 +192,7 @@
  
  
  async def models(request):
-@@ -979,9 +1027,15 @@
+@@ -979,9 +1048,15 @@
      # keeps the UI from promising a hard limit it cannot deliver.
      kwargs = body.get("chat_template_kwargs") or {}
      enable_thinking = kwargs.get("enable_thinking")
@@ -163,7 +209,7 @@
      return dict(
          messages = normalize_messages(messages),
          max_tokens = max_tokens, temperature = temperature,
-@@ -994,6 +1048,7 @@
+@@ -994,6 +1069,7 @@
          include_usage = bool((body.get("stream_options") or {}).get("include_usage")),
          model_id = body.get("model", MODEL_ID),
          enable_thinking = bool(enable_thinking),
@@ -171,7 +217,7 @@
          reasoning_effort = effort or None,
      ), None
  
-@@ -1024,12 +1079,13 @@
+@@ -1024,12 +1100,13 @@
          # generate_full can name the request; the response reuses it.
          cid = f"chatcmpl-{uuid.uuid4().hex[:12]}"
          try:
@@ -187,7 +233,7 @@
          except AssertionError as e:
              return web.json_response(
                  {"error": {"message": f"context/cache: {e}", "type": "invalid_request_error"}},
-@@ -1049,7 +1105,8 @@
+@@ -1049,7 +1126,8 @@
              "model": req["model_id"],
              "choices": [{"index": 0, "message": msg, "finish_reason": finish}],
              "usage": {"prompt_tokens": ptoks, "completion_tokens": otoks,
@@ -197,7 +243,7 @@
          })
  
      # ---- streaming (SSE) ----
-@@ -1078,18 +1135,19 @@
+@@ -1078,18 +1156,19 @@
  
          def worker():
              try:
@@ -219,7 +265,7 @@
              except Exception as e:
                  loop.call_soon_threadsafe(queue.put_nowait, ("error", str(e)))
          loop.run_in_executor(None, worker)
-@@ -1191,7 +1249,7 @@
+@@ -1191,7 +1270,7 @@
                      pending += payload
                      await flush_pending()
                  elif kind == "done":
@@ -228,7 +274,7 @@
                      await flush_pending(final = True)
                      if forced_choice:
                          # Buffered path (no deltas were streamed): emit the
-@@ -1210,7 +1268,9 @@
+@@ -1210,7 +1289,9 @@
                                  "choices": [],
                                  "usage": {"prompt_tokens": ptoks,
                                            "completion_tokens": otoks,
