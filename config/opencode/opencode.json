@@ -162,10 +162,10 @@
           }
         },
         "qwen-3.8-27b-exl3-text": {
-          "name": "Qwen 3.8 27B EXL3 (text, 160K)",
+          "name": "Qwen 3.8 27B EXL3 (text, 168K)",
           "modalities": {"input": ["text"], "output": ["text"]},
           "limit": {
-            "context": 163840,
+            "context": 172032,
             "output": 20480
           },
           "options": {

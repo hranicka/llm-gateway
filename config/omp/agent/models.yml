@@ -70,10 +70,10 @@ providers:
           supportsReasoningParams: true
           thinkingFormat: qwen
       - id: qwen-3.8-27b-exl3-text
-        name: Qwen 3.8 27B EXL3 (text, 160K)
+        name: Qwen 3.8 27B EXL3 (text, 168K)
         reasoning: true
-        # Same weights without the vision tower: its VRAM buys 160K of context.
-        contextWindow: 163840
+        # Same weights without the vision tower: its VRAM buys 168K of context.
+        contextWindow: 172032
         maxTokens: 20480
         cost: { input: 0.03, output: 0.4, cacheRead: 0.005, cacheWrite: 0 }
         input: [text]
