@@ -109,7 +109,6 @@ function buildBlock(rules: Rule[]): string {
 }
 
 export default function (pi: ExtensionAPI) {
-	if (process.env.PI_SUBAGENT) return;
 	let block = "";
 
 	pi.on("session_start", async (_event, ctx) => {

@@ -16,8 +16,8 @@
 # editing the repo files. It never starts a model.
 #
 # PI_UPDATE=1          also run `pi update` (scripts/update.sh pi sets it)
-# PI_SKILL_DIRS=a:b    extra skill directories to register; default is
-#                      ~/.agents/superpowers/skills when it exists
+# PI_SKILL_DIRS=a:b    extra skill directories to register in settings.json
+#                      (added to the `skills` list, never removed by a re-run)
 # PI_CODING_AGENT_DIR  target agent directory (default ~/.pi/agent)
 
 set -euo pipefail
@@ -65,9 +65,6 @@ cp "$SRC/models.json" "$DEST/models.json"
 # [3/4] Settings: repo values win, everything else in the live file is kept.
 echo "[3/4] Merging settings.json..."
 SKILL_DIRS="${PI_SKILL_DIRS:-}"
-if [ -z "$SKILL_DIRS" ] && [ -d "$HOME/.agents/superpowers/skills" ]; then
-	SKILL_DIRS="$HOME/.agents/superpowers/skills"
-fi
 LIVE="$DEST/settings.json"
 if [ -s "$LIVE" ]; then
 	cp "$LIVE" "$LIVE.bak-${STAMP}"
