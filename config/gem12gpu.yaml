@@ -54,7 +54,7 @@ models:
     ready_timeout: 2h
 
   # Qwen3.8-27B as EXL3 3.0 bpw (turboderp, mean KL 0.11) on ExLlamaV3
-  # (scripts/install-exllamav3.sh). Replaced the GSQ-RCO IQ3_S GGUF on
+  # (scripts/server/install-exllamav3.sh). Replaced the GSQ-RCO IQ3_S GGUF on
   # llama-server: faster, slightly weaker — code-corpus perplexity 2.278 vs
   # 2.213. Measured on gem12: decode ~71 t/s (code) vs 65, prefill 900 t/s
   # @34K vs 796, decode at 34K ~53 vs 40, ~127K prompt ~590 t/s prefill /
@@ -213,7 +213,7 @@ models:
   # Browser: http://<host>:1234/ → app below.  API: POST /v1/images/generations
   # image_chat: true also lists it in /v1/models as a chat model — pick it in
   # Open WebUI (or any chat client), describe the image, get the image back.
-  # Install: sudo ./scripts/install-qwen-image-sdcpp.sh
+  # Install: sudo ./scripts/server/install-qwen-image-sdcpp.sh
   qwen-image-2.1:
     kind: web
     image_chat: true
@@ -256,7 +256,7 @@ models:
 
   # ── COMFYUI (graph workflows: multi-photo composition, masked 1:1 edits) ──
   # Gateway-managed like sd-server; weights symlinked from /opt/sdcpp/models.
-  # Install: sudo ./scripts/install-comfyui.sh
+  # Install: sudo ./scripts/server/install-comfyui.sh
   comfyui:
     kind: web
     command: |

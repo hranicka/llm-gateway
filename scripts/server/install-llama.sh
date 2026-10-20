@@ -16,13 +16,13 @@ echo "3) Intel Core Ultra + NVIDIA RTX 500 Pro 6GB (dedicated)   [CUDA]"
 echo "4) Intel Core Ultra + NVIDIA 5060 Ti eGPU (Thunderbolt 5)   [CUDA]"
 echo "5) Vulkan (Universal fallback — may pick wrong GPU on multi-GPU systems)"
 echo "6) CPU only"
-# HW_CHOICE=2 ./scripts/install-llama.sh skips the prompt (scripts/update.sh).
+# HW_CHOICE=2 ./scripts/server/install-llama.sh skips the prompt (scripts/server/update.sh).
 if [ -z "${HW_CHOICE:-}" ]; then
     read -rp "Choice [1-6]: " HW_CHOICE
 else
     echo "Choice [1-6]: ${HW_CHOICE} (from HW_CHOICE)"
 fi
-# Remembered for scripts/update.sh.
+# Remembered for scripts/server/update.sh.
 if [[ "$HW_CHOICE" =~ ^[1-6]$ ]]; then
     mkdir -p "$HOME/.config/llm-gateway"
     echo "$HW_CHOICE" > "$HOME/.config/llm-gateway/llama-hw-choice"

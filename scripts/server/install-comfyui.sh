@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/install-comfyui.sh
+# Usage: sudo ./scripts/server/install-comfyui.sh
 #
 # Installs ComfyUI — the node-based editor for the "beyond simple prompts"
 # cases: composing multiple photos, masked inpainting that keeps untouched
@@ -10,7 +10,7 @@
 # Reuses the Qwen-Image-2.1 models already downloaded by
 # install-qwen-image-sdcpp.sh via symlinks (no extra disk for weights).
 # Upgrade: bump COMFY_REF / GGUF_NODE_REF at the top and re-run, or
-# COMFY_REF=latest GGUF_NODE_REF=latest (scripts/update.sh) for the newest
+# COMFY_REF=latest GGUF_NODE_REF=latest (scripts/server/update.sh) for the newest
 # ComfyUI release and the node's default branch.
 
 set -euo pipefail
@@ -26,7 +26,7 @@ DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"  # Turbo NVFP4 transformer (5.7 GB)
 
 # Pinned upstream revisions: re-running the installer must not silently
 # deploy new upstream code. Bump deliberately, e.g.:
-#   COMFY_REF=<sha> GGUF_NODE_REF=<sha> sudo -E ./scripts/install-comfyui.sh
+#   COMFY_REF=<sha> GGUF_NODE_REF=<sha> sudo -E ./scripts/server/install-comfyui.sh
 COMFY_REF="${COMFY_REF:-b0b743566f65daafc423b4fea8a2fbda94b3384a}" # v0.39.0
 GGUF_NODE_REF="${GGUF_NODE_REF:-edd981b10e107d3b8f58e16c498f2d08f631bc47}"
 
@@ -58,7 +58,7 @@ if ! nvidia-smi &>/dev/null; then
 fi
 if ! ls "${SDCPP_MODELS}"/qwen*image*2.1-*.gguf >/dev/null 2>&1; then
 	echo "ERROR: no Qwen-Image-2.1 models in ${SDCPP_MODELS}."
-	echo "       Run ./scripts/install-qwen-image-sdcpp.sh first."
+	echo "       Run ./scripts/server/install-qwen-image-sdcpp.sh first."
 	exit 1
 fi
 for dep in git curl; do
@@ -111,7 +111,7 @@ PATCH_FILE="${INSTALL_DIR}/patches/qwen21-nvfp4-conditioning.patch"
 PATCH_URL="https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4/resolve/main/runtime/qwen21-nvfp4-conditioning.patch"
 # The patch is bundled in the repo (patches/) and reviewed there; the HF
 # URL is only a fallback for extracted release zips without the file.
-REPO_PATCH="${SCRIPT_DIR}/../patches/qwen21-nvfp4-conditioning.patch"
+REPO_PATCH="${SCRIPT_DIR}/../../patches/qwen21-nvfp4-conditioning.patch"
 
 # Native NVFP4 text conditioning: one-file ComfyUI patch (GPL-3.0, same as
 # ComfyUI). Detects NVFP4 checkpoints by metadata at runtime, falls back to
@@ -260,7 +260,7 @@ if [ "${DOWNLOAD_TURBO}" = "1" ]; then
 fi
 # Gateway edit workflows (masked edit, keep subject, multi-reference) live in
 # the repo and are refreshed on every run, unlike the upstream files above.
-EDIT_WF_DIR="${SCRIPT_DIR}/../config/comfyui-workflows"
+EDIT_WF_DIR="${SCRIPT_DIR}/../../config/comfyui-workflows"
 if [ -d "$EDIT_WF_DIR" ]; then
 	mkdir -p "${INSTALL_DIR}/ComfyUI/user/default/workflows"
 	for wf in "${EDIT_WF_DIR}"/*.json; do

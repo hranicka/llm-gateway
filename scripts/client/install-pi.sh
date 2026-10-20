@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./scripts/install-pi.sh
+# Usage: ./scripts/client/install-pi.sh
 #
 # Installs Pi (the `pi` coding agent, https://pi.dev) and syncs this repo's
 # config/pi/agent into the agent directory (~/.pi/agent):
@@ -15,7 +15,7 @@
 # Run as your normal user. Re-running is safe and is the way to sync after
 # editing the repo files. It never starts a model.
 #
-# PI_UPDATE=1          also run `pi update` (scripts/update.sh pi sets it)
+# PI_UPDATE=1          also run `pi update` (re-run: PI_UPDATE=1 ./scripts/client/install-pi.sh)
 # PI_SKILL_DIRS=a:b    extra skill directories to register in settings.json
 #                      (added to the `skills` list, never removed by a re-run)
 # PI_CODING_AGENT_DIR  target agent directory (default ~/.pi/agent)
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="${SCRIPT_DIR}/../config/pi/agent"
+SRC="${SCRIPT_DIR}/../../config/pi/agent"
 DEST="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 STAMP="$(date +%Y%m%d%H%M%S)"
 

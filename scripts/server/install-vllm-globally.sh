@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/install-vllm-globally.sh
+# Usage: sudo ./scripts/server/install-vllm-globally.sh
 #
 # Creates a uv-managed venv at /opt/vllm/venv with torch + vLLM, registers
 # nvidia pip libs with ldconfig, and installs a 'vllm' wrapper into

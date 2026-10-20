@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/install-exllamav3.sh
+# Usage: sudo ./scripts/server/install-exllamav3.sh
 #
 # Installs an ExLlamaV3 (EXL3) chat backend for NVIDIA GPUs as a
 # gateway-managed model (kind: api) on 127.0.0.1:1235:
@@ -136,7 +136,7 @@ fetch_verified token_budget.py "$BUDGET_SHA256"
 # it), default to medium like llama-server (the template's default is xhigh),
 # accept only data: image URLs (no server-side fetches), and report the
 # cached prompt tokens in usage.prompt_tokens_details.cached_tokens.
-patch -s -d "${INSTALL_DIR}/server" -p1 < "${SCRIPT_DIR}/../patches/exl3-serve-openai.patch"
+patch -s -d "${INSTALL_DIR}/server" -p1 < "${SCRIPT_DIR}/../../patches/exl3-serve-openai.patch"
 
 # ── 4. Model (resumable; --local-dir keeps it out of the HF hub cache) ───────
 echo "[4/5] Downloading ${MODEL_REPO} 3.00bpw (13.8 GB, resumable)..."

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/cleanup.sh [--apply] [--caches] [--build] [--backends] [--config PATH]
+# Usage: sudo ./scripts/server/cleanup.sh [--apply] [--caches] [--build] [--backends] [--config PATH]
 #
 # Finds downloads nothing references any more and (with --apply) deletes them.
 # Without --apply it only lists candidates and their sizes.

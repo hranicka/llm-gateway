@@ -6,6 +6,8 @@ LLM Gateway — a Go single-port proxy that manages model-serving backends on de
 
 ## File structure
 
+`scripts/server/` holds installers for the gateway host (backends, apps, updates, cleanup); `scripts/client/` holds installers for developer-machine clients (Pi, dsh).
+
 ```
 cmd/gateway/main.go    — entry point, HTTP server setup, signal/shutdown handling
 tools.go               — external tool dependencies (golangci-lint)
@@ -18,15 +20,16 @@ config/example.yaml   — example configuration file
 config/systemd.service — systemd service unit file
 compose.yml           — local development with Docker
 Makefile              — build, test, lint targets
-scripts/install-qwen-image-sdcpp.sh — sd-server + Qwen-Image-2.1 models installer
-scripts/install-open-webui.sh — Open WebUI front-end (own systemd service, gateway API client)
-scripts/install-comfyui.sh — ComfyUI graph-workflow app (gateway-managed kind: web, symlinked models)
+scripts/server/install-qwen-image-sdcpp.sh — sd-server + Qwen-Image-2.1 models installer
+scripts/server/install-open-webui.sh — Open WebUI front-end (own systemd service, gateway API client)
+scripts/server/install-comfyui.sh — ComfyUI graph-workflow app (gateway-managed kind: web, symlinked models)
 config/comfyui-workflows/ — gateway-owned ComfyUI edit workflows (masked edit, keep subject, multi-reference), installed by install-comfyui.sh
-scripts/install-exllamav3.sh — ExLlamaV3 engine + EXL3 Qwen3.8-27B + OpenAI server (kind: api, patched via patches/)
-scripts/install-pi.sh — Pi agent install + sync of config/pi/agent (models, settings, extensions, agents, prompts) into ~/.pi/agent
+scripts/server/install-exllamav3.sh — ExLlamaV3 engine + EXL3 Qwen3.8-27B + OpenAI server (kind: api, patched via patches/)
+scripts/client/install-pi.sh — Pi agent install + sync of config/pi/agent (models, settings, extensions, agents, prompts) into ~/.pi/agent
+scripts/client/install-dsh.sh, scripts/client/dsh — dsh launcher (symlinked into ~/.local/bin; `dsh update` mirrors the profile patch into config/dsh)
 config/pi/agent/      — Pi config: models.json, settings.json, extensions/ (subagent, memory, restore), agents/, prompts/
-scripts/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui, pi)
-scripts/cleanup.sh    — dry-run/--apply removal of model downloads the config and ComfyUI workflows no longer reference
+scripts/server/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui)
+scripts/server/cleanup.sh    — dry-run/--apply removal of model downloads the config and ComfyUI workflows no longer reference
 .github/workflows/ci.yml — CI: lint, vet, test, build
 .github/workflows/release.yml — release: lint, test, build, create GitHub release
 ```

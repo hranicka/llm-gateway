@@ -107,16 +107,18 @@ OpenCode compacts when the token count reaches `context − min(output limit, 32
 
 ### DeepSeek Harness (dsh)
 
+[`scripts/client/install-dsh.sh`](scripts/client/install-dsh.sh) symlinks the `dsh` launcher ([`scripts/client/dsh`](scripts/client/dsh)) into `~/.local/bin` (it must come first on `PATH`) and seeds `~/.dsh/profiles/web/cordis.patch.yml` from the repo when missing. The harness itself runs through `npx`. `dsh update` refreshes the harness, regenerates the gem12 preset and mirrors the live patch back into `config/dsh`.
+
 [`config/dsh/profiles/web/cordis.patch.yml`](config/dsh/profiles/web/cordis.patch.yml) mirrors the live `~/.dsh/profiles/web/cordis.patch.yml` patch layer. It configures the `llm-pi-ai` adapter with the same `network-gem12` and `local-laptop` routes as the other clients, including the Qwen 3.8 dialect: `thinkingFormat: chat-template` sends `enable_thinking` and `reasoning_effort` as `chat_template_kwargs` (with `omitWhenOff`, so the effort key disappears when thinking is off), `thinkingTokenBudgetField: thinking_budget_tokens` (the alias every llama.cpp build honours) caps thinking per effort level — 4000 for minimal/low, 7500 for medium, 12000 for xhigh, and `supportsDeveloperRole: false` plus `maxTokensField: max_tokens` keep the request bodies llama-server-native. The gateway is keyless on the trusted LAN, but pi-ai insists on some credential for OpenAI-compatible endpoints — a placeholder `Authorization` header satisfies it. Note that dsh's settings UI rewrites this file (dropping YAML comments) when you save model or general settings; re-sync from the repo copy afterwards. To start new sessions on the local eGPU instead of the DeepSeek account, enable the commented `agent-default-model` entry at the bottom of the model section.
 
 The `web` profile (`dsh` or `dsh web`, port 3080) also carries a **gem12** agent preset, picked in the session's preset selector next to the stock Standard and Minimal modes; the stock `standard` preset stays untouched for the DeepSeek account. The preset is the setup for the single-slot backend (select a local model such as Ornith or Qwen in the model selector as well). The gateway queues requests one at a time, but two contexts taking turns on the one KV slot (a parent and its running child) miss the prefix cache on every turn, so the preset keeps a single context active. dsh 0.2.1-rc.2 subagents always return at once (there is no foreground mode) and the only concurrency cap, `maxActiveSubagents`, is host-wide — it would also limit the DeepSeek presets — so the preset's persona suffix instructs the model to delegate strictly one subagent at a time and, after starting it, to end its turn and wait for the completion notice (an instruction, not an enforced limit); `modelSelectionSettings: false` stops children from picking another model, and `workflow-ptc.maxConcurrentAgents: 1` caps workflow fan-out. Tool calls other than read-only ones already run exclusively in dsh, so no global parallel-call cap is needed. The stock `ptc` and `cordis` presets keep background subagents; do not use them with a local model. `dsh update` regenerates the preset from the installed `presets/standard.patch.yml`, carrying over the tuned `compaction-basic` block and the description and re-applying the delegation rewrites; it fails and restores the backup if those rows are no longer found. `dsh gem12` remains an alias of `dsh web`. dsh's proactive trigger is `floor(min(W × thresholdRatio, W − O − headroomTokens))` — `W` the model's context window, `O` its `maxTokens` (the output reserve). The stock ratio 0.8 and headroom 65536 compact at ~33K on a 131072-token window (and never on the 98304 uncensored model, whose budget is exactly zero). The profile uses ratio 0.9, headroom 4096 and `maxTokens` 20480, which moves the trigger to ~106K on the 131072-token models (~74K on the 98304 uncensored, ~236K on Ornith's 262144 window); the summary call is capped at 20480 tokens (thinking included — a truncated summary is discarded, so the cap equals the output reserve), and a context-overflow error from the server still triggers one reactive compaction. The dials: every 4096 tokens of `maxTokens` moves the trigger by the same amount, and the thinking budgets (4000/7500/12000) are sized to leave 8K+ of answer room under that cap — raise `maxTokens` first if large file writes get truncated. Preset plugin rows are not addressable by patch id (the loader patch map only indexes top-level rows, and the host-plane `compaction-basic` row is disabled by dsh-web-app), which is why the tuning rides on a full preset copy.
 
 ### Pi
 
-[Pi](https://pi.dev) (`pi`) is the agent to use where [Oh My Pi](#oh-my-pi-on-a-single-slot-backend) is not supported — notably [T3 Code](https://github.com/pingdotgg/t3code), whose Pi provider runs `pi --mode rpc` and rejects `omp` (omp ends turns with `session_settled`, T3 Code waits for Pi's `agent_settled`). [`scripts/install-pi.sh`](scripts/install-pi.sh) installs Pi (the official installer, or `pi update` with `PI_UPDATE=1`) and syncs [`config/pi/agent`](config/pi/agent) into `~/.pi/agent`; re-run it after editing the repo files, or use `./scripts/update.sh pi`.
+[Pi](https://pi.dev) (`pi`) is the agent to use where [Oh My Pi](#oh-my-pi-on-a-single-slot-backend) is not supported — notably [T3 Code](https://github.com/pingdotgg/t3code), whose Pi provider runs `pi --mode rpc` and rejects `omp` (omp ends turns with `session_settled`, T3 Code waits for Pi's `agent_settled`). [`scripts/client/install-pi.sh`](scripts/client/install-pi.sh) installs Pi (the official installer, or `pi update` with `PI_UPDATE=1`) and syncs [`config/pi/agent`](config/pi/agent) into `~/.pi/agent`; re-run it after editing the repo files, and with `PI_UPDATE=1` to upgrade Pi itself.
 
 ```bash
-./scripts/install-pi.sh
+./scripts/client/install-pi.sh
 ```
 
 | Piece | What it does |
@@ -222,11 +224,11 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 
 | Backend | Best for | Install |
 |---|---|---|
-| [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/install-llama.sh`](scripts/install-llama.sh) |
-| [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/install-vllm-globally.sh`](scripts/install-vllm-globally.sh) |
-| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (EXL3) | Faster decode/prefill than GGUF at a similar size on NVIDIA, vision; chat completions only | [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) |
-| [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/install-qwen-image-sdcpp.sh`](scripts/install-qwen-image-sdcpp.sh) |
-| [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) |
+| [`llama-server`](https://github.com/ggml-org/llama.cpp/tree/master/examples/server) | GGUF chat models, ROCm (AMD iGPU), MTP speculative decoding | [`scripts/server/install-llama.sh`](scripts/server/install-llama.sh) |
+| [`vllm serve`](https://docs.vllm.ai/en/latest/) | True NVFP4/BF16 safetensors, fp8 KV cache up to 131K ctx on NVIDIA | [`scripts/server/install-vllm-globally.sh`](scripts/server/install-vllm-globally.sh) |
+| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (EXL3) | Faster decode/prefill than GGUF at a similar size on NVIDIA, vision; chat completions only | [`scripts/server/install-exllamav3.sh`](scripts/server/install-exllamav3.sh) |
+| [`sd-server`](https://github.com/leejet/stable-diffusion.cpp) (stable-diffusion.cpp) | Image generation/editing from GGUF diffusion models, embedded web UI, OpenAI-images API | [`scripts/server/install-qwen-image-sdcpp.sh`](scripts/server/install-qwen-image-sdcpp.sh) |
+| [`ComfyUI`](https://github.com/comfyanonymous/ComfyUI) | Graph-based image workflows, custom nodes | [`scripts/server/install-comfyui.sh`](scripts/server/install-comfyui.sh) |
 
 **Choosing a backend:**
 
@@ -240,16 +242,16 @@ The gateway itself is self-contained. You only need a compatible backend (e.g., 
 
 ### Installation notes for vLLM
 
-The vLLM installer (`scripts/install-vllm-globally.sh`) creates a uv-managed venv at `/opt/vllm/venv` with torch + vLLM (pinned to CUDA 13.0 wheels for Blackwell support) and symlinks `vllm` into `/usr/local/bin`. PyTorch ships its own CUDA runtime (cu130) — it does not conflict with the system `cuda-toolkit-12`. The `nvidia-cuda-nvcc` package is also installed: NVFP4 models on Blackwell (sm_120) require FlashInfer to JIT-compile FP4 CUTLASS kernels at first run, which needs `nvcc`. The wrapper at `/usr/local/bin/vllm` sets `CUDA_HOME` and `PATH` so FlashInfer finds nvcc automatically. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
+The vLLM installer (`scripts/server/install-vllm-globally.sh`) creates a uv-managed venv at `/opt/vllm/venv` with torch + vLLM (pinned to CUDA 13.0 wheels for Blackwell support) and symlinks `vllm` into `/usr/local/bin`. PyTorch ships its own CUDA runtime (cu130) — it does not conflict with the system `cuda-toolkit-12`. The `nvidia-cuda-nvcc` package is also installed: NVFP4 models on Blackwell (sm_120) require FlashInfer to JIT-compile FP4 CUTLASS kernels at first run, which needs `nvcc`. The wrapper at `/usr/local/bin/vllm` sets `CUDA_HOME` and `PATH` so FlashInfer finds nvcc automatically. vLLM auto-detects the compressed-tensors quantization format from the model's `config.json` so no explicit `--quantization` flag is required — only `--kv-cache-dtype fp8` is passed explicitly to enable 8-bit KV cache for long context (131K on 16 GB VRAM). vllm serve exposes OpenAI-compatible API endpoints (`/v1/chat/completions`, `/v1/models`) which the gateway proxies transparently.
 
 > **Model naming:** Use `--served-model-name <gateway-model-name>` in the vLLM command so the `model` field in API requests matches the gateway's model key. This is the vLLM equivalent of llama-server's `--alias` flag. Without it, clients must send the full HuggingFace repo name (e.g. `unsloth/gemma-4-12b-it-NVFP4`) as the model field.
 
 ## Qwen3.8-27B on ExLlamaV3 (EXL3)
 
-`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) with images, MTP drafting and int4 KV at **131072 tokens** of context on the RTX 5060 Ti. It is the default model of the bundled OpenCode, Oh My Pi and dsh configs and replaced the GGUF Qwen3.8-27B on llama-server as the default; the GGUF entry remains as the stock llama.cpp alternative (native thinking budgets, no custom server patches); clients that need `/v1/messages` or `/v1/responses` (e.g. Claude Code) use a llama-server model such as `qwen-3.8-27b-uncensored`. [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai.patch`](patches/exl3-serve-openai.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium` (the template's own default is `xhigh`), and accept images only as `data:` URLs, so a client cannot make gem12 fetch arbitrary URLs. It also memoizes image embeddings by content — ExLlamaV3 page-matches prompts by token-id sequence and every encode mints fresh placeholder ids, so without the memo a repeated attachment breaks prefix caching for the whole history after it — and enforces `thinking_budget_tokens` (the llama.cpp field the bundled clients already send), which the engine cannot cap mid-generation. Responses carry `usage.prompt_tokens_details.cached_tokens` (the prompt tokens served from the KV cache on the first run, so a thinking-budget or forced-tool retry does not inflate it), which clients such as dsh show as their cache-hit figure; the server's `prompt N tok (M cached)` log line describes the run that produced the reply, so after such a retry it shows the retry's near-total hit instead. A job the engine fails (it contains per-job exceptions, e.g. during prefill, as an EOS result carrying `error` and no `eos_reason`) or ends without a result is reported as an error worded like a context overflow (`request exceeds the available context size: the engine failed the job (<exception>; prompt N tokens) …`) instead of an empty `finish_reason: length` reply — that default would also have started the thinking-budget retry — so clients such as dsh compact the conversation and continue; the log shows `failed after … EngineJobFailed` with the underlying exception.
+`qwen-3.8-27b-exl3` serves turboderp's [Qwen3.8-27B EXL3 3.0 bpw](https://huggingface.co/turboderp/Qwen3.8-27B-exl3) with images, MTP drafting and int4 KV at **131072 tokens** of context on the RTX 5060 Ti. It is the default model of the bundled OpenCode, Oh My Pi and dsh configs and replaced the GGUF Qwen3.8-27B on llama-server as the default; the GGUF entry remains as the stock llama.cpp alternative (native thinking budgets, no custom server patches); clients that need `/v1/messages` or `/v1/responses` (e.g. Claude Code) use a llama-server model such as `qwen-3.8-27b-uncensored`. [`scripts/server/install-exllamav3.sh`](scripts/server/install-exllamav3.sh) installs everything under `/opt/exllamav3`: the ExLlamaV3 1.6.0 release wheel with torch 2.11 (cu128), the model, and the OpenAI-compatible server of [MiaAI-Lab's Qwen3.8-27B kit](https://github.com/MiaAI-Lab/Qwen3.8-27B-16gb-NVIDIA-GPUs-one-click-install) (two MIT-licensed files, pinned and checksum-verified). [`patches/exl3-serve-openai.patch`](patches/exl3-serve-openai.patch) makes the server read `chat_template_kwargs.reasoning_effort` — how the bundled clients send it — and default to `medium` (the template's own default is `xhigh`), and accept images only as `data:` URLs, so a client cannot make gem12 fetch arbitrary URLs. It also memoizes image embeddings by content — ExLlamaV3 page-matches prompts by token-id sequence and every encode mints fresh placeholder ids, so without the memo a repeated attachment breaks prefix caching for the whole history after it — and enforces `thinking_budget_tokens` (the llama.cpp field the bundled clients already send), which the engine cannot cap mid-generation. Responses carry `usage.prompt_tokens_details.cached_tokens` (the prompt tokens served from the KV cache on the first run, so a thinking-budget or forced-tool retry does not inflate it), which clients such as dsh show as their cache-hit figure; the server's `prompt N tok (M cached)` log line describes the run that produced the reply, so after such a retry it shows the retry's near-total hit instead. A job the engine fails (it contains per-job exceptions, e.g. during prefill, as an EOS result carrying `error` and no `eos_reason`) or ends without a result is reported as an error worded like a context overflow (`request exceeds the available context size: the engine failed the job (<exception>; prompt N tokens) …`) instead of an empty `finish_reason: length` reply — that default would also have started the thinking-budget retry — so clients such as dsh compact the conversation and continue; the log shows `failed after … EngineJobFailed` with the underlying exception.
 
 ```bash
-sudo ./scripts/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
+sudo ./scripts/server/install-exllamav3.sh   # ~21 GB: venv + 13.8 GB model
 ```
 
 Measured on gem12 against the GGUF it replaced (ISTA-DASLab GSQ-RCO IQ3_S on llama-server, same prompts, thinking off):
@@ -296,7 +298,7 @@ Other GGUF quants: `DIFFUSION_QUANT`/`TURBO_QUANT` pick the base/Turbo quant —
 ### Install & use
 
 ```bash
-sudo ./scripts/install-qwen-image-sdcpp.sh   # binary + ~19 GB of models into /opt/sdcpp (uncensored base + Turbo)
+sudo ./scripts/server/install-qwen-image-sdcpp.sh   # binary + ~19 GB of models into /opt/sdcpp (uncensored base + Turbo)
 ```
 
 Then add the `qwen-image-2.1` and `qwen-image-2.1-turbo` entries to the gateway config (see [`config/gem12gpu.yaml`](config/gem12gpu.yaml)) and restart the gateway. `DOWNLOAD_BASE=0` / `DOWNLOAD_TURBO=0` skip either model's weights.
@@ -324,10 +326,10 @@ The script pins an sd.cpp release (`SDCPP_RELEASE`, or `latest` to track master)
 
 ### ComfyUI for advanced workflows (composition, masked 1:1 edits)
 
-[`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) installs ComfyUI as another gateway-managed web app (`comfyui`, port 8188, bound to loopback — no extra firewall rules). It reuses the Qwen-Image-2.1 models already downloaded for sd-server via symlinks, and downloads the **[NVFP4 package](https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4)** — attention/MLP matrices in native Blackwell FP4 (sensitive layers BF16), loaded by core ComfyUI nodes and noticeably faster than GGUF on the RTX 5060 Ti. Four ready-made workflows (Text-to-Image, Image Editing, Transparent RGBA, 2K Typography) come preloaded in the UI's Workflows panel. Turbo (8 steps) uses the **[BennyDaBall Turbo NVFP4](https://huggingface.co/BennyDaBall/Qwen-Image-2.1-Turbo-NVFP4)** transformer (5.7 GB, sensitive layers kept BF16) with the base NVFP4 encoder — 13.9 GB with the VAE, fully VRAM-resident (the package's own 9.3 GB encoder would not fit beside it); `DOWNLOAD_TURBO=0` skips it. Its six `Turbo_*` workflows (Text-to-Image, Image Editing, Transparent RGBA, Multiple References, Typography, 2K Typography) are installed with the encoder name rewritten — all on the official 8-step ManualSigmas schedule at CFG 1. The gateway starts/kills ComfyUI exactly like sd-server, so the single VRAM slot stays automatic.
+[`scripts/server/install-comfyui.sh`](scripts/server/install-comfyui.sh) installs ComfyUI as another gateway-managed web app (`comfyui`, port 8188, bound to loopback — no extra firewall rules). It reuses the Qwen-Image-2.1 models already downloaded for sd-server via symlinks, and downloads the **[NVFP4 package](https://huggingface.co/BennyDaBall/Qwen-Image-2.1-NVFP4)** — attention/MLP matrices in native Blackwell FP4 (sensitive layers BF16), loaded by core ComfyUI nodes and noticeably faster than GGUF on the RTX 5060 Ti. Four ready-made workflows (Text-to-Image, Image Editing, Transparent RGBA, 2K Typography) come preloaded in the UI's Workflows panel. Turbo (8 steps) uses the **[BennyDaBall Turbo NVFP4](https://huggingface.co/BennyDaBall/Qwen-Image-2.1-Turbo-NVFP4)** transformer (5.7 GB, sensitive layers kept BF16) with the base NVFP4 encoder — 13.9 GB with the VAE, fully VRAM-resident (the package's own 9.3 GB encoder would not fit beside it); `DOWNLOAD_TURBO=0` skips it. Its six `Turbo_*` workflows (Text-to-Image, Image Editing, Transparent RGBA, Multiple References, Typography, 2K Typography) are installed with the encoder name rewritten — all on the official 8-step ManualSigmas schedule at CFG 1. The gateway starts/kills ComfyUI exactly like sd-server, so the single VRAM slot stays automatic.
 
 ```bash
-sudo ./scripts/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
+sudo ./scripts/server/install-comfyui.sh   # after install-qwen-image-sdcpp.sh
 ```
 
 Plain editing (the upstream `02_Image_Editing` / `Turbo_02_Image_Editing`) re-renders the whole picture from the reference: faces and untouched areas drift slightly, and there is no mask input. For photo work that must keep people or places as they are, the repo ships its own workflows in [`config/comfyui-workflows/`](config/comfyui-workflows) (copied to the Workflows panel on every installer run, `Turbo_` variants for the 8-step model):
@@ -338,7 +340,7 @@ Plain editing (the upstream `02_Image_Editing` / `Turbo_02_Image_Editing`) re-re
 | `Edit_02_Keep_Subject_New_Scene` | Paint the people to keep; the prompt describes the new place. The painted people are pasted back from the original, everything else comes from the edit. |
 | `Edit_03_Multi_Reference` | Several references (`<image1>`, `<image2>`, …, up to 16 inputs, the model takes up to 10) — the 40-step base counterpart of `Turbo_04_Multiple_References`. |
 
-The installer overwrites these files on every run (`update.sh` included) — save customised copies under another name.
+The installer overwrites these files on every run (`scripts/server/update.sh` included) — save customised copies under another name.
 
 How the masked workflows work and where they stop:
 
@@ -353,12 +355,12 @@ Composition without masks = the Editing workflow with several reference images. 
 
 - One backend at a time: opening the image app kills the loaded chat model, and a coding-agent request kills the image app — even mid-generation (`drain_timeout` bounds the wait for in-flight requests; browser websockets do not block switches).
 - If the tab sits idle past `auto_unload`, sd-server is unloaded and the app needs a refresh (an open websocket counts as activity, so a live tab keeps it loaded).
-- ComfyUI is a drop-in alternative for graph workflows: install it with [`scripts/install-comfyui.sh`](scripts/install-comfyui.sh) (uses the leejet/ComfyUI-GGUF node plus the same GGUF/encoder/VAE files).
+- ComfyUI is a drop-in alternative for graph workflows: install it with [`scripts/server/install-comfyui.sh`](scripts/server/install-comfyui.sh) (uses the leejet/ComfyUI-GGUF node plus the same GGUF/encoder/VAE files).
 - Qwen-Image-2.1 weights are released under the Qwen Research License — non-commercial use only.
 
 ## ChatGPT-style UI: Open WebUI (chat + image generation)
 
-[`scripts/install-open-webui.sh`](scripts/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
+[`scripts/server/install-open-webui.sh`](scripts/server/install-open-webui.sh) installs [Open WebUI](https://docs.openwebui.com) as its own always-on systemd service (port 8080, uv-managed venv at `/opt/open-webui`, chats/accounts persisted in `/opt/open-webui/data`). The gateway knows nothing about it — Open WebUI is a pure API client of the gateway:
 
 - **Chat**: the model picker lists every gateway model (`qwen-3.8-27b-exl3`, `ornith-1.5-35b-a3b`, …); picking one loads it on demand exactly like opencode does, with streaming and full conversation history. New chats preselect `qwen-3.8-27b-exl3` (`DEFAULT_MODEL=` overrides it at install).
 - **Images (toggle)**: in a chat, enable the image toggle in the composer (or use `/image <prompt>`) with a regular chat model selected. The image is generated through the gateway's `/v1/images/generations` with `qwen-image-2.1-turbo` (8 steps, 1024×1024) — model, size and endpoint are preconfigured via environment variables; switch to another sd-server model in *Admin Settings → Images* (width/height in multiples of 32, e.g. 2048×2048). Request timeouts are also preconfigured (no total limit, no stream idle cap), so a model still loading never kills a pending chat or image request.
@@ -367,7 +369,7 @@ Composition without masks = the Editing workflow with several reference images. 
 - **Persistent settings**: Open WebUI stores these in its database after the first start, so the installer's values only seed a fresh install; existing installs keep theirs until changed in the admin panel. Steps, CFG and sampler always come from the gateway command line, never from Open WebUI.
 
 ```bash
-sudo ./scripts/install-open-webui.sh          # OPEN_WEBUI_PORT=8081 to override the port
+sudo ./scripts/server/install-open-webui.sh          # OPEN_WEBUI_PORT=8081 to override the port
 ```
 
 Open `http://<host>:8080`; the first account created becomes admin. Mixed chat-and-image conversations work, but remember there is still one backend slot: each switch between a chat model and sd-server reloads a model (~10–30 s). The same caveat applies as with any client — an incoming image request kills a loaded chat model mid-stream only after `drain_timeout`.
@@ -420,11 +422,11 @@ The gateway will be available at `http://localhost:1234`.
 
 ## Updating backends and apps
 
-The installers pin upstream versions (sd.cpp release, ComfyUI release + GGUF node commit, open-webui) so a re-run reproduces a known-good install; llama.cpp always builds `master`. [`scripts/update.sh`](scripts/update.sh) re-runs the installers in `latest` mode — everything installed, or the components named:
+The installers pin upstream versions (sd.cpp release, ComfyUI release + GGUF node commit, open-webui) so a re-run reproduces a known-good install; llama.cpp always builds `master`. [`scripts/server/update.sh`](scripts/server/update.sh) re-runs the installers in `latest` mode — everything installed, or the components named:
 
 ```bash
-./scripts/update.sh                  # llama, sdcpp, comfyui, openwebui — whatever is installed
-./scripts/update.sh sdcpp comfyui    # only these
+./scripts/server/update.sh                  # llama, sdcpp, comfyui, openwebui — whatever is installed
+./scripts/server/update.sh sdcpp comfyui    # only these
 ```
 
 | Component | Latest means | Pin variable |
@@ -434,17 +436,17 @@ The installers pin upstream versions (sd.cpp release, ComfyUI release + GGUF nod
 | `comfyui` | newest ComfyUI release + ComfyUI-GGUF default branch | `COMFY_REF`, `GGUF_NODE_REF` |
 | `openwebui` | newest open-webui on PyPI; the service is restarted | `OPEN_WEBUI_VERSION` |
 
-`exllamav3` is not part of it: the engine wheel, torch and the server are a matched, pinned set — bump the constants in [`scripts/install-exllamav3.sh`](scripts/install-exllamav3.sh) and re-run it.
+`exllamav3` is not part of it: the engine wheel, torch and the server are a matched, pinned set — bump the constants in [`scripts/server/install-exllamav3.sh`](scripts/server/install-exllamav3.sh) and re-run it.
 
-Run it as your normal user; it uses sudo where needed. Running backends are stopped and the gateway starts the new version on the next request; model files are kept. The same variables set to `latest` work with a single installer, e.g. `sudo env COMFY_REF=latest ./scripts/install-comfyui.sh`. If an update breaks something, re-run that installer without the variable to return to the pinned version — except Open WebUI, whose database migrations only go forward: back up `/opt/open-webui/data` before updating it.
+Run it as your normal user; it uses sudo where needed. Running backends are stopped and the gateway starts the new version on the next request; model files are kept. The same variables set to `latest` work with a single installer, e.g. `sudo env COMFY_REF=latest ./scripts/server/install-comfyui.sh`. If an update breaks something, re-run that installer without the variable to return to the pinned version — except Open WebUI, whose database migrations only go forward: back up `/opt/open-webui/data` before updating it.
 
 ## Cleaning up old downloads
 
-Model swaps leave old files behind. [`scripts/cleanup.sh`](scripts/cleanup.sh) lists what nothing references any more, with sizes, and deletes it with `--apply`:
+Model swaps leave old files behind. [`scripts/server/cleanup.sh`](scripts/server/cleanup.sh) lists what nothing references any more, with sizes, and deletes it with `--apply`:
 
 ```bash
-sudo ./scripts/cleanup.sh            # dry run
-sudo ./scripts/cleanup.sh --apply    # delete
+sudo ./scripts/server/cleanup.sh            # dry run
+sudo ./scripts/server/cleanup.sh --apply    # delete
 ```
 
 - Image models in `/opt/sdcpp/models` and ComfyUI's `diffusion_models`, `text_encoders`, `vae` whose file name is in neither the gateway config (`/etc/llm-gateway/config.yaml`, comment lines ignored; `--config` overrides) nor a saved ComfyUI workflow. Models used only in unsaved ComfyUI graphs look unused — save the workflow first.
@@ -461,8 +463,8 @@ Optional extras, each re-created on demand:
 | `--backends` | `/opt/vllm` (with its `/usr/local/bin/vllm` wrapper and `python3-vllm` link) and `/opt/exllamav3` when no config entry runs them |
 
 ```bash
-sudo ./scripts/cleanup.sh --caches --build --backends            # dry run
-sudo ./scripts/cleanup.sh --caches --build --backends --apply    # delete
+sudo ./scripts/server/cleanup.sh --caches --build --backends            # dry run
+sudo ./scripts/server/cleanup.sh --caches --build --backends --apply    # delete
 ```
 
 Run it after syncing `/etc/llm-gateway/config.yaml` with a newly installed model; until the config names it, the model counts as unused.

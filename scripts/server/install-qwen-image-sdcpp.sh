@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/install-qwen-image-sdcpp.sh
+# Usage: sudo ./scripts/server/install-qwen-image-sdcpp.sh
 #
 # Installs stable-diffusion.cpp's sd-server (single C++ binary with an
 # embedded web UI and OpenAI-compatible images API) plus the Qwen-Image-2.1
@@ -43,9 +43,9 @@ DOWNLOAD_TURBO="${DOWNLOAD_TURBO:-1}"
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-1}"
 
 # Pinned upstream release (supply chain): both the prebuilt download and the
-# source build use this revision. SDCPP_RELEASE=latest (scripts/update.sh)
+# source build use this revision. SDCPP_RELEASE=latest (scripts/server/update.sh)
 # picks the newest release tag; or bump deliberately, e.g.:
-#   SDCPP_RELEASE=master-890-<sha> sudo -E ./scripts/install-qwen-image-sdcpp.sh
+#   SDCPP_RELEASE=master-890-<sha> sudo -E ./scripts/server/install-qwen-image-sdcpp.sh
 SDCPP_RELEASE="${SDCPP_RELEASE:-master-955-b7a74e6}"
 # Optional sha256 the downloaded release zip must match (published per asset
 # on the GitHub release page / API "digest" field).

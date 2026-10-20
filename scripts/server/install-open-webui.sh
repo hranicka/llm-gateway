@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: sudo ./scripts/install-open-webui.sh
+# Usage: sudo ./scripts/server/install-open-webui.sh
 #
 # Installs Open WebUI — a self-hosted ChatGPT-style front-end (chat history,
 # accounts, streaming) — as its own systemd service on port 8080.
@@ -15,13 +15,13 @@
 # sd-server's own UI stays available for graph-style control:
 #   http://<host>:1234/app/qwen-image-2.1-turbo
 #
-# Port override: OPEN_WEBUI_PORT=8081 sudo -E ./scripts/install-open-webui.sh
+# Port override: OPEN_WEBUI_PORT=8081 sudo -E ./scripts/server/install-open-webui.sh
 # Chat model:    DEFAULT_MODEL=qwen-3.8-27b-exl3 (preselected in new chats)
 # Image model:   IMAGE_MODEL=qwen-image-2.1-turbo (generation), IMAGE_EDIT_MODEL=...
 # Open WebUI stores these as persistent settings: the env values seed the
 # first start only; change later via Admin Settings → Images.
 # Upgrade:      re-run the script (upgrades the package in place and restarts
-#               the service); OPEN_WEBUI_VERSION=latest (scripts/update.sh)
+#               the service); OPEN_WEBUI_VERSION=latest (scripts/server/update.sh)
 #               installs the newest PyPI release.
 
 set -euo pipefail

@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# `dsh` launcher: bare `dsh` or `dsh web` opens the DeepSeek Harness browser
+# UI on :3080. The "gem12" agent preset (session preset picker) is the setup
+# for the single-slot llama-server: late compaction, strictly serial
+# subagent delegation. `dsh gem12` is kept as an alias of `dsh web`.
+# `dsh <anything else>` is passed through to the real dsh CLI.
+#   dsh [web|gem12] [start|stop]
+#   dsh update — refresh the npx dsh package to @latest, regenerate the gem12
+#       preset in the web profile patch (it carries the compaction tuning and
+#       must track the installed standard preset), and restart the instance
+#       if it was running.
+set -uo pipefail
+
+# Repo root, resolved through the symlink install-dsh.sh puts on PATH.
+REPO_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"
+
+# GNOME launchers and SSH shells don't load nvm; make sure node/npx are on PATH.
+for d in "$HOME"/.nvm/versions/node/*/bin; do
+  [ -x "$d/npx" ] && export PATH="$d:$PATH"
+done
+
+LOGDIR="$HOME/.dsh/logs"
+mkdir -p "$LOGDIR"
+
+port_of() { case "$1" in web) echo 3080 ;; esac; }
+args_of() { case "$1" in web) echo "--profile web" ;; esac; }
+
+# Any HTTP answer counts as up — dsh returns 401 to unauthenticated curls
+# (browser pairs via the tokenized URL); only a connection failure means down.
+running() { [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:$(port_of "$1")" 2>/dev/null)" != "000" ]; }
+
+stop_profile() {
+  local pidfile="$LOGDIR/$1.pid"
+  if [ -f "$pidfile" ] && kill -- -"$(cat "$pidfile")" 2>/dev/null; then
+    rm -f "$pidfile"
+    echo "stopped $1"
+  else
+    echo "$1 not running (no pidfile or already gone)"
+  fi
+}
+
+open_browser() {
+  # Open a browser only in a graphical session; SSH shells just get the URL.
+  if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    xdg-open "http://127.0.0.1:$(port_of "$1")" >/dev/null 2>&1
+  fi
+}
+
+start_profile() {
+  local p="$1" port
+  port=$(port_of "$p")
+  if running "$p"; then
+    echo "DSH $p already running at http://127.0.0.1:$port"
+    return 0
+  fi
+  # setsid: own process group, so stop can kill the whole npx→node tree.
+  setsid nohup npx -y @deepseek-ai/dsh $(args_of "$p") >>"$LOGDIR/$p.log" 2>&1 &
+  echo $! > "$LOGDIR/$p.pid"
+  for _ in $(seq 1 60); do
+    running "$p" && break
+    sleep 1
+  done
+  if running "$p"; then
+    echo "DSH $p ready at http://127.0.0.1:$port"
+  else
+    echo "DSH $p failed to start — see $LOGDIR/$p.log" >&2
+    return 1
+  fi
+}
+
+regen_presets() {
+  # Rebuild the gem12 agent preset section of the web profile patch from the
+  # installed dsh-web-app standard preset: fresh plugin roster, with the
+  # compaction-basic config block and the preset description carried over
+  # from the live file (as is everything above the section marker) and the
+  # single-slot delegation rewrites re-applied. Fails nonzero on any layout
+  # mismatch — the caller restores a backup.
+  DSH_PATCH_SRC="$1" DSH_PRESET_SRC="$2" DSH_PATCH_OUT="$3" python3 <<'PYEOF'
+import os, re, sys
+
+MARKER = "# ── gem12 preset"
+live = open(os.environ["DSH_PATCH_SRC"]).read()
+fresh = open(os.environ["DSH_PRESET_SRC"]).read()
+
+# Installed standard preset: drop the "- insert:" wrapper, dedent 4.
+lines = fresh.splitlines()
+if lines[3].strip() != "- insert:":
+    sys.exit("unexpected installed preset layout (no '- insert:' on line 4)")
+body = "\n".join(l[4:] if l.startswith("    ") else l for l in lines[4:]) + "\n"
+if not body.startswith("- id: preset-standard\n"):
+    sys.exit("unexpected installed preset layout (entry id drifted)")
+p = body.find("    plugins:\n")
+if p < 0:
+    sys.exit("installed preset has no plugins list")
+roster = body[p + len("    plugins:\n"):]
+
+# Live section: header comments, tuned compaction config, description.
+mi = live.find(MARKER)
+if mi < 0:
+    sys.exit("live patch has no gem12 preset marker")
+head = live[:mi]
+section = live[mi:]
+ins = section.find("- insert:")
+if ins < 0:
+    sys.exit("live patch has no gem12 preset insert")
+header = section[:ins]
+# Rows after the preset (e.g. an active agent-default-model) are carried over.
+tm = re.search(r"^- (?!insert:)", section[ins + 1:], re.M)
+tail = section[ins + 1 + tm.start():] if tm else ""
+
+m = re.search(r"^( *)- id: compaction-basic\n\1  name: [^\n]+\n\1  config:\n((?:\1    [^\n]*\n)+)", section, re.M)
+if not m:
+    sys.exit("live gem12 preset has no tuned compaction-basic config")
+ci = len(m.group(1)) + 4
+tuned = [l[ci:] for l in m.group(2).splitlines()]
+
+d = re.search(r"^( *)(description:[^\n]*\n(?:\1  [^\n]*\n)*)", section[ins:], re.M)
+if not d:
+    sys.exit("live gem12 preset has no description")
+dind = len(d.group(1))
+desc = "".join("      " + (l if i == 0 else "  " + l[dind + 2:]) + "\n"
+               for i, l in enumerate(d.group(2).splitlines()))
+
+desc = desc.replace("subagents run in the foreground one at a time", "subagents are delegated strictly one at a time")
+
+# Splice the tuned config into the fresh roster's compaction-basic child.
+child = "          - id: compaction-basic\n            name: '@deepseek-ai/dsh-compaction-basic'\n"
+m2 = roster.find(child)
+if m2 < 0:
+    sys.exit("installed preset has no compaction-basic child at the expected indent")
+n = m2 + len(child)
+if roster[n:].startswith("            config:\n"):
+    n += len("            config:\n")
+    while roster[n:].startswith("              "):
+        n = roster.index("\n", n) + 1
+cfg = "            config:\n" + "".join("              " + l + "\n" for l in tuned)
+plugins = roster[:n] + cfg + roster[n:]
+
+# Single-slot backend: children cannot pick another model, workflow fan-out
+# is one agent at a time, and the persona asks for strictly serial delegation
+# (dsh 0.2.1-rc.2 subagents always return at once and have no foreground mode
+# or per-preset concurrency cap). Older presets also get the one-shot rewrite.
+# Each required rewrite must hit, or the upstream preset layout drifted.
+plugins = re.sub(r"^( +)backgroundMode: continuable\n",
+                 r"\1backgroundMode: one-shot\n\1enableRunInBackground: false\n", plugins, flags=re.M)
+plugins, n2 = re.subn(r"^( +)modelSelectionSettings: true\n", r"\1modelSelectionSettings: false\n", plugins, flags=re.M)
+plugins, n3 = re.subn(r"(- id: workflow-ptc\n +name: [^\n]+\n +config:\n)( +)provider: spawn\n",
+                      r"\1\2provider: spawn\n\2maxConcurrentAgents: 1\n", plugins)
+SERIAL = ('The model server has one slot, so delegate strictly one subagent at a time: '
+          'never start a second while one is running, do no other work in parallel with it, and after starting it end your turn '
+          'and wait for its completion notice.')
+plugins, n4 = re.subn(r"^( +)(prefix: [^\n]*\n)(?!\1suffix:)",
+                      lambda m: m.group(1) + m.group(2) + m.group(1) + 'suffix: "' + SERIAL + '"\n', plugins, count=1, flags=re.M)
+if not (n2 and n3 and n4):
+    sys.exit("installed preset delegation rows not found (layout drifted)")
+
+entry = ('- insert:\n'
+         '  - id: preset-gem12\n'
+         '    name: "@deepseek-ai/dsh-agent-preset"\n'
+         '    config:\n'
+         '      id: gem12\n'
+         + desc +
+         '      order: 5\n'
+         '      plugins:\n'
+         + "\n".join("  " + l if l else l for l in plugins.splitlines()) + "\n")
+
+open(os.environ["DSH_PATCH_OUT"], "w").write(head + header + entry + tail)
+PYEOF
+}
+
+do_update() {
+  local was="" p old new patch repo presets
+  running web && was=" web"
+
+  # Stop everything: pidfile process groups first, pkill as the net for strays.
+  for p in $was; do stop_profile "$p"; done
+  if pkill -f 'node_modules/.bin/dsh' 2>/dev/null; then
+    sleep 2
+  fi
+
+  old="$(npx -y @deepseek-ai/dsh --version 2>/dev/null || echo unknown)"
+  latest="$(npm view @deepseek-ai/dsh version 2>/dev/null || echo unknown)"
+
+  if [ "$old" != "$latest" ]; then
+    # Drop every cached dsh install so npx re-resolves @latest deterministically.
+    for c in "$HOME"/.npm/_npx/*/; do
+      [ -d "${c}node_modules/@deepseek-ai/dsh" ] && rm -rf "$c"
+    done
+    if ! new="$(npx -y @deepseek-ai/dsh --version 2>/dev/null)"; then
+      echo "dsh update: npx failed to (re)install @deepseek-ai/dsh" >&2
+      exit 1
+    fi
+    echo "dsh: $old -> $new"
+  else
+    new="$old"
+    echo "dsh already at $new (registry latest) — refreshing presets only"
+  fi
+
+  patch="$HOME/.dsh/profiles/web/cordis.patch.yml"
+  repo="$REPO_DIR/config/dsh/profiles/web/cordis.patch.yml"
+  presets="$(find "$HOME/.npm/_npx" -path '*@deepseek-ai/dsh-web-app/presets/standard.patch.yml' 2>/dev/null | head -1)"
+  if [ -z "$presets" ]; then
+    echo "dsh update: presets/standard.patch.yml not found in the npx cache" >&2
+    exit 1
+  fi
+
+  cp "$patch" "$patch.bak"
+  if ! regen_presets "$patch" "$presets" "$patch"; then
+    cp "$patch.bak" "$patch"
+    echo "dsh update: preset regeneration failed — patch restored from backup" >&2
+    exit 1
+  fi
+  if ! npx -y @deepseek-ai/dsh --profile web --dump-config >/dev/null 2>/tmp/dsh-update-dump.log; then
+    cp "$patch.bak" "$patch"
+    echo "dsh update: regenerated patch failed validation — patch restored from backup" >&2
+    cat /tmp/dsh-update-dump.log >&2
+    exit 1
+  fi
+  rm -f "$patch.bak" /tmp/dsh-update-dump.log
+  if [ -f "$repo" ]; then
+    cp "$patch" "$repo"
+    echo "repo mirror synced"
+  fi
+  echo "presets regenerated from $presets"
+
+  # Bring back whatever was running before the update.
+  if [ -n "$was" ]; then
+    for p in $was; do
+      start_profile "$p" && open_browser "$p"
+    done
+  else
+    echo "(no instances were running — nothing restarted)"
+  fi
+}
+
+PROFILE="${1:-web}"
+
+case "$PROFILE" in
+  web) ;;
+  gem12) PROFILE=web ;;
+  update)
+    do_update
+    exit 0
+    ;;
+  *) exec npx -y @deepseek-ai/dsh "$@" ;;
+esac
+
+ACTION="${2:-start}"
+case "$ACTION" in
+  start|stop) ;;
+  *) echo "usage: dsh [web|gem12] [start|stop] | dsh update  (other args go to the dsh CLI)" >&2; exit 1 ;;
+esac
+
+if [ "$ACTION" = "stop" ]; then
+  stop_profile "$PROFILE"
+  exit 0
+fi
+
+start_profile "$PROFILE"
+open_browser "$PROFILE"
