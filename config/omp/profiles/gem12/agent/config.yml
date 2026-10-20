@@ -1,15 +1,17 @@
 modelRoles:
-  # Every role rides the single-slot qwen-3.8-27b-exl3; only the reasoning
-  # effort varies (a model switch would reload the backend, ~1-2.5 min).
-  default: network-gem12/qwen-3.8-27b-exl3:medium
-  plan: network-gem12/qwen-3.8-27b-exl3:xhigh
-  slow: network-gem12/qwen-3.8-27b-exl3:xhigh
-  task: network-gem12/qwen-3.8-27b-exl3:low
-  smol: network-gem12/qwen-3.8-27b-exl3:low
-  tiny: network-gem12/qwen-3.8-27b-exl3:low
-  commit: network-gem12/qwen-3.8-27b-exl3:low
-  # Vision role: qwen-3.8-27b-exl3 runs its vision tower on the GPU, so images
-  # never swap models. Fallback if vision misbehaves: network-gem12/gemma-4-12b.
+  # Same roles as Pi's network-gem12 subagent profile (config/pi/agent/subagent-roles.json):
+  # every role rides the text-only qwen-3.8-27b-exl3-text and only the effort
+  # varies (a model switch reloads the backend, ~1-2.5 min). default = worker,
+  # plan/slow = planner, task/smol/commit = scout, tiny = instruct (thinking off).
+  default: network-gem12/qwen-3.8-27b-exl3-text:medium
+  plan: network-gem12/qwen-3.8-27b-exl3-text:xhigh
+  slow: network-gem12/qwen-3.8-27b-exl3-text:xhigh
+  task: network-gem12/qwen-3.8-27b-exl3-text:low
+  smol: network-gem12/qwen-3.8-27b-exl3-text:low
+  tiny: network-gem12/qwen-3.8-27b-exl3-text:off
+  commit: network-gem12/qwen-3.8-27b-exl3-text:low
+  # Vision role: the text-only model cannot read images, so this is the one
+  # role that swaps to qwen-3.8-27b-exl3 (vision tower on the GPU).
   vision: network-gem12/qwen-3.8-27b-exl3:low
 
 providers:
