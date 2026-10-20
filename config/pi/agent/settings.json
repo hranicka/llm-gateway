@@ -1,0 +1,24 @@
+{
+  "defaultProvider": "network-gem12",
+  "defaultModel": "qwen-3.8-27b-exl3",
+  "defaultThinkingLevel": "medium",
+  "thinkingBudgets": {
+    "minimal": 4000,
+    "low": 4000,
+    "medium": 7500,
+    "high": 12000
+  },
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 20480,
+    "keepRecentTokens": 20000
+  },
+  "httpIdleTimeoutMs": 900000,
+  "retry": {
+    "provider": {
+      "timeoutMs": 1800000
+    }
+  },
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time"
+}

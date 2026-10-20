@@ -111,6 +111,20 @@ OpenCode compacts when the token count reaches `context − min(output limit, 32
 
 The `web` profile (`dsh` or `dsh web`, port 3080) also carries a **gem12** agent preset, picked in the session's preset selector next to the stock Standard and Minimal modes; the stock `standard` preset stays untouched for the DeepSeek account. The preset is the setup for the single-slot backend (select a local model such as Ornith or Qwen in the model selector as well). The gateway queues requests one at a time, but two contexts taking turns on the one KV slot (a parent and its running child) miss the prefix cache on every turn, so the preset keeps a single context active. dsh 0.2.1-rc.2 subagents always return at once (there is no foreground mode) and the only concurrency cap, `maxActiveSubagents`, is host-wide — it would also limit the DeepSeek presets — so the preset's persona suffix instructs the model to delegate strictly one subagent at a time and, after starting it, to end its turn and wait for the completion notice (an instruction, not an enforced limit); `modelSelectionSettings: false` stops children from picking another model, and `workflow-ptc.maxConcurrentAgents: 1` caps workflow fan-out. Tool calls other than read-only ones already run exclusively in dsh, so no global parallel-call cap is needed. The stock `ptc` and `cordis` presets keep background subagents; do not use them with a local model. `dsh update` regenerates the preset from the installed `presets/standard.patch.yml`, carrying over the tuned `compaction-basic` block and the description and re-applying the delegation rewrites; it fails and restores the backup if those rows are no longer found. `dsh gem12` remains an alias of `dsh web`. dsh's proactive trigger is `floor(min(W × thresholdRatio, W − O − headroomTokens))` — `W` the model's context window, `O` its `maxTokens` (the output reserve). The stock ratio 0.8 and headroom 65536 compact at ~33K on a 131072-token window (and never on the 98304 uncensored model, whose budget is exactly zero). The profile uses ratio 0.9, headroom 4096 and `maxTokens` 20480, which moves the trigger to ~106K on the 131072-token models (~74K on the 98304 uncensored, ~236K on Ornith's 262144 window); the summary call is capped at 20480 tokens (thinking included — a truncated summary is discarded, so the cap equals the output reserve), and a context-overflow error from the server still triggers one reactive compaction. The dials: every 4096 tokens of `maxTokens` moves the trigger by the same amount, and the thinking budgets (4000/7500/12000) are sized to leave 8K+ of answer room under that cap — raise `maxTokens` first if large file writes get truncated. Preset plugin rows are not addressable by patch id (the loader patch map only indexes top-level rows, and the host-plane `compaction-basic` row is disabled by dsh-web-app), which is why the tuning rides on a full preset copy.
 
+### Pi
+
+[`config/pi/agent/models.json`](config/pi/agent/models.json) and [`config/pi/agent/settings.json`](config/pi/agent/settings.json) mirror `~/.pi/agent/` for [Pi](https://pi.dev) (`pi`, installed under `~/.pi/agent/install`). `models.json` defines the `network-gem12` and `local-laptop` providers with the same models as the other clients. The Qwen 3.8 dialect uses `thinkingFormat: chat-template`: `enable_thinking` and `reasoning_effort` ride `chat_template_kwargs` (the effort key is omitted when thinking is off), and `thinkingLevelMap` hides the levels the template rejects, leaving off/low/medium/xhigh. Thinking is capped per level through `thinking_budget_tokens` (`thinkingBudgets` in `settings.json`: 4000 low, 7500 medium, 12000 for the high bucket that xhigh reads). The gateway is keyless, so `apiKey` is a placeholder that only makes the models selectable.
+
+`settings.json` starts on `network-gem12/qwen-3.8-27b-exl3` at medium effort. `compaction.reserveTokens` equals the 20480-token reply cap, so compaction waits for ~110K tokens on the 131072-token models, and the HTTP idle and provider timeouts are raised to survive a slow cold-cache prefill. Pi has no concurrency limit or built-in subagents, so the single slot needs no extra setting; keep to one active Pi session.
+
+Sync with the system by copying `models.json` over `~/.pi/agent/models.json` and merging `settings.json` into `~/.pi/agent/settings.json` (Pi stores its own state, such as `lastChangelogVersion`, there):
+
+```bash
+cp config/pi/agent/models.json ~/.pi/agent/models.json
+jq -s '.[0] * .[1]' ~/.pi/agent/settings.json config/pi/agent/settings.json > ~/.pi/agent/settings.json.new \
+  && mv ~/.pi/agent/settings.json.new ~/.pi/agent/settings.json
+```
+
 ## Endpoints
 
 | Path | Method | Purpose |
@@ -145,7 +159,7 @@ The gateway is built for a **trusted home LAN** behind a router firewall. There 
 
 With `auth_token: ""` anyone who can reach the port can run models and open the apps — a deliberate choice for the LAN, but it also means any page open in your browser can fire cross-site requests at the gateway (spend GPU, switch models). The startup log warns about both disabled checks when the bind address isn't loopback-only.
 
-Enabling the token means every API client needs it: opencode/omp provider configs (`api_key`), and Open WebUI — its installer reads `auth_token` from `/etc/llm-gateway/config.yaml` automatically; re-run the installer after changing the token.
+Enabling the token means every API client needs it: opencode/omp provider configs (`api_key`), Pi's `apiKey` in `models.json`, and Open WebUI — its installer reads `auth_token` from `/etc/llm-gateway/config.yaml` automatically; re-run the installer after changing the token.
 
 The bundled configs never pass llama-server's `--tools`/`--agent`: they expose a file read/write API (`/tools`) on the backend port, which no harness here needs.
 

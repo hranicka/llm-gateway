@@ -1,0 +1,183 @@
+{
+  "$schema": "https://pi.dev/schemas/models.schema.json",
+  "providers": {
+    "network-gem12": {
+      "name": "Network Gem12",
+      "baseUrl": "http://192.168.50.103:1234/v1",
+      "api": "openai-completions",
+      "apiKey": "unused",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "maxTokensField": "max_tokens",
+        "thinkingFormat": "chat-template",
+        "chatTemplateKwargs": {
+          "enable_thinking": {
+            "$var": "thinking.enabled"
+          },
+          "reasoning_effort": {
+            "$var": "thinking.effort",
+            "omitWhenOff": true
+          },
+          "preserve_thinking": true
+        },
+        "thinkingTokenBudgetField": "thinking_budget_tokens"
+      },
+      "models": [
+        {
+          "id": "ornith-1.5-35b-a3b",
+          "name": "Ornith 1.5 35B A3B",
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.05,
+            "output": 0.8,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 262144,
+          "maxTokens": 16384
+        },
+        {
+          "id": "qwen-3.8-27b",
+          "name": "Qwen 3.8 27B",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh",
+            "max": null
+          },
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 0.04,
+            "output": 0.6,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 131072,
+          "maxTokens": 20480
+        },
+        {
+          "id": "qwen-3.8-27b-exl3",
+          "name": "Qwen 3.8 27B EXL3",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh",
+            "max": null
+          },
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 0.03,
+            "output": 0.4,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 131072,
+          "maxTokens": 20480
+        },
+        {
+          "id": "qwen-3.8-27b-exl3-text",
+          "name": "Qwen 3.8 27B EXL3 (text, 168K)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh",
+            "max": null
+          },
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.03,
+            "output": 0.4,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 172032,
+          "maxTokens": 20480
+        },
+        {
+          "id": "gemma-4-12b",
+          "name": "Gemma 4 12B",
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 0.05,
+            "output": 0.8,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 262144,
+          "maxTokens": 16384
+        },
+        {
+          "id": "qwen-3.8-27b-uncensored",
+          "name": "Qwen 3.8 27B Uncensored",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": null,
+            "xhigh": "xhigh",
+            "max": null
+          },
+          "input": [
+            "text",
+            "image"
+          ],
+          "cost": {
+            "input": 0.05,
+            "output": 0.8,
+            "cacheRead": 0.005,
+            "cacheWrite": 0
+          },
+          "contextWindow": 98304,
+          "maxTokens": 20480
+        }
+      ]
+    },
+    "local-laptop": {
+      "name": "Local Laptop",
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "api": "openai-completions",
+      "apiKey": "unused",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "maxTokensField": "max_tokens"
+      },
+      "models": [
+        {
+          "id": "qwen-3.5-4b",
+          "name": "Qwen 3.5 4B",
+          "contextWindow": 16384,
+          "maxTokens": 8192
+        },
+        {
+          "id": "gemma-4-2b",
+          "name": "Gemma 4 2B",
+          "contextWindow": 16384,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}
