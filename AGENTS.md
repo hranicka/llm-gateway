@@ -27,7 +27,7 @@ config/comfyui-workflows/ — gateway-owned ComfyUI edit workflows (masked edit,
 scripts/server/install-exllamav3.sh — ExLlamaV3 engine + EXL3 Qwen3.8-27B + OpenAI server (kind: api, patched via patches/)
 scripts/client/install-pi.sh — Pi agent install + sync of config/pi/agent (models, settings, extensions, agents, prompts) into ~/.pi/agent
 scripts/client/install-dsh.sh, scripts/client/dsh — dsh launcher (symlinked into ~/.local/bin; `dsh update` mirrors the profile patch into config/dsh)
-config/pi/agent/      — Pi config: models.json, settings.json, extensions/ (subagent, memory, restore, vision), agents/, prompts/
+config/pi/agent/      — Pi config: models.json, settings.json, subagent-roles.json, extensions/ (subagent, memory, restore, vision), agents/, prompts/
 scripts/server/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui)
 scripts/server/cleanup.sh    — dry-run/--apply removal of model downloads the config and ComfyUI workflows no longer reference
 .github/workflows/ci.yml — CI: lint, vet, test, build

@@ -1,7 +1,6 @@
 ---
 name: instruct
 description: Fast non-reasoning worker (thinking off) for mechanical or well-specified work - summaries, renames, boilerplate, simple edits, extraction
-model: network-gem12/qwen-3.8-27b-exl3
 thinking: off
 ---
 

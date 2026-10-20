@@ -2,7 +2,6 @@
 name: vision
 description: Looks at images (screenshots, mockups, diagrams, photos) and reports what they show; give it the file path in the task
 tools: read
-model: network-gem12/qwen-3.8-27b-exl3
 thinking: low
 ---
 

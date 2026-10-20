@@ -5,9 +5,10 @@
 # config/pi/agent into the agent directory (~/.pi/agent):
 #   models.json      gateway + laptop providers and models (copied; the old
 #                    file is kept as models.json.bak-<timestamp> when it differs)
+#   subagent-roles.json  which model and effort each subagent role gets per profile
 #   settings.json    merged into the existing file with jq (Pi's own keys such as
 #                    lastChangelogVersion survive; `skills` paths are unioned)
-#   extensions/      subagent (one at a time), memory, restore (each directory is
+#   extensions/      subagent (per-profile roles), memory, restore, vision (each directory is
 #                    replaced, so files removed from the repo disappear)
 #   agents/ prompts/ subagent roles (scout, planner, reviewer, worker) and the
 #                    /implement, /scout-and-plan, /implement-and-review chains
@@ -55,12 +56,14 @@ fi
 mkdir -p "$DEST"
 
 # [2/4] Models.
-echo "[2/4] Syncing models.json..."
-if [ -f "$DEST/models.json" ] && ! cmp -s "$SRC/models.json" "$DEST/models.json"; then
-	cp "$DEST/models.json" "$DEST/models.json.bak-${STAMP}"
-	echo "  previous file kept as models.json.bak-${STAMP}"
-fi
-cp "$SRC/models.json" "$DEST/models.json"
+echo "[2/4] Syncing models.json and subagent-roles.json..."
+for f in models.json subagent-roles.json; do
+	if [ -f "$DEST/$f" ] && ! cmp -s "$SRC/$f" "$DEST/$f"; then
+		cp "$DEST/$f" "$DEST/$f.bak-${STAMP}"
+		echo "  previous $f kept as $f.bak-${STAMP}"
+	fi
+	cp "$SRC/$f" "$DEST/$f"
+done
 
 # [3/4] Settings: repo values win, everything else in the live file is kept.
 echo "[3/4] Merging settings.json..."

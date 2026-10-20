@@ -1,0 +1,63 @@
+{
+  "*": {
+    "maxParallel": 10
+  },
+  "network-gem12": {
+    "maxParallel": 1,
+    "scout": ":low",
+    "planner": ":xhigh",
+    "reviewer": ":medium",
+    "worker": "inherit",
+    "instruct": ":off",
+    "vision": "network-gem12/qwen-3.8-27b-exl3:low"
+  },
+  "network-gem12/qwen-3.8-27b-exl3": {
+    "vision": ":low"
+  },
+  "network-gem12/qwen-3.8-27b": {
+    "vision": ":low"
+  },
+  "network-gem12/qwen-3.8-27b-uncensored": {
+    "vision": ":low"
+  },
+  "network-gem12/gemma-4-12b": {
+    "vision": ":low"
+  },
+  "openrouter": {
+    "scout": ":low",
+    "planner": "openrouter/anthropic/claude-sonnet-5.5:medium",
+    "reviewer": ":high",
+    "worker": "inherit",
+    "instruct": ":off",
+    "vision": "openrouter/anthropic/claude-haiku-5.5:low"
+  },
+  "openrouter/anthropic/claude-opus-5.5": {
+    "scout": "openrouter/anthropic/claude-haiku-5.5:low",
+    "planner": "openrouter/anthropic/claude-opus-5.5:high",
+    "reviewer": "openrouter/anthropic/claude-sonnet-5.5:high",
+    "worker": "openrouter/anthropic/claude-sonnet-5.5:medium",
+    "instruct": "openrouter/anthropic/claude-haiku-5.5:off"
+  },
+  "openrouter/anthropic/claude-sonnet-5.5": {
+    "scout": "openrouter/anthropic/claude-haiku-5.5:low",
+    "planner": "openrouter/anthropic/claude-opus-5.5:medium",
+    "reviewer": "openrouter/anthropic/claude-opus-5.5:medium",
+    "worker": "inherit",
+    "instruct": "openrouter/anthropic/claude-haiku-5.5:off"
+  },
+  "openrouter/anthropic/claude-haiku-5.5": {
+    "scout": ":low",
+    "planner": "openrouter/anthropic/claude-sonnet-5.5:medium",
+    "reviewer": "openrouter/anthropic/claude-sonnet-5.5:medium",
+    "worker": "inherit",
+    "instruct": ":off",
+    "vision": ":low"
+  },
+  "openrouter/google/gemini-4-argon": {
+    "scout": ":low",
+    "planner": ":high",
+    "reviewer": ":medium",
+    "worker": "inherit",
+    "instruct": ":low"
+  }
+}

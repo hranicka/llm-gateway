@@ -18,6 +18,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverAgents } from "../subagent/agents.ts";
+import { loadProfile, type ParentModel, selectFor } from "../subagent/roles.ts";
 
 interface Image {
 	type: "image";
@@ -60,17 +61,22 @@ export default function (pi: ExtensionAPI) {
 	if (process.env.PI_SUBAGENT) return;
 	let queue: Promise<unknown> = Promise.resolve();
 
+	const parentOf = (ctx: { model?: { provider: string; id: string }; thinkingLevel?: string }): ParentModel | undefined =>
+		ctx.model ? { provider: ctx.model.provider, id: ctx.model.id, thinking: ctx.thinkingLevel } : undefined;
+
 	const lacksVision = (ctx: { model?: { input?: string[] } }) => ctx.model !== undefined && !ctx.model.input?.includes("image");
 
-	async function runVision(cwd: string, files: string[], context: string, signal?: AbortSignal): Promise<string> {
+	async function runVision(cwd: string, parent: ParentModel | undefined, files: string[], context: string, signal?: AbortSignal): Promise<string> {
 		const agent = discoverAgents(cwd, "user").agents.find((a) => a.name === "vision");
 		if (!agent) throw new Error("no 'vision' agent installed");
+		const selection = selectFor(agent, parent, loadProfile(parent));
+		if (!selection.model) throw new Error("the 'vision' role resolves to the current model, which cannot read images");
 		const promptDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-vision-prompt-"));
 		const promptFile = path.join(promptDir, "vision.md");
 		await fs.promises.writeFile(promptFile, agent.systemPrompt, "utf-8");
 		const args = ["--mode", "json", "-p", "--no-session", "--tools", "read", "--append-system-prompt", promptFile];
-		if (agent.model) args.push("--model", agent.model);
-		if (agent.thinking) args.push("--thinking", agent.thinking);
+		args.push("--model", selection.model);
+		if (selection.thinking) args.push("--thinking", selection.thinking);
 		args.push(`Task: ${QUESTION}${context ? `\nContext: ${context}` : ""}\nImage files:\n${files.map((f) => `- ${f}`).join("\n")}`);
 		try {
 			return await new Promise<string>((resolve, reject) => {
@@ -98,7 +104,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/** Image blocks -> one text block; runs one description at a time. */
-	function describe(cwd: string, images: Image[], paths: string[], context: string, signal?: AbortSignal): Promise<string> {
+	function describe(cwd: string, parent: ParentModel | undefined, images: Image[], paths: string[], context: string, signal?: AbortSignal): Promise<string> {
 		const job = queue.then(async () => {
 			const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-vision-img-"));
 			try {
@@ -109,7 +115,7 @@ export default function (pi: ExtensionAPI) {
 					await fs.promises.writeFile(file, Buffer.from(img.data, "base64"));
 					files[i] = file;
 				}
-				const text = await runVision(cwd, files.filter(Boolean), context, signal);
+				const text = await runVision(cwd, parent, files.filter(Boolean), context, signal);
 				return `[Image description by the vision agent]\n${text}`;
 			} catch (e) {
 				return `[Image could not be described: ${(e as Error).message}]`;
@@ -123,7 +129,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("input", async (event, ctx) => {
 		if (!lacksVision(ctx) || !event.images || event.images.length === 0) return { action: "continue" };
-		const description = await describe(ctx.cwd, event.images as Image[], [], event.text.slice(0, 500), ctx.signal);
+		const description = await describe(ctx.cwd, parentOf(ctx), event.images as Image[], [], event.text.slice(0, 500), ctx.signal);
 		return { action: "transform", text: `${event.text}\n\n${description}`, images: [] };
 	});
 
@@ -132,7 +138,7 @@ export default function (pi: ExtensionAPI) {
 		const images = event.content.filter((c) => c.type === "image") as Image[];
 		if (images.length === 0) return;
 		const given = typeof event.input.path === "string" && event.toolName === "read" ? [path.resolve(ctx.cwd, event.input.path)] : [];
-		const description = await describe(ctx.cwd, images, given, `result of the ${event.toolName} tool`, ctx.signal);
+		const description = await describe(ctx.cwd, parentOf(ctx), images, given, `result of the ${event.toolName} tool`, ctx.signal);
 		// Drop the read tool's own "model does not support images" notice: the description replaces it.
 		const kept = event.content.filter((c) => c.type !== "image" && !(c.type === "text" && c.text.includes("does not support images")));
 		return { content: [...kept, { type: "text", text: description }] };
