@@ -23,7 +23,9 @@ scripts/install-open-webui.sh — Open WebUI front-end (own systemd service, gat
 scripts/install-comfyui.sh — ComfyUI graph-workflow app (gateway-managed kind: web, symlinked models)
 config/comfyui-workflows/ — gateway-owned ComfyUI edit workflows (masked edit, keep subject, multi-reference), installed by install-comfyui.sh
 scripts/install-exllamav3.sh — ExLlamaV3 engine + EXL3 Qwen3.8-27B + OpenAI server (kind: api, patched via patches/)
-scripts/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui)
+scripts/install-pi.sh — Pi agent install + sync of config/pi/agent (models, settings, extensions, agents, prompts) into ~/.pi/agent
+config/pi/agent/      — Pi config: models.json, settings.json, extensions/ (subagent, rules, memory, restore), agents/, prompts/
+scripts/update.sh     — re-runs installed backends' installers in "latest" mode (llama, sdcpp, comfyui, openwebui, pi)
 scripts/cleanup.sh    — dry-run/--apply removal of model downloads the config and ComfyUI workflows no longer reference
 .github/workflows/ci.yml — CI: lint, vet, test, build
 .github/workflows/release.yml — release: lint, test, build, create GitHub release

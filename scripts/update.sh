@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./scripts/update.sh [llama] [sdcpp] [comfyui] [openwebui]
+# Usage: ./scripts/update.sh [llama] [sdcpp] [comfyui] [openwebui] [pi]
 #
 # Updates the installed backends and apps to their latest upstream versions
 # by re-running their installers in "latest" mode. Without arguments it
@@ -11,6 +11,7 @@
 #   sdcpp      newest stable-diffusion.cpp release tag (rebuilds only if newer)
 #   comfyui    newest ComfyUI release + ComfyUI-GGUF default branch
 #   openwebui  newest open-webui from PyPI, service restarted
+#   pi         `pi update`, then re-syncs config/pi/agent into ~/.pi/agent
 #
 # Running backends are stopped; the gateway starts the new version on the
 # next request. Model files are kept. Old downloads: scripts/cleanup.sh.
@@ -30,6 +31,7 @@ installed() {
 		sdcpp) [ -x /opt/sdcpp/bin/sd-server ] ;;
 		comfyui) [ -d /opt/comfyui/ComfyUI ] ;;
 		openwebui) [ -d /opt/open-webui/venv ] ;;
+		pi) command -v pi >/dev/null 2>&1 ;;
 	esac
 }
 
@@ -45,18 +47,19 @@ update() {
 		sdcpp) sudo env SDCPP_RELEASE=latest "${SCRIPT_DIR}/install-qwen-image-sdcpp.sh" ;;
 		comfyui) sudo env COMFY_REF=latest GGUF_NODE_REF=latest "${SCRIPT_DIR}/install-comfyui.sh" ;;
 		openwebui) sudo env OPEN_WEBUI_VERSION=latest "${SCRIPT_DIR}/install-open-webui.sh" ;;
+		pi) PI_UPDATE=1 "${SCRIPT_DIR}/install-pi.sh" ;;
 	esac
 }
 
 COMPONENTS=("$@")
 for c in "${COMPONENTS[@]}"; do
 	case "$c" in
-		llama|sdcpp|comfyui|openwebui) ;;
-		*) echo "Unknown component: $c (llama, sdcpp, comfyui, openwebui)"; exit 1 ;;
+		llama|sdcpp|comfyui|openwebui|pi) ;;
+		*) echo "Unknown component: $c (llama, sdcpp, comfyui, openwebui, pi)"; exit 1 ;;
 	esac
 done
 if [ ${#COMPONENTS[@]} -eq 0 ]; then
-	for c in llama sdcpp comfyui openwebui; do
+	for c in llama sdcpp comfyui openwebui pi; do
 		installed "$c" && COMPONENTS+=("$c")
 	done
 fi
