@@ -117,7 +117,17 @@ The `web` profile (`dsh` or `dsh web`, port 3080) also carries a **gem12** agent
 
 [`config/claude`](config/claude) keeps the user-level Claude Code orchestration: `CLAUDE.md` (delegation and advisor rules), the `scout` / `implementer` / `implementer-pro` subagents (model and effort in each file's frontmatter) and the model keys of `settings.json` (`model: sonnet`, `effortLevel: high`, `advisorModel: opus`, `CLAUDE_CODE_SUBAGENT_MODEL: haiku`). [`scripts/client/install-claude.sh`](scripts/client/install-claude.sh) syncs them into `~/.claude` (`CLAUDE_CONFIG_DIR` overrides it): `CLAUDE.md` and agents are copied with a timestamped backup when they differ, `settings.json` is merged key by key so the rest of the live file survives. Only these files are managed — credentials (`.credentials.json`, `.claude.json`), sessions and plugins are never read; the repo must not hold secrets.
 
-All harness configs live in this repo: [`config/claude`](config/claude), [`config/pi/agent`](config/pi/agent), [`config/omp`](config/omp), [`config/opencode`](config/opencode) and [`config/dsh`](config/dsh).
+All harness configs live in this repo, each with a small sync script in `scripts/client/` (run as your normal user; a differing live file is kept as `.bak-<timestamp>`):
+
+| Harness | Config | Sync | Live location |
+|---|---|---|---|
+| Claude Code | [`config/claude`](config/claude) | `install-claude.sh` | `~/.claude` (model keys of `settings.json` merged) |
+| Pi | [`config/pi/agent`](config/pi/agent) | `install-pi.sh` (also installs Pi) | `~/.pi/agent` (`settings.json` merged) |
+| Oh My Pi | [`config/omp`](config/omp) | `install-omp.sh` | `~/.omp` (`models.yml` copied, profile `config.yml` merged; the per-project overlay under `profiles/*/project/` is copied by hand to `<project>/.omp/config.yml`) |
+| OpenCode | [`config/opencode`](config/opencode) | `install-opencode.sh` | `~/.config/opencode/opencode.json` |
+| dsh | [`config/dsh`](config/dsh) | `install-dsh.sh` | `~/.dsh/profiles/web` (seeded only; the live patch is the source of truth, `dsh update` mirrors it back) |
+
+The scripts sync configuration only; installing the tools themselves is up to you (except Pi).
 
 ### Pi
 
