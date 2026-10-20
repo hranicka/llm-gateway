@@ -23,7 +23,3 @@ export function projectMemoryFile(cwd: string): string {
 export function ompSummaryFile(cwd: string): string {
 	return path.join(os.homedir(), ".omp", "agent", "memories", projectSlug(cwd), "memory_summary.md");
 }
-
-export function learnedSkillsDir(): string {
-	return path.join(getAgentDir(), "skills", "learned");
-}

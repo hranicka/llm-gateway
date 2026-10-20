@@ -20,5 +20,8 @@
     }
   },
   "steeringMode": "one-at-a-time",
-  "followUpMode": "one-at-a-time"
+  "followUpMode": "one-at-a-time",
+  "extensions": [
+    "-builtin:llama.cpp"
+  ]
 }

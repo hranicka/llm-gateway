@@ -7,10 +7,10 @@
 #                    file is kept as models.json.bak-<timestamp> when it differs)
 #   settings.json    merged into the existing file with jq (Pi's own keys such as
 #                    lastChangelogVersion survive; `skills` paths are unioned)
-#   extensions/      subagent (one at a time), rules, memory + auto-learn, restore
+#   extensions/      subagent (one at a time), memory, restore (each directory is
+#                    replaced, so files removed from the repo disappear)
 #   agents/ prompts/ subagent roles (scout, planner, reviewer, worker) and the
 #                    /implement, /scout-and-plan, /implement-and-review chains
-#   autolearn.json   created once, auto-learn off (omp's default too)
 #
 # Run as your normal user. Re-running is safe and is the way to sync after
 # editing the repo files. It never starts a model.
@@ -82,19 +82,15 @@ mv "$LIVE.new" "$LIVE"
 
 # [4/4] Extensions, subagent roles, workflow prompts, auto-learn config.
 echo "[4/4] Installing extensions, agents and prompts..."
-for d in extensions agents prompts; do
+mkdir -p "$DEST/extensions"
+for ext in "$SRC"/extensions/*/; do
+	rm -rf "$DEST/extensions/$(basename "$ext")"
+	cp -a "$ext" "$DEST/extensions/"
+done
+for d in agents prompts; do
 	mkdir -p "$DEST/$d"
 	cp -a "$SRC/$d/." "$DEST/$d/"
 done
-if [ ! -f "$DEST/autolearn.json" ]; then
-	cat > "$DEST/autolearn.json" <<'JSON'
-{
-  "enabled": false,
-  "autoContinue": false,
-  "minToolCalls": 5
-}
-JSON
-fi
 
 # Schema check (when python3 + jsonschema are present) and a load check.
 if python3 -c 'import jsonschema' 2>/dev/null; then
@@ -116,6 +112,5 @@ echo " Pi is configured."
 echo "  start:        pi            (default model network-gem12/qwen-3.8-27b-exl3, medium)"
 echo "  subagents:    run one at a time; /implement, /scout-and-plan, /implement-and-review"
 echo "  memory:       ${DEST}/memories/<project>/MEMORY.md, tool memory_add"
-echo "  auto-learn:   off — set \"enabled\"/\"autoContinue\" in ${DEST}/autolearn.json (or PI_AUTOLEARN=1)"
 echo "  restore:      pi -c, then /restore continues an interrupted turn"
 echo "======================================================"
