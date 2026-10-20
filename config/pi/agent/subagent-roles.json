@@ -24,12 +24,12 @@
     "vision": ":low"
   },
   "openrouter": {
-    "scout": ":low",
-    "planner": "openrouter/anthropic/claude-sonnet-5.5:medium",
-    "reviewer": ":high",
-    "worker": "inherit",
-    "instruct": ":off",
-    "vision": "openrouter/anthropic/claude-haiku-5.5:low"
+    "scout": "openrouter/~z-ai/glm-flash-latest:low",
+    "planner": "openrouter/~z-ai/glm-flash-latest:max",
+    "reviewer": "openrouter/~z-ai/glm-flash-latest:max",
+    "worker": "openrouter/~deepseek/deepseek-flash-latest:high",
+    "instruct": "openrouter/~deepseek/deepseek-flash-latest:low",
+    "vision": "openrouter/~z-ai/glm-flash-latest:low"
   },
   "openrouter/anthropic/claude-opus-5.5": {
     "scout": "openrouter/anthropic/claude-haiku-5.5:low",
@@ -52,12 +52,5 @@
     "worker": "inherit",
     "instruct": ":off",
     "vision": ":low"
-  },
-  "openrouter/google/gemini-4-argon": {
-    "scout": ":low",
-    "planner": ":high",
-    "reviewer": ":medium",
-    "worker": "inherit",
-    "instruct": ":low"
   }
 }
