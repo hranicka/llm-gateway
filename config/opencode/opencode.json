@@ -49,7 +49,6 @@
   },
   "model": "network-gem12/qwen-3.8-27b-exl3",
   "small_model": "network-gem12/qwen-3.8-27b-exl3",
-  "default_agent": "plan",
   "compaction": {
     "auto": true,
     "reserved": 16384
